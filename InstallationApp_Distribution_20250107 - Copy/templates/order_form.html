@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                {% if action == 'accept' %}
+                    <h1>Angebot annehmen - Realisierungszeitraum festlegen</h1>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="{{ url_for('quotes') }}">Angebote</a></li>
+                            <li class="breadcrumb-item"><a href="{{ url_for('edit_quote', id=quote.id) }}">{{ quote.quote_number }}</a></li>
+                            <li class="breadcrumb-item active">Angebot annehmen</li>
+                        </ol>
+                    </nav>
+                {% else %}
+                    <h1>Auftrag erstellen</h1>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="{{ url_for('quotes') }}">Angebote</a></li>
+                            <li class="breadcrumb-item"><a href="{{ url_for('edit_quote', id=quote.id) }}">{{ quote.quote_number }}</a></li>
+                            <li class="breadcrumb-item active">Auftrag erstellen</li>
+                        </ol>
+                    </nav>
+                {% endif %}
+            </div>
+            <div>
+                <a href="{{ url_for('edit_quote', id=quote.id) }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> Zurück zum Angebot
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    {% if action == 'accept' %}
+                        <i class="fas fa-check-circle"></i> Angebot annehmen und Auftrag erstellen
+                    {% else %}
+                        <i class="fas fa-clipboard-check"></i> Auftrag aus Angebot erstellen
+                    {% endif %}
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if action == 'accept' %}
+                    <div class="alert alert-success">
+                        <h6><i class="fas fa-check-circle"></i> Angebot wird angenommen:</h6>
+                        <p class="mb-0">
+                            <strong>Angebot:</strong> {{ quote.quote_number }}<br>
+                            <strong>Kunde:</strong> {{ quote.customer.full_name }}<br>
+                            <strong>Projekt:</strong> {{ quote.project_description[:100] }}{{ '...' if quote.project_description|length > 100 else '' }}<br>
+                            <strong>Auftragswert:</strong> {{ "%.2f"|format(quote.total_amount) }} EUR
+                        </p>
+                        <hr class="my-2">
+                        <p class="mb-0"><strong>Bitte legen Sie den Realisierungszeitraum für den Auftrag fest:</strong></p>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle"></i> Auftrag wird erstellt für:</h6>
+                        <p class="mb-0">
+                            <strong>Angebot:</strong> {{ quote.quote_number }}<br>
+                            <strong>Kunde:</strong> {{ quote.customer.full_name }}<br>
+                            <strong>Projekt:</strong> {{ quote.project_description[:100] }}{{ '...' if quote.project_description|length > 100 else '' }}<br>
+                            <strong>Auftragswert:</strong> {{ "%.2f"|format(quote.total_amount) }} EUR
+                        </p>
+                    </div>
+                {% endif %}
+                
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.start_date.label(class="form-label") }}
+                            {{ form.start_date(class="form-control") }}
+                            <small class="form-text text-muted">Geplanter Projektbeginn</small>
+                            {% if form.start_date.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.start_date.errors %}
+                                        <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.end_date.label(class="form-label") }}
+                            {{ form.end_date(class="form-control") }}
+                            <small class="form-text text-muted">Geplanter Projektabschluss</small>
+                            {% if form.end_date.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.end_date.errors %}
+                                        <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.project_manager.label(class="form-label") }}
+                        {{ form.project_manager(class="form-control") }}
+                        <small class="form-text text-muted">Verantwortlicher für die Projektdurchführung</small>
+                        {% if form.project_manager.errors %}
+                            <div class="text-danger">
+                                {% for error in form.project_manager.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.notes.label(class="form-label") }}
+                        {{ form.notes(class="form-control") }}
+                        {% if form.notes.errors %}
+                            <div class="text-danger">
+                                {% for error in form.notes.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('edit_quote', id=quote.id) }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Abbrechen
+                        </a>
+                        {% if action == 'accept' %}
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-check-circle"></i> Angebot annehmen & Auftrag erstellen
+                            </button>
+                        {% else %}
+                            {{ form.submit(class="btn btn-primary") }}
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-info-circle"></i> Was passiert beim Erstellen?
+                </h6>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled mb-0">
+                    <li class="mb-2">
+                        <i class="fas fa-check text-success"></i> 
+                        Eindeutige Auftragsnummer wird generiert
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-check text-success"></i> 
+                        Projekttermine werden festgelegt
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-check text-success"></i> 
+                        Bestehende Bestellungen werden verknüpft
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-check text-success"></i> 
+                        Auftragsnummer wird in zukünftige Lieferantenbestellungen einbezogen
+                    </li>
+                    <li class="mb-0">
+                        <i class="fas fa-check text-success"></i> 
+                        Projektmanagement wird aktiviert
+                    </li>
+                </ul>
+            </div>
+        </div>
+        
+        {% if quote.supplier_orders %}
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-shipping-fast"></i> Bestehende Bestellungen
+                </h6>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Folgende Bestellungen werden mit dem Auftrag verknüpft:</p>
+                {% for supplier_order in quote.supplier_orders %}
+                <div class="border-bottom pb-2 mb-2">
+                    <strong>{{ supplier_order.supplier_name }}</strong><br>
+                    <small class="text-muted">
+                        {{ supplier_order.items|length }} Position(en) - 
+                        Status: {{ supplier_order.status }}
+                    </small>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+// Datum-Validierung
+document.addEventListener('DOMContentLoaded', function() {
+    const startDateInput = document.querySelector('input[name="start_date"]');
+    const endDateInput = document.querySelector('input[name="end_date"]');
+    
+    startDateInput.addEventListener('change', function() {
+        if (endDateInput.value && this.value > endDateInput.value) {
+            alert('Das Startdatum kann nicht nach dem Enddatum liegen.');
+            this.focus();
+        }
+    });
+    
+    endDateInput.addEventListener('change', function() {
+        if (startDateInput.value && this.value < startDateInput.value) {
+            alert('Das Enddatum kann nicht vor dem Startdatum liegen.');
+            this.focus();
+        }
+    });
+});
+</script>
+{% endblock %}

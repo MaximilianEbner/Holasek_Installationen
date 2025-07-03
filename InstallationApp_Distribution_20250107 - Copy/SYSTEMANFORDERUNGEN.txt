@@ -1,0 +1,72 @@
+===============================================
+  INSTALLATIONS BUSINESS APP - SYSTEMANFORDERUNGEN
+===============================================
+
+MINDESTANFORDERUNGEN:
+====================
+
+BETRIEBSSYSTEM:
+- Windows 10 oder neuer
+- Windows Server 2019 oder neuer
+
+HARDWARE:
+- 2 GB RAM (4 GB empfohlen)
+- 500 MB freier Festplattenspeicher
+- Internetverbindung nur fuer die Installation noetig
+
+SOFTWARE:
+- Python 3.8 oder neuer (wird automatisch geprueft)
+- Moderner Webbrowser (Chrome, Firefox, Edge)
+
+INSTALLATION VORBEREITEN:
+========================
+
+1. PYTHON INSTALLIEREN (falls nicht vorhanden):
+   - Gehen Sie zu: https://www.python.org/downloads/
+   - Laden Sie die neueste Python Version herunter
+   - WICHTIG: Waehlen Sie "Add Python to PATH" bei der Installation!
+
+2. APP-ORDNER ENTPACKEN:
+   - Entpacken Sie alle Dateien in einen Ordner Ihrer Wahl
+   - Empfohlen: C:\InstallationApp\ oder Desktop\InstallationApp\
+
+3. INSTALLATION STARTEN:
+   - Doppelklick auf "INSTALLATION_PACKAGE.bat"
+   - Folgen Sie den Anweisungen auf dem Bildschirm
+
+NETZWERK UND SICHERHEIT:
+========================
+
+FIREWALL:
+- Die App laeuft nur lokal (localhost:5000)
+- Keine eingehenden Verbindungen von aussen
+- Keine Firewall-Aenderungen noetig
+
+ANTIVIRUS:
+- Manche Antivirus-Programme blockieren .bat Dateien
+- Fuegen Sie den App-Ordner zu den Ausnahmen hinzu
+- Oder starten Sie die Installation als Administrator
+
+DATENSCHUTZ:
+- Alle Daten bleiben auf Ihrem Computer
+- Keine Daten werden ins Internet uebertragen
+- Regelmaessige Backups werden automatisch erstellt
+
+PERFORMANCE-TIPPS:
+=================
+
+FUER BESTE LEISTUNG:
+- Schliessen Sie andere Programme waehrend der Nutzung
+- Verwenden Sie einen modernen Browser
+- Halten Sie ausreichend Festplattenspeicher frei
+
+DATENBANK:
+- Bei vielen Datensaetzen (>1000 Angebote) regelmaessig Backups erstellen
+- Alte Backup-Dateien gelegentlich loeschen
+
+BROWSER-EINSTELLUNGEN:
+- Aktivieren Sie JavaScript
+- Erlauben Sie Pop-ups fuer localhost
+- Cache regelmaessig leeren bei Problemen
+
+===============================================

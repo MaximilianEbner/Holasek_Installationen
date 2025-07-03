@@ -1,0 +1,730 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1>Position bearbeiten</h1>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="{{ url_for('quotes') }}">Angebote</a></li>
+                        <li class="breadcrumb-item"><a href="{{ url_for('edit_quote', id=quote.id) }}">{{ quote.quote_number }}</a></li>
+                        <li class="breadcrumb-item active">Position {{ item.position_number }} bearbeiten</li>
+                    </ol>
+                </nav>
+            </div>
+            <div>
+                <a href="{{ url_for('edit_quote', id=quote.id) }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> Zurück zum Angebot
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Position bearbeiten</h5>
+            </div>
+            <div class="card-body">
+                <!-- Tab Navigation -->
+                <ul class="nav nav-tabs" id="editTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link {% if not item.sub_items and item.item_type != 'arbeitsposition' %}active{% endif %}" id="simple-edit-tab" data-bs-toggle="tab" 
+                                data-bs-target="#simple-edit" type="button" role="tab">
+                            <i class="fas fa-edit"></i> Einfache Bearbeitung
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link {% if item.sub_items and item.item_type != 'arbeitsposition' %}active{% endif %}" id="detailed-edit-tab" data-bs-toggle="tab" 
+                                data-bs-target="#detailed-edit" type="button" role="tab">
+                            <i class="fas fa-list"></i> Detaillierte Bearbeitung
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link {% if item.item_type == 'arbeitsposition' %}active{% endif %}" id="work-position-edit-tab" data-bs-toggle="tab" 
+                                data-bs-target="#work-position-edit" type="button" role="tab">
+                            <i class="fas fa-cogs"></i> Arbeitsposition bearbeiten
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content mt-3" id="editTabsContent">
+                    <!-- Einfache Bearbeitung -->
+                    <div class="tab-pane fade {% if not item.sub_items and item.item_type != 'arbeitsposition' %}show active{% endif %}" id="simple-edit" role="tabpanel">
+                        <form method="POST">
+                            <input type="hidden" name="simple_edit" value="1">
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Beschreibung/Leistung *</label>
+                                    <textarea name="description" class="form-control" rows="2" required>{{ item.description }}</textarea>
+                                </div>
+                                
+                                <div class="col-md-2 mb-3">
+                                    <label class="form-label">Position Nr. *</label>
+                                    <input type="number" name="position_number" class="form-control" 
+                                           value="{{ item.position_number }}" min="1" required>
+                                </div>
+                                
+                                <div class="col-md-2 mb-3">
+                                    <label class="form-label">Menge *</label>
+                                    <input type="number" name="quantity" class="form-control" 
+                                           value="{{ item.quantity }}" min="0.1" step="0.1" required onchange="calculateSimpleEditTotal()">
+                                </div>
+                                
+                                <div class="col-md-2 mb-3">
+                                    <label class="form-label">Einzelpreis *</label>
+                                    <div class="input-group">
+                                        <input type="number" name="unit_price" class="form-control" 
+                                               value="{{ item.unit_price }}" min="0" step="0.01" required onchange="calculateSimpleEditTotal()">
+                                        <span class="input-group-text">€</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-10 mb-3">
+                                    <label class="form-label">Gesamtpreis</label>
+                                    <div class="input-group">
+                                        <input type="text" id="simple-edit-total" class="form-control" 
+                                               value="{{ "%.2f"|format(item.total_price) }}" readonly>
+                                        <span class="input-group-text">€</span>
+                                    </div>
+                                    <small class="form-text text-muted">Wird automatisch berechnet</small>
+                                </div>
+                                
+                                <div class="col-md-2 mb-3">
+                                    <label class="form-label">&nbsp;</label>
+                                    <button type="submit" class="btn btn-success w-100">
+                                        <i class="fas fa-save"></i> Speichern
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Detaillierte Bearbeitung -->
+                    <div class="tab-pane fade {% if item.sub_items and item.item_type != 'arbeitsposition' %}show active{% endif %}" id="detailed-edit" role="tabpanel">
+                        <form method="POST">
+                            <input type="hidden" name="detailed_edit" value="1">
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-8">
+                                    <label class="form-label">Hauptposition Beschreibung *</label>
+                                    <textarea name="description" class="form-control" rows="2" required>{{ item.description }}</textarea>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Position Nr. *</label>
+                                    <input type="number" name="position_number" class="form-control" 
+                                           value="{{ item.position_number }}" min="1" required>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Berechneter Gesamtpreis</label>
+                                    <div class="input-group">
+                                        <input type="text" id="calculated-edit-total" class="form-control" 
+                                               value="{{ "%.2f"|format(item.total_price) }}" readonly style="background-color: #e9ecef;">
+                                        <span class="input-group-text">€</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <hr>
+                            <h6 class="text-muted mb-3">
+                                <i class="fas fa-list"></i> Unterpositionen bearbeiten
+                                <small>(Typ-spezifische Felder werden automatisch angezeigt)</small>
+                            </h6>
+                            
+                            <div id="edit-sub-items-container">
+                                {% if item.sub_items %}
+                                {% for sub_item in item.sub_items %}
+                                <div class="sub-item-row border rounded p-3 mb-3" style="background-color: #f8f9fa;" data-index="{{ loop.index }}">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Unterposition Beschreibung</label>
+                                            <input type="text" name="sub_description[]" class="form-control" 
+                                                   value="{{ sub_item.description }}">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Typ</label>
+                                            <select name="sub_item_type[]" class="form-control" data-index="{{ loop.index }}" onchange="toggleEditSubItemFields(this)">
+                                                <option value="bestellteil" {% if sub_item.item_type == 'bestellteil' %}selected{% endif %}>Bestellteil</option>
+                                                <option value="arbeitsvorgang" {% if sub_item.item_type == 'arbeitsvorgang' %}selected{% endif %}>Arbeitsvorgang</option>
+                                                <option value="sonstiges" {% if sub_item.item_type == 'sonstiges' %}selected{% endif %}>Sonstiges</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            {% if loop.index > 1 %}
+                                            <button type="button" class="btn btn-outline-danger btn-sm mt-4 w-100" onclick="removeEditSubItem(this)">
+                                                <i class="fas fa-trash"></i> Löschen
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Bestellteil Felder -->
+                                    <div class="row mt-3 bestellteil-fields {% if sub_item.item_type != 'bestellteil' %}d-none{% endif %}" id="edit-bestellteil-{{ loop.index }}">
+                                        <div class="col-md-3">
+                                            <label class="form-label">Lieferant</label>
+                                            <select name="sub_supplier[]" class="form-control">
+                                                <option value="">Lieferant wählen</option>
+                                                {% for supplier in suppliers %}
+                                                <option value="{{ supplier.name }}" {% if sub_item.supplier == supplier.name %}selected{% endif %}>{{ supplier.name }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Lieferantenteilenummer</label>
+                                            <input type="text" name="sub_part_number[]" class="form-control" 
+                                                   value="{{ sub_item.part_number if sub_item.item_type == 'bestellteil' else '' }}" 
+                                                   placeholder="z.B. AB-12345">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Anzahl</label>
+                                            <input type="text" name="sub_part_quantity[]" class="form-control" 
+                                                   value="{{ sub_item.part_quantity if sub_item.item_type == 'bestellteil' else '1' }}" 
+                                                   placeholder="z.B. 1, 2.5">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Preis für Kalkulation</label>
+                                            <div class="input-group">
+                                                <input type="number" name="sub_part_price[]" class="form-control sub-price-input" 
+                                                       value="{{ sub_item.part_price if sub_item.item_type == 'bestellteil' else '' }}" 
+                                                       min="0" step="0.01" placeholder="0.00" onchange="calculateEditDetailedTotal()">
+                                                <span class="input-group-text">€</span>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <div class="form-check mt-4">
+                                                <input class="form-check-input" type="checkbox" name="sub_requires_order[]" 
+                                                       value="{{ loop.index }}" {% if sub_item.requires_order %}checked{% endif %}>
+                                                <label class="form-check-label">
+                                                    Bestellung nötig
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Arbeitsvorgang Felder -->
+                                    <div class="row mt-3 arbeitsvorgang-fields {% if sub_item.item_type != 'arbeitsvorgang' %}d-none{% endif %}" id="edit-arbeitsvorgang-{{ loop.index }}">
+                                        <div class="col-md-4">
+                                            <label class="form-label">Stunden</label>
+                                            <div class="input-group">
+                                                <input type="text" name="sub_hours[]" class="form-control" 
+                                                       value="{{ sub_item.hours if sub_item.item_type == 'arbeitsvorgang' else '' }}" 
+                                                       placeholder="z.B. 2.5" onchange="calculateEditWorkPrice(this)">
+                                                <span class="input-group-text">h</span>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">Stundensatz</label>
+                                            <div class="input-group">
+                                                <input type="number" name="sub_hourly_rate[]" class="form-control" 
+                                                       value="{{ sub_item.hourly_rate if sub_item.item_type == 'arbeitsvorgang' else '65' }}" 
+                                                       step="0.01" onchange="calculateEditWorkPrice(this)">
+                                                <span class="input-group-text">€</span>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">Berechneter Preis</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control sub-price-input" 
+                                                       value="{{ "%.2f"|format(sub_item.price) if sub_item.item_type == 'arbeitsvorgang' else '' }}" readonly>
+                                                <span class="input-group-text">€</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Sonstiges Felder -->
+                                    <div class="row mt-3 sonstiges-fields {% if sub_item.item_type != 'sonstiges' %}d-none{% endif %}" id="edit-sonstiges-{{ loop.index }}">
+                                        <div class="col-md-4">
+                                            <label class="form-label">Anzahl</label>
+                                            <input type="text" name="sub_quantity[]" class="form-control" 
+                                                   value="{{ sub_item.quantity if sub_item.item_type == 'sonstiges' else '' }}" 
+                                                   placeholder="z.B. 1, 2.5, 10m²" onchange="calculateEditSonstigesPrice(this)">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">Einzelpreis</label>
+                                            <div class="input-group">
+                                                <input type="number" name="sub_unit_price[]" class="form-control" 
+                                                       value="{{ sub_item.unit_price if sub_item.item_type == 'sonstiges' else '' }}" 
+                                                       min="0" step="0.01" placeholder="0.00" onchange="calculateEditSonstigesPrice(this)">
+                                                <span class="input-group-text">€</span>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">Gesamtpreis</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control sub-price-input" 
+                                                       value="{{ "%.2f"|format(sub_item.price) if sub_item.item_type == 'sonstiges' else '' }}" readonly>
+                                                <span class="input-group-text">€</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                                {% endif %}
+                            </div>
+                            
+                            <div class="mb-3">
+                                <button type="button" class="btn btn-outline-secondary" onclick="addEditSubItem()">
+                                    <i class="fas fa-plus"></i> Weitere Unterposition hinzufügen
+                                </button>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-12">
+                                    <button type="submit" class="btn btn-success">
+                                        <i class="fas fa-save"></i> Detaillierte Position speichern
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Arbeitsposition Bearbeitung -->
+                    <div class="tab-pane fade {% if item.item_type == 'arbeitsposition' %}show active{% endif %}" id="work-position-edit" role="tabpanel">
+                        <form method="POST" onsubmit="prepareWorkPositionEditData()">
+                            <input type="hidden" name="work_position_edit" value="1">
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-8">
+                                    <label class="form-label">Arbeitsposition Beschreibung *</label>
+                                    <textarea name="description" class="form-control" rows="2" required>{{ item.description }}</textarea>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Position Nr. *</label>
+                                    <input type="number" name="position_number" class="form-control" 
+                                           value="{{ item.position_number }}" min="1" required>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Berechneter Gesamtpreis</label>
+                                    <div class="input-group">
+                                        <input type="text" id="work-position-total" class="form-control" 
+                                               value="{{ "%.2f"|format(item.total_price) }}" readonly style="background-color: #e9ecef;">
+                                        <span class="input-group-text">€</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Hidden fields für ausgewählte Arbeitsschritte -->
+                            <div id="work-position-hidden-fields"></div>
+                            
+                            <hr>
+                            <h6 class="text-muted mb-3">
+                                <i class="fas fa-cogs"></i> Arbeitsschritte auswählen und bearbeiten
+                                <small>(Stunden können angepasst werden)</small>
+                            </h6>
+                            
+                            <div id="work-steps-edit-container">
+                                {% for category, steps in work_steps.items() %}
+                                <div class="card mb-3">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">{{ category }}</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        {% for step in steps %}
+                                        {% set step_description = category + ": " + step.name %}
+                                        <div class="row mb-2 work-step-row">
+                                            <div class="col-md-1">
+                                                <div class="form-check">
+                                                    <input class="form-check-input work-step-checkbox" type="checkbox" 
+                                                           id="step-edit-{{ category|replace(' ', '_')|replace('ä', 'ae')|replace('ö', 'oe')|replace('ü', 'ue')|replace('ß', 'ss') }}-{{ loop.index }}" 
+                                                           {% for sub in item.sub_items if sub.description == step_description %}checked{% endfor %}
+                                                           onchange="toggleWorkStepEdit(this)">
+                                                    <input type="hidden" class="step-category" value="{{ category }}">
+                                                    <input type="hidden" class="step-name" value="{{ step.name }}">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-5">
+                                                <label class="form-label work-step-label" 
+                                                       for="step-edit-{{ category|replace(' ', '_')|replace('ä', 'ae')|replace('ö', 'oe')|replace('ü', 'ue')|replace('ß', 'ss') }}-{{ loop.index }}">
+                                                    {{ step.name }}
+                                                </label>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <div class="input-group">
+                                                    <input type="number" class="form-control work-step-hours" 
+                                                           value="{% for sub in item.sub_items if sub.description == step_description %}{{ sub.hours }}{% else %}{{ step.default_hours }}{% endfor %}" 
+                                                           step="0.5" min="0" placeholder="{{ step.default_hours }}"
+                                                           {% for sub in item.sub_items if sub.description == step_description %}{% else %}disabled{% endfor %}
+                                                           onchange="calculateWorkStepEditPrice(this)">
+                                                    <span class="input-group-text">h</span>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <div class="input-group">
+                                                    <input type="number" class="form-control work-step-rate" 
+                                                           value="{% for sub in item.sub_items if sub.description == step_description %}{{ sub.hourly_rate }}{% else %}{{ get_default_hourly_rate() }}{% endfor %}" 
+                                                           step="0.01" min="0"
+                                                           {% for sub in item.sub_items if sub.description == step_description %}{% else %}disabled{% endfor %}
+                                                           onchange="calculateWorkStepEditPrice(this)">
+                                                    <span class="input-group-text">€/h</span>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <div class="input-group">
+                                                    <input type="text" class="form-control work-step-price" 
+                                                           value="{% for sub in item.sub_items if sub.description == step_description %}{{ "%.2f"|format(sub.price) }}{% else %}0.00{% endfor %}" 
+                                                           readonly style="background-color: #f8f9fa;">
+                                                    <span class="input-group-text">€</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            
+                            <div class="row mt-4">
+                                <div class="col-12">
+                                    <button type="submit" class="btn btn-success">
+                                        <i class="fas fa-save"></i> Arbeitsposition speichern
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Einfache Bearbeitung Berechnung
+function calculateSimpleEditTotal() {
+    const quantity = parseFloat(document.querySelector('input[name="quantity"]').value) || 0;
+    const unitPrice = parseFloat(document.querySelector('input[name="unit_price"]').value) || 0;
+    const totalDisplay = document.getElementById('simple-edit-total');
+    
+    if (quantity > 0 && unitPrice >= 0) {
+        const total = quantity * unitPrice;
+        totalDisplay.value = total.toFixed(2);
+    } else {
+        totalDisplay.value = '0.00';
+    }
+}
+
+// Detaillierte Bearbeitung Berechnung
+function calculateEditDetailedTotal() {
+    let total = 0;
+    
+    // Alle sub-price-input Felder durchgehen
+    document.querySelectorAll('.sub-price-input').forEach(input => {
+        const value = parseFloat(input.value) || 0;
+        total += value;
+    });
+    
+    const totalDisplay = document.getElementById('calculated-edit-total');
+    if (totalDisplay) {
+        totalDisplay.value = total.toFixed(2);
+    }
+}
+
+// Typ-Felder für Bearbeitung umschalten
+function toggleEditSubItemFields(select) {
+    const index = select.getAttribute('data-index') || select.closest('.sub-item-row').dataset.index;
+    const container = select.closest('.sub-item-row');
+    
+    // Alle Felder ausblenden
+    container.querySelectorAll('.bestellteil-fields, .arbeitsvorgang-fields, .sonstiges-fields').forEach(fields => {
+        fields.classList.add('d-none');
+    });
+    
+    // Entsprechende Felder einblenden
+    const targetFields = container.querySelector(`.${select.value}-fields`);
+    if (targetFields) {
+        targetFields.classList.remove('d-none');
+    }
+    
+    calculateEditDetailedTotal();
+}
+
+// Arbeitszeit-Preis für Bearbeitung berechnen
+function calculateEditWorkPrice(input) {
+    const row = input.closest('.arbeitsvorgang-fields');
+    const hoursInput = row.querySelector('input[name="sub_hours[]"]');
+    const rateInput = row.querySelector('input[name="sub_hourly_rate[]"]');
+    const priceDisplay = row.querySelector('.sub-price-input');
+    
+    const hours = parseFloat(hoursInput.value) || 0;
+    const rate = parseFloat(rateInput.value) || 65; // Default hourly rate
+    
+    const total = hours * rate;
+    priceDisplay.value = total.toFixed(2);
+    
+    calculateEditDetailedTotal();
+}
+
+// Sonstiges-Preis für Bearbeitung berechnen
+function calculateEditSonstigesPrice(input) {
+    const row = input.closest('.sonstiges-fields');
+    const quantityInput = row.querySelector('input[name="sub_quantity[]"]');
+    const unitPriceInput = row.querySelector('input[name="sub_unit_price[]"]');
+    const priceDisplay = row.querySelector('.sub-price-input');
+    
+    const quantity = parseFloat(quantityInput.value) || 0;
+    const unitPrice = parseFloat(unitPriceInput.value) || 0;
+    
+    const total = quantity * unitPrice;
+    priceDisplay.value = total.toFixed(2);
+    
+    calculateEditDetailedTotal();
+}
+
+// Neue Unterposition für Bearbeitung hinzufügen
+function addEditSubItem() {
+    const container = document.getElementById('edit-sub-items-container');
+    const index = container.children.length + 1;
+    
+    const newSubItem = document.createElement('div');
+    newSubItem.className = 'sub-item-row border rounded p-3 mb-3';
+    newSubItem.style.backgroundColor = '#f8f9fa';
+    newSubItem.dataset.index = index;
+    newSubItem.innerHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <label class="form-label">Unterposition Beschreibung</label>
+                <input type="text" name="sub_description[]" class="form-control" 
+                       placeholder="z.B. Neue Unterposition">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Typ</label>
+                <select name="sub_item_type[]" class="form-control" data-index="${index}" onchange="toggleEditSubItemFields(this)">
+                    <option value="bestellteil">Bestellteil</option>
+                    <option value="arbeitsvorgang">Arbeitsvorgang</option>
+                    <option value="sonstiges">Sonstiges</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button type="button" class="btn btn-outline-danger btn-sm mt-4 w-100" onclick="removeEditSubItem(this)">
+                    <i class="fas fa-trash"></i> Löschen
+                </button>
+            </div>
+        </div>
+        
+        <!-- Bestellteil Felder -->
+        <div class="row mt-3 bestellteil-fields" id="edit-bestellteil-${index}">
+            <div class="col-md-3">
+                <label class="form-label">Lieferant</label>
+                <select name="sub_supplier[]" class="form-control">
+                    <option value="">Lieferant wählen</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Lieferantenteilenummer</label>
+                <input type="text" name="sub_part_number[]" class="form-control" 
+                       placeholder="z.B. AB-12345">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Anzahl</label>
+                <input type="text" name="sub_part_quantity[]" class="form-control" 
+                       placeholder="z.B. 1, 2.5" value="1">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Preis für Kalkulation</label>
+                <div class="input-group">
+                    <input type="number" name="sub_part_price[]" class="form-control sub-price-input" 
+                           min="0" step="0.01" placeholder="0.00" onchange="calculateEditDetailedTotal()">
+                    <span class="input-group-text">€</span>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="form-check mt-4">
+                    <input class="form-check-input" type="checkbox" name="sub_requires_order[]" value="${index}" checked>
+                    <label class="form-check-label">
+                        Bestellung nötig
+                    </label>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Arbeitsvorgang Felder -->
+        <div class="row mt-3 arbeitsvorgang-fields d-none" id="edit-arbeitsvorgang-${index}">
+            <div class="col-md-4">
+                <label class="form-label">Stunden</label>
+                <div class="input-group">
+                    <input type="text" name="sub_hours[]" class="form-control" 
+                           placeholder="z.B. 2.5" onchange="calculateEditWorkPrice(this)">
+                    <span class="input-group-text">h</span>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Stundensatz</label>
+                <div class="input-group">
+                    <input type="number" name="sub_hourly_rate[]" class="form-control" 
+                           value="65" step="0.01" onchange="calculateEditWorkPrice(this)">
+                    <span class="input-group-text">€</span>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Berechneter Preis</label>
+                <div class="input-group">
+                    <input type="text" class="form-control sub-price-input" readonly>
+                    <span class="input-group-text">€</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sonstiges Felder -->
+        <div class="row mt-3 sonstiges-fields d-none" id="edit-sonstiges-${index}">
+            <div class="col-md-4">
+                <label class="form-label">Anzahl</label>
+                <input type="text" name="sub_quantity[]" class="form-control" 
+                       placeholder="z.B. 1, 2.5, 10m²" onchange="calculateEditSonstigesPrice(this)">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Einzelpreis</label>
+                <div class="input-group">
+                    <input type="number" name="sub_unit_price[]" class="form-control" 
+                           min="0" step="0.01" placeholder="0.00" onchange="calculateEditSonstigesPrice(this)">
+                    <span class="input-group-text">€</span>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Gesamtpreis</label>
+                <div class="input-group">
+                    <input type="text" class="form-control sub-price-input" readonly>
+                    <span class="input-group-text">€</span>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    container.appendChild(newSubItem);
+}
+
+function removeEditSubItem(button) {
+    button.closest('.sub-item-row').remove();
+    calculateEditDetailedTotal();
+}
+
+// Arbeitsposition Bearbeitung Funktionen
+function toggleWorkStepEdit(checkbox) {
+    const row = checkbox.closest('.work-step-row');
+    const hoursInput = row.querySelector('.work-step-hours');
+    const rateInput = row.querySelector('.work-step-rate');
+    const priceInput = row.querySelector('.work-step-price');
+    
+    if (checkbox.checked) {
+        hoursInput.disabled = false;
+        rateInput.disabled = false;
+        
+        // Berechne Preis wenn noch 0
+        if (parseFloat(priceInput.value) === 0) {
+            calculateWorkStepEditPrice(hoursInput);
+        }
+    } else {
+        hoursInput.disabled = true;
+        rateInput.disabled = true;
+        priceInput.value = '0.00';
+    }
+    
+    calculateWorkPositionEditTotal();
+}
+
+function calculateWorkStepEditPrice(input) {
+    const row = input.closest('.work-step-row');
+    const hoursInput = row.querySelector('.work-step-hours');
+    const rateInput = row.querySelector('.work-step-rate');
+    const priceInput = row.querySelector('.work-step-price');
+    const checkbox = row.querySelector('.work-step-checkbox');
+    
+    if (checkbox.checked) {
+        const hours = parseFloat(hoursInput.value) || 0;
+        const rate = parseFloat(rateInput.value) || 65;
+        const price = hours * rate;
+        
+        priceInput.value = price.toFixed(2);
+    } else {
+        priceInput.value = '0.00';
+    }
+    
+    calculateWorkPositionEditTotal();
+}
+
+function calculateWorkPositionEditTotal() {
+    let total = 0;
+    
+    document.querySelectorAll('.work-step-checkbox:checked').forEach(checkbox => {
+        const row = checkbox.closest('.work-step-row');
+        const priceInput = row.querySelector('.work-step-price');
+        const price = parseFloat(priceInput.value) || 0;
+        total += price;
+    });
+    
+    const totalDisplay = document.getElementById('work-position-total');
+    if (totalDisplay) {
+        totalDisplay.value = total.toFixed(2);
+    }
+}
+
+function prepareWorkPositionEditData() {
+    // Lösche alte Hidden Fields
+    const hiddenFieldsContainer = document.getElementById('work-position-hidden-fields');
+    hiddenFieldsContainer.innerHTML = '';
+    
+    // Sammle alle ausgewählten Arbeitsschritte
+    document.querySelectorAll('.work-step-checkbox:checked').forEach((checkbox, index) => {
+        const row = checkbox.closest('.work-step-row');
+        const category = row.querySelector('.step-category').value;
+        const stepName = row.querySelector('.step-name').value;
+        const hours = row.querySelector('.work-step-hours').value;
+        const rate = row.querySelector('.work-step-rate').value;
+        
+        // Erstelle Hidden Fields für das Backend
+        const categoryInput = document.createElement('input');
+        categoryInput.type = 'hidden';
+        categoryInput.name = 'work_step_categories[]';
+        categoryInput.value = category;
+        hiddenFieldsContainer.appendChild(categoryInput);
+        
+        const nameInput = document.createElement('input');
+        nameInput.type = 'hidden';
+        nameInput.name = 'work_step_names[]';
+        nameInput.value = stepName;
+        hiddenFieldsContainer.appendChild(nameInput);
+        
+        const hoursInput = document.createElement('input');
+        hoursInput.type = 'hidden';
+        hoursInput.name = 'work_step_hours[]';
+        hoursInput.value = hours;
+        hiddenFieldsContainer.appendChild(hoursInput);
+        
+        const rateInput = document.createElement('input');
+        rateInput.type = 'hidden';
+        rateInput.name = 'work_step_rates[]';
+        rateInput.value = rate;
+        hiddenFieldsContainer.appendChild(rateInput);
+    });
+    
+    return true; // Formular senden
+}
+
+// Beim Laden der Seite
+document.addEventListener('DOMContentLoaded', function() {
+    calculateSimpleEditTotal();
+    calculateEditDetailedTotal();
+    calculateWorkPositionEditTotal();
+    
+    // Initial alle bestehenden Typ-Felder korrekt anzeigen
+    document.querySelectorAll('select[name="sub_item_type[]"]').forEach((select) => {
+        toggleEditSubItemFields(select);
+    });
+    
+    // Initial alle Arbeitsschritte-Preise berechnen
+    document.querySelectorAll('.work-step-checkbox').forEach((checkbox) => {
+        if (checkbox.checked) {
+            const row = checkbox.closest('.work-step-row');
+            const hoursInput = row.querySelector('.work-step-hours');
+            calculateWorkStepEditPrice(hoursInput);
+        }
+    });
+});
+</script>
+{% endblock %}

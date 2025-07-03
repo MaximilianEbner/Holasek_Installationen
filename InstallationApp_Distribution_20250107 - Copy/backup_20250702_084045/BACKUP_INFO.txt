@@ -1,0 +1,46 @@
+============================================================
+INSTALLATIONS BUSINESS APP - KOMPLETTES BACKUP
+============================================================
+Erstellt am: 02.07.2025 um 08:40:45
+Backup-Version: v2.0
+
+INHALT DES BACKUPS:
+------------------------------
+📀 SQLite-Datenbank: installation_business.db (76.0 KB)
+📊 CSV-Export: 12 Tabellen mit 51 Datensätzen
+📁 CSV-Ordner: csv_export/
+
+CSV-EXPORT DETAILS:
+--------------------
+company_settings     ->     0 Zeilen
+customer             ->     1 Zeilen
+order                ->     0 Zeilen
+position_template    ->    37 Zeilen
+quote                ->     1 Zeilen
+quote_item           ->     2 Zeilen
+quote_rejection      ->     0 Zeilen
+quote_sub_item       ->     4 Zeilen
+supplier             ->     6 Zeilen
+supplier_order       ->     0 Zeilen
+supplier_order_item  ->     0 Zeilen
+work_instruction     ->     0 Zeilen
+
+============================================================
+WIEDERHERSTELLUNG:
+============================================================
+1. SQLite-Datenbank:
+   - Kopieren Sie 'installation_business.db' in den 'instance/' Ordner
+   - Überschreibt die aktuelle Datenbank komplett
+
+2. CSV-Dateien:
+   - Jede CSV-Datei entspricht einer Datenbanktabelle
+   - Trennzeichen: Semikolon (;)
+   - Kodierung: UTF-8
+   - Erste Zeile enthält Spaltennamen
+   - Kann in Excel/LibreOffice geöffnet werden
+
+3. Notfall-Wiederherstellung:
+   - Bei Datenbankproblemen: SQLite-Datei zurückkopieren
+   - Bei Datenverlusten: CSV-Dateien als Referenz nutzen
+
+============================================================
