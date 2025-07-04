@@ -22,6 +22,54 @@ def allowed_file(filename):
     """Prüft ob Dateiendung erlaubt ist"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def safe_rollback():
+    """Führt einen sicheren Rollback nur durch wenn eine aktive Transaktion existiert"""
+    try:
+        if db.session.is_active:
+            db.session.rollback()
+    except Exception:
+        # Falls auch der Rollback fehlschlägt, Session komplett neu erstellen
+        db.session.close()
+
+def safe_float_conversion_strict(value, default=0.0):
+    """Sichere Float-Konvertierung mit strikter Validierung für kritische Bereiche"""
+    if value is None or value == '':
+        return default
+    
+    try:
+        result = float(value)
+        # Validiere dass es eine gültige positive Zahl ist (für Stunden/Preise)
+        if result < 0:
+            return default
+        return result
+    except (ValueError, TypeError):
+        return default
+
+def safe_sqlite_operation(db_path, operation_func, *args, **kwargs):
+    """
+    Führt SQLite-Operationen mit sicherer Connection-Behandlung durch
+    
+    Args:
+        db_path: Pfad zur SQLite-Datenbank
+        operation_func: Funktion die mit (connection, cursor) aufgerufen wird
+        *args, **kwargs: Zusätzliche Parameter für operation_func
+    
+    Returns:
+        Ergebnis der operation_func oder None bei Fehler
+    """
+    import sqlite3
+    from contextlib import closing
+    
+    try:
+        with closing(sqlite3.connect(db_path)) as conn:
+            with closing(conn.cursor()) as cursor:
+                result = operation_func(conn, cursor, *args, **kwargs)
+                conn.commit()
+                return result
+    except Exception as e:
+        print(f"SQLite operation failed: {str(e)}")
+        raise e
+
 def create_app():
     """App Factory Pattern"""
     app = Flask(__name__)
@@ -103,8 +151,59 @@ def register_routes(app):
     # Kunden-Routen
     @app.route('/customers')
     def customers():
-        customers = Customer.query.all()
-        return render_template('customers.html', customers=customers)
+        from flask import request
+        
+        # Filter-Parameter aus URL lesen
+        search_query = request.args.get('search', '').strip()
+        sort_by = request.args.get('sort', 'last_name')
+        sort_dir = request.args.get('dir', 'asc')
+        
+        # Basis-Query aufbauen
+        query = Customer.query
+        
+        # Suchfilter anwenden
+        if search_query:
+            query = query.filter(
+                db.or_(
+                    Customer.first_name.ilike(f'%{search_query}%'),
+                    Customer.last_name.ilike(f'%{search_query}%'),
+                    db.func.concat(Customer.first_name, ' ', Customer.last_name).ilike(f'%{search_query}%'),
+                    Customer.email.ilike(f'%{search_query}%'),
+                    Customer.city.ilike(f'%{search_query}%')
+                )
+            )
+        
+        # Sortierung anwenden
+        sort_column = None
+        if sort_by == 'first_name':
+            sort_column = Customer.first_name
+        elif sort_by == 'last_name':
+            sort_column = Customer.last_name
+        elif sort_by == 'email':
+            sort_column = Customer.email
+        elif sort_by == 'city':
+            sort_column = Customer.city
+        elif sort_by == 'created_at':
+            sort_column = Customer.id  # Als Ersatz für created_at
+        else:
+            sort_column = Customer.last_name
+        
+        if sort_dir == 'desc':
+            query = query.order_by(sort_column.desc())
+        else:
+            query = query.order_by(sort_column.asc())
+        
+        # Sekundäre Sortierung für bessere Konsistenz
+        if sort_by != 'last_name':
+            query = query.order_by(Customer.last_name.asc())
+        
+        customers = query.all()
+        
+        return render_template('customers.html', 
+                             customers=customers, 
+                             search_query=search_query,
+                             sort_by=sort_by,
+                             sort_dir=sort_dir)
     
     @app.route('/customer/new', methods=['GET', 'POST'])
     def new_customer():
@@ -125,7 +224,7 @@ def register_routes(app):
                 flash('Kunde wurde erfolgreich hinzugefügt!', 'success')
                 return redirect(url_for('customers'))
             except Exception as e:
-                db.session.rollback()
+                safe_rollback()
                 flash(f'Fehler beim Speichern: {str(e)}', 'error')
         
         return render_template('customer_form.html', form=form, title='Neuer Kunde')
@@ -142,7 +241,7 @@ def register_routes(app):
                 flash('Kunde wurde erfolgreich bearbeitet!', 'success')
                 return redirect(url_for('customers'))
             except Exception as e:
-                db.session.rollback()
+                safe_rollback()
                 flash(f'Fehler beim Speichern: {str(e)}', 'error')
         
         return render_template('customer_form.html', form=form, title='Kunde bearbeiten', customer=customer)
@@ -162,7 +261,7 @@ def register_routes(app):
             db.session.commit()
             flash(f'Kunde {customer_name} wurde erfolgreich gelöscht!', 'success')
         except Exception as e:
-            db.session.rollback()
+            safe_rollback()
             flash(f'Fehler beim Löschen: {str(e)}', 'error')
         
         return redirect(url_for('customers'))
@@ -170,8 +269,63 @@ def register_routes(app):
     # Angebots-Routen
     @app.route('/quotes')
     def quotes():
-        quotes = Quote.query.all()
-        return render_template('quotes.html', quotes=quotes)
+        from flask import request
+        from sqlalchemy.orm import joinedload
+        
+        # Filter-Parameter aus URL lesen
+        search_query = request.args.get('search', '').strip()
+        sort_by = request.args.get('sort', 'created_at')
+        sort_dir = request.args.get('dir', 'desc')
+        
+        # Basis-Query mit JOIN aufbauen
+        query = Quote.query.options(joinedload(Quote.customer))
+        
+        # Suchfilter anwenden
+        if search_query:
+            query = query.filter(
+                db.or_(
+                    Quote.quote_number.ilike(f'%{search_query}%'),
+                    Quote.project_description.ilike(f'%{search_query}%'),
+                    Quote.customer.has(Customer.first_name.ilike(f'%{search_query}%')),
+                    Quote.customer.has(Customer.last_name.ilike(f'%{search_query}%')),
+                    Quote.customer.has(
+                        db.func.concat(Customer.first_name, ' ', Customer.last_name).ilike(f'%{search_query}%')
+                    )
+                )
+            )
+        
+        # Sortierung anwenden
+        sort_column = None
+        if sort_by == 'quote_number':
+            sort_column = Quote.quote_number
+        elif sort_by == 'customer':
+            sort_column = Customer.last_name
+            query = query.join(Customer)
+        elif sort_by == 'project_description':
+            sort_column = Quote.project_description
+        elif sort_by == 'total_amount':
+            sort_column = Quote.total_amount
+        elif sort_by == 'status':
+            sort_column = Quote.status
+        elif sort_by == 'valid_until':
+            sort_column = Quote.valid_until
+        elif sort_by == 'created_at':
+            sort_column = Quote.created_at
+        else:
+            sort_column = Quote.created_at
+        
+        if sort_dir == 'desc':
+            query = query.order_by(sort_column.desc())
+        else:
+            query = query.order_by(sort_column.asc())
+        
+        quotes = query.all()
+        
+        return render_template('quotes.html', 
+                             quotes=quotes, 
+                             search_query=search_query,
+                             sort_by=sort_by,
+                             sort_dir=sort_dir)
     
     @app.route('/quote/new', methods=['GET', 'POST'])
     def new_quote():
@@ -202,7 +356,7 @@ def register_routes(app):
                 flash('Angebot wurde erfolgreich erstellt!', 'success')
                 return redirect(url_for('edit_quote', id=quote.id))
             except Exception as e:
-                db.session.rollback()
+                safe_rollback()
                 flash(f'Fehler beim Erstellen des Angebots: {str(e)}', 'error')
         
         return render_template('quote_form.html', form=form, title='Neues Angebot')
@@ -267,7 +421,7 @@ def register_routes(app):
             flash('Detaillierte Position wurde hinzugefügt!', 'success')
             
         except Exception as e:
-            db.session.rollback()
+            safe_rollback()
             flash(f'Fehler beim Hinzufügen der Position: {str(e)}', 'error')
         
         return redirect(url_for('edit_quote', id=id))
@@ -301,8 +455,8 @@ def register_routes(app):
             
             # Berechne Gesamtpreis aus allen Arbeitsschritten
             for i in range(len(work_step_categories)):
-                hours = float(work_step_hours[i]) if i < len(work_step_hours) else 0
-                rate = float(work_step_rates[i]) if i < len(work_step_rates) else get_default_hourly_rate()
+                hours = safe_float_conversion_strict(work_step_hours[i] if i < len(work_step_hours) else 0)
+                rate = safe_float_conversion_strict(work_step_rates[i] if i < len(work_step_rates) else get_default_hourly_rate(), get_default_hourly_rate())
                 total_price += hours * rate
             
             # Erstelle Hauptposition
@@ -323,8 +477,8 @@ def register_routes(app):
             for i in range(len(work_step_categories)):
                 category = work_step_categories[i]
                 step_name = work_step_names[i]
-                hours = float(work_step_hours[i]) if i < len(work_step_hours) else 0
-                rate = float(work_step_rates[i]) if i < len(work_step_rates) else get_default_hourly_rate()
+                hours = safe_float_conversion_strict(work_step_hours[i] if i < len(work_step_hours) else 0)
+                rate = safe_float_conversion_strict(work_step_rates[i] if i < len(work_step_rates) else get_default_hourly_rate(), get_default_hourly_rate())
                 step_price = hours * rate
                 
                 sub_item = QuoteSubItem(
@@ -344,7 +498,7 @@ def register_routes(app):
             flash('Arbeitsposition wurde hinzugefügt!', 'success')
             
         except Exception as e:
-            db.session.rollback()
+            safe_rollback()
             flash(f'Fehler beim Hinzufügen der Arbeitsposition: {str(e)}', 'error')
         
         return redirect(url_for('edit_quote', id=id))
@@ -366,7 +520,7 @@ def register_routes(app):
                 quote.update_total()
                 flash('Position wurde entfernt!', 'success')
             except Exception as e:
-                db.session.rollback()
+                safe_rollback()
                 flash(f'Fehler beim Entfernen der Position: {str(e)}', 'error')
         else:
             flash('Ungültige Position!', 'error')
@@ -473,7 +627,7 @@ def register_routes(app):
                     return redirect(url_for('view_order', order_id=order.id))
                     
             except Exception as e:
-                db.session.rollback()
+                safe_rollback()
                 flash(f'Fehler beim Angebot annehmen: {str(e)}', 'error')
                 return render_template('order_form.html', quote=quote, form=form, action='accept')
         
@@ -622,21 +776,73 @@ def register_routes(app):
     @app.route('/settings', methods=['GET', 'POST'])
     def settings():
         form = SettingsForm()
-        form.default_hourly_rate.data = get_default_hourly_rate()
+        
+        if request.method == 'GET':
+            # Beim GET Request: Aktuellen Wert aus DB laden
+            form.default_hourly_rate.data = get_default_hourly_rate()
         
         if form.validate_on_submit():
             try:
+                # Validiere den eingegeben Wert
+                hourly_rate = float(form.default_hourly_rate.data)
+                if hourly_rate <= 0:
+                    flash('Stundensatz muss größer als 0 sein!', 'error')
+                    return render_template('settings.html', form=form)
+                
+                # Speichere die Einstellung
                 CompanySettings.set_setting(
                     'default_hourly_rate', 
-                    form.default_hourly_rate.data,
+                    hourly_rate,
                     'Standard-Stundensatz für Arbeitsvorgänge'
                 )
-                flash('Einstellungen wurden erfolgreich gespeichert!', 'success')
+                
+                # Debug: Prüfe ob der Wert wirklich gespeichert wurde
+                saved_value = get_default_hourly_rate()
+                if saved_value == hourly_rate:
+                    flash(f'Einstellungen wurden erfolgreich gespeichert! Neuer Stundensatz: {hourly_rate:.2f} €', 'success')
+                else:
+                    flash(f'Warnung: Gespeicherter Wert ({saved_value:.2f} €) entspricht nicht dem eingegebenen Wert ({hourly_rate:.2f} €)!', 'warning')
+                
                 return redirect(url_for('settings'))
+            except ValueError:
+                flash('Ungültiger Stundensatz! Bitte geben Sie eine gültige Zahl ein.', 'error')
             except Exception as e:
+                safe_rollback()
                 flash(f'Fehler beim Speichern: {str(e)}', 'error')
         
         return render_template('settings.html', form=form)
+    
+    # Debug-Route für Settings (nur in Entwicklung)
+    @app.route('/admin/debug_settings')
+    def debug_settings():
+        """Debug-Informationen für Settings anzeigen"""
+        from flask import jsonify
+        
+        try:
+            # Alle Settings aus der Datenbank
+            all_settings = CompanySettings.query.all()
+            settings_data = []
+            
+            for setting in all_settings:
+                settings_data.append({
+                    'name': setting.setting_name,
+                    'value': setting.setting_value,
+                    'description': setting.description,
+                    'created_at': setting.created_at.isoformat() if setting.created_at else None,
+                    'updated_at': setting.updated_at.isoformat() if setting.updated_at else None
+                })
+            
+            # Aktueller Wert über get_default_hourly_rate()
+            current_rate = get_default_hourly_rate()
+            
+            return jsonify({
+                'current_hourly_rate': current_rate,
+                'all_settings': settings_data,
+                'settings_count': len(settings_data)
+            })
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
     
     # Admin-Routen
     @app.route('/admin/reload_templates')
@@ -860,16 +1066,16 @@ def register_routes(app):
                     
                     # Berechne Gesamtpreis aus allen Arbeitsschritten
                     for i in range(len(work_step_categories)):
-                        hours = float(work_step_hours[i]) if i < len(work_step_hours) else 0
-                        rate = float(work_step_rates[i]) if i < len(work_step_rates) else get_default_hourly_rate()
+                        hours = safe_float_conversion_strict(work_step_hours[i] if i < len(work_step_hours) else 0)
+                        rate = safe_float_conversion_strict(work_step_rates[i] if i < len(work_step_rates) else get_default_hourly_rate(), get_default_hourly_rate())
                         total_price += hours * rate
                     
                     # Erstelle neue Unterpositionen für jeden Arbeitsschritt
                     for i in range(len(work_step_categories)):
                         category = work_step_categories[i]
                         step_name = work_step_names[i]
-                        hours = float(work_step_hours[i]) if i < len(work_step_hours) else 0
-                        rate = float(work_step_rates[i]) if i < len(work_step_rates) else get_default_hourly_rate()
+                        hours = safe_float_conversion_strict(work_step_hours[i] if i < len(work_step_hours) else 0)
+                        rate = safe_float_conversion_strict(work_step_rates[i] if i < len(work_step_rates) else get_default_hourly_rate(), get_default_hourly_rate())
                         step_price = hours * rate
                         
                         sub_item = QuoteSubItem(
@@ -973,17 +1179,77 @@ def register_routes(app):
         from flask import request
         from sqlalchemy.orm import joinedload
         
-        # Filter nach Auftrag-ID wenn angegeben
+        # Filter-Parameter aus URL lesen
         order_id = request.args.get('order_id', type=int)
+        search_query = request.args.get('search', '').strip()
+        sort_by = request.args.get('sort', 'order_date')
+        sort_dir = request.args.get('dir', 'desc')
         filter_order = None
         
+        # Basis-Query mit JOINs aufbauen
+        base_query = SupplierOrder.query.options(
+            joinedload(SupplierOrder.items),
+            joinedload(SupplierOrder.quote).joinedload(Quote.customer),
+            joinedload(SupplierOrder.order)
+        )
+        
+        # Filter nach Auftrag-ID wenn angegeben
         if order_id:
             filter_order = Order.query.get(order_id)
-            orders = SupplierOrder.query.options(joinedload(SupplierOrder.items)).filter_by(order_id=order_id).order_by(SupplierOrder.order_date.desc()).all()
-        else:
-            orders = SupplierOrder.query.options(joinedload(SupplierOrder.items)).order_by(SupplierOrder.order_date.desc()).all()
+            base_query = base_query.filter_by(order_id=order_id)
         
-        return render_template('supplier_orders.html', orders=orders, filter_order=filter_order)
+        # Suchfilter anwenden
+        if search_query:
+            base_query = base_query.filter(
+                db.or_(
+                    SupplierOrder.supplier_name.ilike(f'%{search_query}%'),
+                    SupplierOrder.notes.ilike(f'%{search_query}%'),
+                    SupplierOrder.quote.has(Quote.quote_number.ilike(f'%{search_query}%')),
+                    SupplierOrder.quote.has(Quote.project_description.ilike(f'%{search_query}%')),
+                    SupplierOrder.quote.has(Quote.customer.has(Customer.first_name.ilike(f'%{search_query}%'))),
+                    SupplierOrder.quote.has(Quote.customer.has(Customer.last_name.ilike(f'%{search_query}%'))),
+                    SupplierOrder.quote.has(Quote.customer.has(
+                        db.func.concat(Customer.first_name, ' ', Customer.last_name).ilike(f'%{search_query}%')
+                    )),
+                    SupplierOrder.order.has(Order.order_number.ilike(f'%{search_query}%'))
+                )
+            )
+        
+        # Sortierung anwenden
+        sort_column = None
+        if sort_by == 'order_date':
+            sort_column = SupplierOrder.order_date
+        elif sort_by == 'supplier_name':
+            sort_column = SupplierOrder.supplier_name
+        elif sort_by == 'quote_number':
+            sort_column = Quote.quote_number
+            base_query = base_query.join(Quote)
+        elif sort_by == 'order_number':
+            sort_column = Order.order_number
+            base_query = base_query.join(Order)
+        elif sort_by == 'customer':
+            sort_column = Customer.last_name
+            base_query = base_query.join(Quote).join(Customer)
+        elif sort_by == 'status':
+            sort_column = SupplierOrder.status
+        elif sort_by == 'delivery_date':
+            sort_column = SupplierOrder.delivery_date
+        else:
+            sort_column = SupplierOrder.order_date
+        
+        if sort_dir == 'desc':
+            base_query = base_query.order_by(sort_column.desc())
+        else:
+            base_query = base_query.order_by(sort_column.asc())
+        
+        orders = base_query.all()
+        
+        return render_template('supplier_orders.html', 
+                             orders=orders, 
+                             filter_order=filter_order, 
+                             search_query=search_query,
+                             sort_by=sort_by,
+                             sort_dir=sort_dir)
     
     # Einzelne Bestellung bearbeiten
     @app.route('/supplier_order/<int:order_id>/edit', methods=['GET', 'POST'])
@@ -1010,8 +1276,68 @@ def register_routes(app):
     @app.route('/orders')
     def orders():
         from models import Order
-        orders = Order.query.order_by(Order.created_at.desc()).all()
-        return render_template('orders.html', orders=orders)
+        from flask import request
+        from sqlalchemy.orm import joinedload
+        
+        # Filter-Parameter aus URL lesen
+        search_query = request.args.get('search', '').strip()
+        sort_by = request.args.get('sort', 'created_at')
+        sort_dir = request.args.get('dir', 'desc')
+        
+        # Basis-Query mit JOINs aufbauen
+        query = Order.query.options(
+            joinedload(Order.quote).joinedload(Quote.customer)
+        )
+        
+        # Suchfilter anwenden
+        if search_query:
+            query = query.filter(
+                db.or_(
+                    Order.order_number.ilike(f'%{search_query}%'),
+                    Order.project_manager.ilike(f'%{search_query}%'),
+                    Order.quote.has(Quote.project_description.ilike(f'%{search_query}%')),
+                    Order.quote.has(Quote.customer.has(Customer.first_name.ilike(f'%{search_query}%'))),
+                    Order.quote.has(Quote.customer.has(Customer.last_name.ilike(f'%{search_query}%'))),
+                    Order.quote.has(Quote.customer.has(
+                        db.func.concat(Customer.first_name, ' ', Customer.last_name).ilike(f'%{search_query}%')
+                    ))
+                )
+            )
+        
+        # Sortierung anwenden
+        sort_column = None
+        if sort_by == 'order_number':
+            sort_column = Order.order_number
+        elif sort_by == 'customer':
+            sort_column = Customer.last_name
+            query = query.join(Quote).join(Customer)
+        elif sort_by == 'project_description':
+            sort_column = Quote.project_description
+            query = query.join(Quote)
+        elif sort_by == 'total_amount':
+            sort_column = Quote.total_amount
+            query = query.join(Quote)
+        elif sort_by == 'status':
+            sort_column = Order.status
+        elif sort_by == 'start_date':
+            sort_column = Order.start_date
+        elif sort_by == 'created_at':
+            sort_column = Order.created_at
+        else:
+            sort_column = Order.created_at
+        
+        if sort_dir == 'desc':
+            query = query.order_by(sort_column.desc())
+        else:
+            query = query.order_by(sort_column.asc())
+        
+        orders = query.all()
+        
+        return render_template('orders.html', 
+                             orders=orders, 
+                             search_query=search_query,
+                             sort_by=sort_by,
+                             sort_dir=sort_dir)
     
     @app.route('/quote/<int:quote_id>/create_order', methods=['GET', 'POST'])
     def create_order(quote_id):
@@ -1131,6 +1457,7 @@ def register_routes(app):
             import shutil
             from datetime import datetime
             import sqlite3
+            from contextlib import closing
             
             db_path = 'instance/installation_business.db'
             backup_path = f'instance/installation_business_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.db'
@@ -1139,186 +1466,189 @@ def register_routes(app):
                 shutil.copy2(db_path, backup_path)
                 flash(f'Backup erstellt: {backup_path}', 'info')
             
-            # Verwende direkte SQLite-Verbindung
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
+            # Verwende Context Manager für sichere Connection-Behandlung
+            with closing(sqlite3.connect(db_path)) as conn:
+                with closing(conn.cursor()) as cursor:
+                    # Prüfe ob order-Tabelle existiert
+                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='order'")
+                    result = cursor.fetchone()
+                    
+                    if not result:
+                        # Erstelle Order-Tabelle
+                        cursor.execute('''
+                            CREATE TABLE "order" (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                order_number VARCHAR(50) NOT NULL UNIQUE,
+                                quote_id INTEGER NOT NULL,
+                                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                status VARCHAR(20) DEFAULT 'Geplant',
+                                start_date DATE NOT NULL,
+                                end_date DATE NOT NULL,
+                                notes TEXT,
+                                project_manager VARCHAR(100),
+                                FOREIGN KEY (quote_id) REFERENCES quote (id)
+                            )
+                        ''')
+                        flash('Order-Tabelle wurde erstellt!', 'success')
+                    else:
+                        # Prüfe vorhandene Spalten
+                        cursor.execute("PRAGMA table_info('order')")
+                        columns_result = cursor.fetchall()
+                        existing_columns = [row[1] for row in columns_result]
+                        
+                        # Füge fehlende Spalten hinzu
+                        if 'created_at' not in existing_columns:
+                            cursor.execute("ALTER TABLE 'order' ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+                            cursor.execute("UPDATE 'order' SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL")
+                            flash('created_at Spalte hinzugefügt!', 'success')
+                        
+                        if 'status' not in existing_columns:
+                            cursor.execute("ALTER TABLE 'order' ADD COLUMN status VARCHAR(20) DEFAULT 'Geplant'")
+                            flash('status Spalte hinzugefügt!', 'success')
+                        
+                        if 'start_date' not in existing_columns:
+                            cursor.execute("ALTER TABLE 'order' ADD COLUMN start_date DATE")
+                            cursor.execute("UPDATE 'order' SET start_date = date('now') WHERE start_date IS NULL")
+                            flash('start_date Spalte hinzugefügt!', 'success')
+                        
+                        if 'end_date' not in existing_columns:
+                            cursor.execute("ALTER TABLE 'order' ADD COLUMN end_date DATE")
+                            cursor.execute("UPDATE 'order' SET end_date = date('now', '+7 days') WHERE end_date IS NULL")
+                            flash('end_date Spalte hinzugefügt!', 'success')
+                        
+                        if 'notes' not in existing_columns:
+                            cursor.execute("ALTER TABLE 'order' ADD COLUMN notes TEXT")
+                            flash('notes Spalte hinzugefügt!', 'success')
+                        
+                        if 'project_manager' not in existing_columns:
+                            cursor.execute("ALTER TABLE 'order' ADD COLUMN project_manager VARCHAR(100)")
+                            flash('project_manager Spalte hinzugefügt!', 'success')
+                        
+                        if 'order_number' not in existing_columns:
+                            cursor.execute("ALTER TABLE 'order' ADD COLUMN order_number VARCHAR(50)")
+                            # Generiere Auftragsnummern für bestehende Aufträge
+                            cursor.execute("SELECT id FROM 'order' WHERE order_number IS NULL")
+                            rows = cursor.fetchall()
+                            for i, row in enumerate(rows, 1):
+                                order_number = f"AUF-2025-{i:03d}"
+                                cursor.execute("UPDATE 'order' SET order_number = ? WHERE id = ?", (order_number, row[0]))
+                            flash('order_number Spalte hinzugefügt!', 'success')
+                        
+                        if 'quote_id' not in existing_columns:
+                            cursor.execute("ALTER TABLE 'order' ADD COLUMN quote_id INTEGER")
+                            flash('quote_id Spalte hinzugefügt!', 'success')
+                    
+                    # Erstelle auch andere fehlende Tabellen
+                    # SupplierOrder
+                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='supplier_order'")
+                    result = cursor.fetchone()
+                    
+                    if not result:
+                        cursor.execute('''
+                            CREATE TABLE supplier_order (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                quote_id INTEGER NOT NULL,
+                                order_id INTEGER,
+                                supplier_name VARCHAR(200) NOT NULL,
+                                order_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                status VARCHAR(20) DEFAULT 'Bestellt',
+                                confirmation_date DATETIME,
+                                delivery_date DATE,
+                                notes TEXT,
+                                FOREIGN KEY (quote_id) REFERENCES quote (id),
+                                FOREIGN KEY (order_id) REFERENCES "order" (id)
+                            )
+                        ''')
+                        flash('SupplierOrder-Tabelle wurde erstellt!', 'success')
+                    else:
+                        # Prüfe und füge fehlende Spalten zu supplier_order hinzu
+                        cursor.execute("PRAGMA table_info(supplier_order)")
+                        so_columns_result = cursor.fetchall()
+                        so_existing_columns = [row[1] for row in so_columns_result]
+                        
+                        if 'order_id' not in so_existing_columns:
+                            cursor.execute("ALTER TABLE supplier_order ADD COLUMN order_id INTEGER")
+                            flash('order_id Spalte zu SupplierOrder hinzugefügt!', 'success')
+                        
+                        if 'order_date' not in so_existing_columns:
+                            cursor.execute("ALTER TABLE supplier_order ADD COLUMN order_date DATETIME DEFAULT CURRENT_TIMESTAMP")
+                            cursor.execute("UPDATE supplier_order SET order_date = CURRENT_TIMESTAMP WHERE order_date IS NULL")
+                            flash('order_date Spalte zu SupplierOrder hinzugefügt!', 'success')
+                        
+                        if 'status' not in so_existing_columns:
+                            cursor.execute("ALTER TABLE supplier_order ADD COLUMN status VARCHAR(20) DEFAULT 'Bestellt'")
+                            flash('status Spalte zu SupplierOrder hinzugefügt!', 'success')
+                        
+                        if 'confirmation_date' not in so_existing_columns:
+                            cursor.execute("ALTER TABLE supplier_order ADD COLUMN confirmation_date DATETIME")
+                            flash('confirmation_date Spalte zu SupplierOrder hinzugefügt!', 'success')
+                        
+                        if 'delivery_date' not in so_existing_columns:
+                            cursor.execute("ALTER TABLE supplier_order ADD COLUMN delivery_date DATE")
+                            flash('delivery_date Spalte zu SupplierOrder hinzugefügt!', 'success')
+                        
+                        if 'notes' not in so_existing_columns:
+                            cursor.execute("ALTER TABLE supplier_order ADD COLUMN notes TEXT")
+                            flash('notes Spalte zu SupplierOrder hinzugefügt!', 'success')
+                    
+                    # SupplierOrderItem
+                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='supplier_order_item'")
+                    result = cursor.fetchone()
+                    
+                    if not result:
+                        cursor.execute('''
+                            CREATE TABLE supplier_order_item (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                supplier_order_id INTEGER NOT NULL,
+                                sub_number VARCHAR(10) NOT NULL,
+                                description TEXT NOT NULL,
+                                part_number VARCHAR(100),
+                                quantity VARCHAR(50) DEFAULT '1',
+                                quote_sub_item_id INTEGER,
+                                FOREIGN KEY (supplier_order_id) REFERENCES supplier_order (id),
+                                FOREIGN KEY (quote_sub_item_id) REFERENCES quote_sub_item (id)
+                            )
+                        ''')
+                        flash('SupplierOrderItem-Tabelle wurde erstellt!', 'success')
+                    
+                    # QuoteRejection
+                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='quote_rejection'")
+                    result = cursor.fetchone()
+                    
+                    if not result:
+                        cursor.execute('''
+                            CREATE TABLE quote_rejection (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                quote_id INTEGER NOT NULL,
+                                rejection_reason TEXT NOT NULL,
+                                rejected_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                FOREIGN KEY (quote_id) REFERENCES quote (id)
+                            )
+                        ''')
+                        flash('QuoteRejection-Tabelle wurde erstellt!', 'success')
+                    
+                    # Quote status spalte
+                    cursor.execute("PRAGMA table_info(quote)")
+                    quote_columns_result = cursor.fetchall()
+                    quote_existing_columns = [row[1] for row in quote_columns_result]
+                    
+                    if 'status' not in quote_existing_columns:
+                        cursor.execute("ALTER TABLE quote ADD COLUMN status VARCHAR(20) DEFAULT 'Entwurf'")
+                        flash('status Spalte zu Quote hinzugefügt!', 'success')
+                    
+                    # Commit alle Änderungen - wird automatisch gerollt zurück bei Exception
+                    conn.commit()
+                    flash('Datenbank-Reparatur erfolgreich abgeschlossen!', 'success')
             
-            try:
-                # Prüfe ob order-Tabelle existiert
-                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='order'")
-                result = cursor.fetchone()
-                
-                if not result:
-                    # Erstelle Order-Tabelle
-                    cursor.execute('''
-                        CREATE TABLE "order" (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            order_number VARCHAR(50) NOT NULL UNIQUE,
-                            quote_id INTEGER NOT NULL,
-                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                            status VARCHAR(20) DEFAULT 'Geplant',
-                            start_date DATE NOT NULL,
-                            end_date DATE NOT NULL,
-                            notes TEXT,
-                            project_manager VARCHAR(100),
-                            FOREIGN KEY (quote_id) REFERENCES quote (id)
-                        )
-                    ''')
-                    flash('Order-Tabelle wurde erstellt!', 'success')
-                else:
-                    # Prüfe vorhandene Spalten
-                    cursor.execute("PRAGMA table_info('order')")
-                    columns_result = cursor.fetchall()
-                    existing_columns = [row[1] for row in columns_result]
-                    
-                    # Füge fehlende Spalten hinzu
-                    if 'created_at' not in existing_columns:
-                        cursor.execute("ALTER TABLE 'order' ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP")
-                        cursor.execute("UPDATE 'order' SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL")
-                        flash('created_at Spalte hinzugefügt!', 'success')
-                    
-                    if 'status' not in existing_columns:
-                        cursor.execute("ALTER TABLE 'order' ADD COLUMN status VARCHAR(20) DEFAULT 'Geplant'")
-                        flash('status Spalte hinzugefügt!', 'success')
-                    
-                    if 'start_date' not in existing_columns:
-                        cursor.execute("ALTER TABLE 'order' ADD COLUMN start_date DATE")
-                        cursor.execute("UPDATE 'order' SET start_date = date('now') WHERE start_date IS NULL")
-                        flash('start_date Spalte hinzugefügt!', 'success')
-                    
-                    if 'end_date' not in existing_columns:
-                        cursor.execute("ALTER TABLE 'order' ADD COLUMN end_date DATE")
-                        cursor.execute("UPDATE 'order' SET end_date = date('now', '+7 days') WHERE end_date IS NULL")
-                        flash('end_date Spalte hinzugefügt!', 'success')
-                    
-                    if 'notes' not in existing_columns:
-                        cursor.execute("ALTER TABLE 'order' ADD COLUMN notes TEXT")
-                        flash('notes Spalte hinzugefügt!', 'success')
-                    
-                    if 'project_manager' not in existing_columns:
-                        cursor.execute("ALTER TABLE 'order' ADD COLUMN project_manager VARCHAR(100)")
-                        flash('project_manager Spalte hinzugefügt!', 'success')
-                    
-                    if 'order_number' not in existing_columns:
-                        cursor.execute("ALTER TABLE 'order' ADD COLUMN order_number VARCHAR(50)")
-                        # Generiere Auftragsnummern für bestehende Aufträge
-                        cursor.execute("SELECT id FROM 'order' WHERE order_number IS NULL")
-                        rows = cursor.fetchall()
-                        for i, row in enumerate(rows, 1):
-                            order_number = f"AUF-2025-{i:03d}"
-                            cursor.execute("UPDATE 'order' SET order_number = ? WHERE id = ?", (order_number, row[0]))
-                        flash('order_number Spalte hinzugefügt!', 'success')
-                    
-                    if 'quote_id' not in existing_columns:
-                        cursor.execute("ALTER TABLE 'order' ADD COLUMN quote_id INTEGER")
-                        flash('quote_id Spalte hinzugefügt!', 'success')
-                
-                # Erstelle auch andere fehlende Tabellen
-                # SupplierOrder
-                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='supplier_order'")
-                result = cursor.fetchone()
-                
-                if not result:
-                    cursor.execute('''
-                        CREATE TABLE supplier_order (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            quote_id INTEGER NOT NULL,
-                            order_id INTEGER,
-                            supplier_name VARCHAR(200) NOT NULL,
-                            order_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-                            status VARCHAR(20) DEFAULT 'Bestellt',
-                            confirmation_date DATETIME,
-                            delivery_date DATE,
-                            notes TEXT,
-                            FOREIGN KEY (quote_id) REFERENCES quote (id),
-                            FOREIGN KEY (order_id) REFERENCES "order" (id)
-                        )
-                    ''')
-                    flash('SupplierOrder-Tabelle wurde erstellt!', 'success')
-                else:
-                    # Prüfe und füge fehlende Spalten zu supplier_order hinzu
-                    cursor.execute("PRAGMA table_info(supplier_order)")
-                    so_columns_result = cursor.fetchall()
-                    so_existing_columns = [row[1] for row in so_columns_result]
-                    
-                    if 'order_id' not in so_existing_columns:
-                        cursor.execute("ALTER TABLE supplier_order ADD COLUMN order_id INTEGER")
-                        flash('order_id Spalte zu SupplierOrder hinzugefügt!', 'success')
-                    
-                    if 'order_date' not in so_existing_columns:
-                        cursor.execute("ALTER TABLE supplier_order ADD COLUMN order_date DATETIME DEFAULT CURRENT_TIMESTAMP")
-                        cursor.execute("UPDATE supplier_order SET order_date = CURRENT_TIMESTAMP WHERE order_date IS NULL")
-                        flash('order_date Spalte zu SupplierOrder hinzugefügt!', 'success')
-                    
-                    if 'status' not in so_existing_columns:
-                        cursor.execute("ALTER TABLE supplier_order ADD COLUMN status VARCHAR(20) DEFAULT 'Bestellt'")
-                        flash('status Spalte zu SupplierOrder hinzugefügt!', 'success')
-                    
-                    if 'confirmation_date' not in so_existing_columns:
-                        cursor.execute("ALTER TABLE supplier_order ADD COLUMN confirmation_date DATETIME")
-                        flash('confirmation_date Spalte zu SupplierOrder hinzugefügt!', 'success')
-                    
-                    if 'delivery_date' not in so_existing_columns:
-                        cursor.execute("ALTER TABLE supplier_order ADD COLUMN delivery_date DATE")
-                        flash('delivery_date Spalte zu SupplierOrder hinzugefügt!', 'success')
-                    
-                    if 'notes' not in so_existing_columns:
-                        cursor.execute("ALTER TABLE supplier_order ADD COLUMN notes TEXT")
-                        flash('notes Spalte zu SupplierOrder hinzugefügt!', 'success')
-                
-                # SupplierOrderItem
-                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='supplier_order_item'")
-                result = cursor.fetchone()
-                
-                if not result:
-                    cursor.execute('''
-                        CREATE TABLE supplier_order_item (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            supplier_order_id INTEGER NOT NULL,
-                            sub_number VARCHAR(10) NOT NULL,
-                            description TEXT NOT NULL,
-                            part_number VARCHAR(100),
-                            quantity VARCHAR(50) DEFAULT '1',
-                            quote_sub_item_id INTEGER,
-                            FOREIGN KEY (supplier_order_id) REFERENCES supplier_order (id),
-                            FOREIGN KEY (quote_sub_item_id) REFERENCES quote_sub_item (id)
-                        )
-                    ''')
-                    flash('SupplierOrderItem-Tabelle wurde erstellt!', 'success')
-                
-                # QuoteRejection
-                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='quote_rejection'")
-                result = cursor.fetchone()
-                
-                if not result:
-                    cursor.execute('''
-                        CREATE TABLE quote_rejection (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            quote_id INTEGER NOT NULL,
-                            rejection_reason TEXT NOT NULL,
-                            rejected_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                            FOREIGN KEY (quote_id) REFERENCES quote (id)
-                        )
-                    ''')
-                    flash('QuoteRejection-Tabelle wurde erstellt!', 'success')
-                
-                # Quote status spalte
-                cursor.execute("PRAGMA table_info(quote)")
-                quote_columns_result = cursor.fetchall()
-                quote_existing_columns = [row[1] for row in quote_columns_result]
-                
-                if 'status' not in quote_existing_columns:
-                    cursor.execute("ALTER TABLE quote ADD COLUMN status VARCHAR(20) DEFAULT 'Entwurf'")
-                    flash('status Spalte zu Quote hinzugefügt!', 'success')
-                
-                conn.commit()
-                flash('Datenbank-Reparatur erfolgreich abgeschlossen!', 'success')
-                
-            finally:
-                conn.close()
+            # Connection wird automatisch durch Context Manager geschlossen
             
         except Exception as e:
+            # Detailliertere Fehlerbehandlung
+            import traceback
+            error_details = traceback.format_exc()
             flash(f'Fehler bei der Reparatur: {str(e)}', 'error')
+            # Log für Debugging (nur in Development)
+            print(f"Database repair error: {error_details}")
         
         return redirect(url_for('index'))
 
@@ -1351,7 +1681,7 @@ def register_routes(app):
                 flash('Alle Lieferantenbestellungen sind bereits korrekt verknüpft.', 'info')
                 
         except Exception as e:
-            db.session.rollback()
+            safe_rollback()
             flash(f'Fehler beim Verknüpfen: {str(e)}', 'error')
             
         return redirect(url_for('index'))
@@ -1648,9 +1978,9 @@ def process_sub_items(form_data):
         item_type = sub_item_types[i] if i < len(sub_item_types) else 'bestellteil'
         
         if item_type == 'arbeitsvorgang':
-            hours = safe_float_conversion(sub_hours[i] if i < len(sub_hours) else 0)
-            hourly_rate = safe_float_conversion(
-                sub_hourly_rates[i] if i < len(sub_hourly_rates) else get_default_hourly_rate()
+            hours = safe_float_conversion_strict(sub_hours[i] if i < len(sub_hours) else 0)
+            hourly_rate = safe_float_conversion_strict(
+                sub_hourly_rates[i] if i < len(sub_hourly_rates) else get_default_hourly_rate(), get_default_hourly_rate()
             )
             sub_price = hours * hourly_rate
             
@@ -1671,7 +2001,7 @@ def process_sub_items(form_data):
             
         elif item_type == 'sonstiges':
             quantity_text = sub_quantities[i] if i < len(sub_quantities) else ''
-            unit_price = safe_float_conversion(sub_unit_prices[i] if i < len(sub_unit_prices) else 0)
+            unit_price = safe_float_conversion_strict(sub_unit_prices[i] if i < len(sub_unit_prices) else 0)
             quantity_num = parse_quantity_from_text(quantity_text)
             sub_price = quantity_num * unit_price
             
@@ -1695,7 +2025,7 @@ def process_sub_items(form_data):
             supplier = sub_suppliers[i] if i < len(sub_suppliers) else ''
             part_number = sub_part_numbers[i] if i < len(sub_part_numbers) else ''
             part_quantity = sub_part_quantities[i] if i < len(sub_part_quantities) else '1'
-            part_price = safe_float_conversion(sub_part_prices[i] if i < len(sub_part_prices) else 0)
+            part_price = safe_float_conversion_strict(sub_part_prices[i] if i < len(sub_part_prices) else 0)
             
             sub_items_data.append({
                 'description': sub_desc,
@@ -1749,7 +2079,7 @@ def update_quote_status(quote_id, new_status):
         db.session.commit()
         flash(f'Angebot {quote.quote_number} wurde als "{new_status}" markiert!', 'success')
     except Exception as e:
-        db.session.rollback()
+        safe_rollback()
         flash(f'Fehler beim Aktualisieren des Status: {str(e)}', 'error')
     
     return redirect(url_for('edit_quote', id=quote_id))
@@ -1789,6 +2119,15 @@ if __name__ == '__main__':
             # Datenbank erstellen falls nicht vorhanden
             db.create_all()
             print("✓ Datenbank initialisiert")
+            
+            # Initialisiere Standard-Einstellungen falls nicht vorhanden
+            if not CompanySettings.query.filter_by(setting_name='default_hourly_rate').first():
+                CompanySettings.set_setting(
+                    'default_hourly_rate', 
+                    95.0,
+                    'Standard-Stundensatz für Arbeitsvorgänge'
+                )
+                print("✓ Standard-Stundensatz initialisiert (95.00 €)")
             
             # Lade Excel-Templates beim Start
             try:
