@@ -1,0 +1,448 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1>Auftrag {{ order.order_number }}</h1>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="{{ url_for('orders') }}">Aufträge</a></li>
+                        <li class="breadcrumb-item active">{{ order.order_number }}</li>
+                    </ol>
+                </nav>
+            </div>
+            <div>
+                {% if order.status != 'Storniert' %}
+                    <a href="{{ url_for('edit_order', order_id=order.id) }}" class="btn btn-outline-primary">
+                        <i class="fas fa-edit"></i> Bearbeiten
+                    </a>
+                {% endif %}
+                
+                {% if order.status in ['Geplant', 'In Arbeit'] %}
+                    <!-- Stornierung-Button -->
+                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#cancelOrderModal">
+                        <i class="fas fa-times-circle"></i> Stornieren
+                    </button>
+                {% endif %}
+                
+                <a href="{{ url_for('orders') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> Zurück zur Übersicht
+                </a>
+                
+                {% if order.status == 'Geplant' %}
+                    <span class="badge bg-secondary fs-6">{{ order.status }}</span>
+                {% elif order.status == 'In Arbeit' %}
+                    <span class="badge bg-primary fs-6">{{ order.status }}</span>
+                {% elif order.status == 'Abgeschlossen' %}
+                    <span class="badge bg-success fs-6">{{ order.status }}</span>
+                {% elif order.status == 'Storniert' %}
+                    <span class="badge bg-danger fs-6">{{ order.status }}</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Auftragsinformationen -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Auftragsdaten</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Auftragsnummer:</strong> {{ order.order_number }}</p>
+                <p><strong>Erstellt am:</strong> {{ order.created_at.strftime('%d.%m.%Y um %H:%M') }}</p>
+                <p><strong>Projektstart:</strong> {{ order.start_date.strftime('%d.%m.%Y') }}</p>
+                <p><strong>Projektende:</strong> {{ order.end_date.strftime('%d.%m.%Y') }}</p>
+                <p><strong>Projektleiter:</strong> {{ order.project_manager or 'Nicht zugewiesen' }}</p>
+                <p><strong>Auftragswert:</strong> <span class="h5 text-success">{{ "%.2f"|format(order.quote.total_amount or 0) }} €</span></p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Kundendaten</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>{{ order.quote.customer.first_name }} {{ order.quote.customer.last_name }}</strong></p>
+                <p class="mb-1">{{ order.quote.customer.email }}</p>
+                <p class="mb-1">{{ order.quote.customer.phone or 'Keine Telefonnummer' }}</p>
+                {% if order.quote.customer.address %}
+                <p class="mb-0">{{ order.quote.customer.address }}<br>
+                {{ order.quote.customer.postal_code }} {{ order.quote.customer.city }}</p>
+                {% endif %}
+                
+                <hr>
+                <p><strong>Grundlage:</strong> 
+                    <a href="{{ url_for('edit_quote', id=order.quote.id) }}">{{ order.quote.quote_number }}</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Projektbeschreibung -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Projektbeschreibung</h5>
+            </div>
+            <div class="card-body">
+                <p>{{ order.quote.project_description }}</p>
+                
+                {% if order.notes %}
+                <hr>
+                <h6>Projektnotizen:</h6>
+                <p class="text-muted">{{ order.notes }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bestellübersicht -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-shipping-fast"></i> Lieferantenbestellungen
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if order.supplier_orders %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Lieferant</th>
+                                <th>Bestelldatum</th>
+                                <th>Positionen</th>
+                                <th>Status</th>
+                                <th>Bestätigt</th>
+                                <th>Liefertermin</th>
+                                <th>Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for supplier_order in order.supplier_orders %}
+                            <tr>
+                                <td>
+                                    <strong>{{ supplier_order.supplier_name }}</strong>
+                                    {% if supplier_order.notes %}
+                                    <br><small class="text-muted">{{ supplier_order.notes[:50] }}{{ '...' if supplier_order.notes|length > 50 else '' }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>{{ supplier_order.order_date.strftime('%d.%m.%Y') }}</td>
+                                <td>
+                                    <span class="badge bg-info">{{ supplier_order.items|length }} Pos.</span>
+                                    <button class="btn btn-sm btn-outline-secondary ms-1" type="button" 
+                                            data-bs-toggle="collapse" data-bs-target="#items-{{ supplier_order.id }}" 
+                                            aria-expanded="false">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </td>
+                                <td>
+                                    {% if supplier_order.status == 'Bestellt' %}
+                                        <span class="badge bg-warning">{{ supplier_order.status }}</span>
+                                    {% elif supplier_order.status == 'Bestätigt' %}
+                                        <span class="badge bg-primary">{{ supplier_order.status }}</span>
+                                    {% elif supplier_order.status == 'Geliefert' %}
+                                        <span class="badge bg-success">{{ supplier_order.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if supplier_order.confirmation_date %}
+                                        {{ supplier_order.confirmation_date.strftime('%d.%m.%Y') }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if supplier_order.delivery_date %}
+                                        {{ supplier_order.delivery_date.strftime('%d.%m.%Y') }}
+                                    {% else %}
+                                        <span class="text-muted">Offen</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('edit_supplier_order', order_id=supplier_order.id) }}" 
+                                       class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            <!-- Kollabierbare Positionsdetails -->
+                            <tr>
+                                <td colspan="7" class="p-0">
+                                    <div class="collapse" id="items-{{ supplier_order.id }}">
+                                        <div class="card-body bg-light">
+                                            <h6>Bestellpositionen:</h6>
+                                            <table class="table table-sm">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Pos.</th>
+                                                        <th>Beschreibung</th>
+                                                        <th>Teilenummer</th>
+                                                        <th>Anzahl</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for item in supplier_order.items %}
+                                                    <tr>
+                                                        <td>{{ item.sub_number }}</td>
+                                                        <td>{{ item.description }}</td>
+                                                        <td>{{ item.part_number or '-' }}</td>
+                                                        <td>{{ item.quantity }}</td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-shipping-fast fa-3x text-muted mb-3"></i>
+                    <h6 class="text-muted">Keine Bestellungen vorhanden</h6>
+                    <p class="text-muted">
+                        Für diesen Auftrag wurden noch keine Lieferantenbestellungen erfasst.
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Auftragsposition -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-list"></i> Auftragspositionen
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Pos.</th>
+                                <th>Beschreibung</th>
+                                <th>Menge</th>
+                                <th>Einzelpreis</th>
+                                <th>Gesamtpreis</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in order.quote.quote_items %}
+                            <tr>
+                                <td>{{ item.position_number or loop.index }}</td>
+                                <td>
+                                    {{ item.description }}
+                                    {% if item.sub_items %}
+                                    <button class="btn btn-sm btn-outline-secondary ms-2" type="button" 
+                                            data-bs-toggle="collapse" data-bs-target="#quote-items-{{ item.id }}" 
+                                            aria-expanded="false">
+                                        <i class="fas fa-list-ul"></i> {{ item.sub_items|length }} Unterpositionen
+                                    </button>
+                                    {% endif %}
+                                </td>
+                                <td>{{ item.quantity }}</td>
+                                <td>{{ "%.2f"|format(item.unit_price) }} €</td>
+                                <td><strong>{{ "%.2f"|format(item.total_price) }} €</strong></td>
+                            </tr>
+                            
+                            <!-- Unterpositionen -->
+                            {% if item.sub_items %}
+                            <tr>
+                                <td colspan="5" class="p-0">
+                                    <div class="collapse" id="quote-items-{{ item.id }}">
+                                        <div class="card-body bg-light">
+                                            <table class="table table-sm">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Unterpos.</th>
+                                                        <th>Beschreibung</th>
+                                                        <th>Typ</th>
+                                                        <th>Details</th>
+                                                        <th>Preis</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for sub_item in item.sub_items %}
+                                                    <tr>
+                                                        <td>{{ sub_item.sub_number }}</td>
+                                                        <td>{{ sub_item.description }}</td>
+                                                        <td>
+                                                            {% if sub_item.item_type == 'bestellteil' %}
+                                                            <span class="badge bg-warning text-dark">
+                                                                <i class="fas fa-shopping-cart"></i> Teil
+                                                            </span>
+                                                            {% elif sub_item.item_type == 'arbeitsvorgang' %}
+                                                            <span class="badge bg-info">
+                                                                <i class="fas fa-tools"></i> Arbeit
+                                                            </span>
+                                                            {% else %}
+                                                            <span class="badge bg-secondary">
+                                                                <i class="fas fa-ellipsis-h"></i> Sonstiges
+                                                            </span>
+                                                            {% endif %}
+                                                        </td>
+                                                        <td>
+                                                            {% if sub_item.item_type == 'arbeitsvorgang' %}
+                                                            <small class="text-muted">{{ sub_item.hours }} h × {{ sub_item.hourly_rate }}€</small>
+                                                            {% elif sub_item.item_type == 'sonstiges' %}
+                                                            <small class="text-muted">{{ sub_item.quantity }} × {{ sub_item.unit_price }}€</small>
+                                                            {% else %}
+                                                            <small class="text-muted">{{ sub_item.supplier or '-' }}</small>
+                                                            {% endif %}
+                                                        </td>
+                                                        <td>
+                                                            {% if sub_item.price > 0 %}
+                                                            <small class="text-muted">{{ "%.2f"|format(sub_item.price) }} €</small>
+                                                            {% else %}
+                                                            <small class="text-muted">-</small>
+                                                            {% endif %}
+                                                        </td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr class="table-success">
+                                <th colspan="4" class="text-end">Gesamtsumme:</th>
+                                <th>{{ "%.2f"|format(order.quote.total_amount or 0) }} €</th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Platzhalter für zukünftige Features -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-tasks"></i> Arbeitsanweisungen
+                </h6>
+            </div>
+            <div class="card-body">
+                {% if order.work_instruction %}
+                    <!-- Arbeitsanweisung existiert bereits -->
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">{{ order.work_instruction.instruction_number }}</h6>
+                            <small class="text-muted">
+                                Erstellt am {{ order.work_instruction.created_at.strftime('%d.%m.%Y um %H:%M') }}
+                                <br>Status: <span class="badge bg-info">{{ order.work_instruction.status }}</span>
+                            </small>
+                        </div>
+                        <div class="btn-group" role="group">
+                            <a href="{{ url_for('view_work_instruction', order_id=order.id) }}" 
+                               class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-eye"></i> Anzeigen
+                            </a>
+                            <a href="{{ url_for('export_work_instruction_pdf', order_id=order.id) }}" 
+                               class="btn btn-sm btn-outline-success">
+                                <i class="fas fa-file-pdf"></i> PDF
+                            </a>
+                        </div>
+                    </div>
+                {% else %}
+                    <!-- Noch keine Arbeitsanweisung -->
+                    <div class="text-center py-3">
+                        <i class="fas fa-tools fa-2x text-muted mb-3"></i>
+                        <p class="text-muted mb-3">Noch keine Arbeitsanweisung erstellt</p>
+                        <a href="{{ url_for('create_work_instruction', order_id=order.id) }}" 
+                           class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Arbeitsanweisung erstellen
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-file-invoice"></i> Rechnungen
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="text-center py-3">
+                    <i class="fas fa-file-invoice fa-2x text-muted mb-2"></i>
+                    <p class="text-muted mb-0">Wird in einer zukünftigen Version implementiert</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal für Auftragsstornierung -->
+<div class="modal fade" id="cancelOrderModal" tabindex="-1" aria-labelledby="cancelOrderModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="cancelOrderModalLabel">
+                    <i class="fas fa-exclamation-triangle text-warning"></i> Auftrag stornieren
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong>Sind Sie sicher, dass Sie diesen Auftrag stornieren möchten?</strong></p>
+                
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Was passiert bei der Stornierung:</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>Der Auftrag wird als "Storniert" markiert</li>
+                        <li>Das zugehörige Angebot wird wieder verfügbar</li>
+                        <li>Ein neuer Auftrag kann vom Angebot erstellt werden</li>
+                        <li>Der stornierte Auftrag kann nicht mehr bearbeitet werden</li>
+                    </ul>
+                </div>
+                
+                <p class="mb-0"><strong>Auftrag:</strong> {{ order.order_number }}</p>
+                <p class="mb-0"><strong>Kunde:</strong> {{ order.customer.full_name }}</p>
+                <p class="mb-0"><strong>Projekt:</strong> {{ order.quote.project_description[:100] }}{% if order.quote.project_description|length > 100 %}...{% endif %}</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <form method="POST" action="{{ url_for('cancel_order', order_id=order.id) }}" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-times-circle"></i> Auftrag stornieren
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
