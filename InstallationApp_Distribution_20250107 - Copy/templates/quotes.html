@@ -10,6 +10,36 @@
     </div>
 </div>
 
+<!-- Suchbereich -->
+<div class="row mb-3">
+    <div class="col-md-6">
+        <form method="GET" action="{{ url_for('quotes') }}" class="d-flex">
+            <div class="input-group">
+                <input type="text" class="form-control" name="search" 
+                       placeholder="Nach Kunde, Angebotsnummer oder Projekt suchen..." 
+                       value="{{ search_query or '' }}">
+                <button class="btn btn-outline-secondary" type="submit">
+                    <i class="fas fa-search"></i> Suchen
+                </button>
+                {% if search_query %}
+                <a href="{{ url_for('quotes') }}" class="btn btn-outline-danger">
+                    <i class="fas fa-times"></i> Zurücksetzen
+                </a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+    <div class="col-md-6 text-end">
+        <small class="text-muted">
+            {% if search_query %}
+                {{ quotes|length }} Ergebnis(se) für "{{ search_query }}"
+            {% else %}
+                {{ quotes|length }} Angebot(e) insgesamt
+            {% endif %}
+        </small>
+    </div>
+</div>
+
 <div class="row">
     <div class="col-12">
         <div class="card">
@@ -19,13 +49,76 @@
                     <table class="table table-hover">
                         <thead>
                             <tr>
-                                <th>Angebotsnr.</th>
-                                <th>Kunde</th>
-                                <th>Projekt</th>
-                                <th>Betrag</th>
-                                <th>Status</th>
-                                <th>Gültig bis</th>
-                                <th>Erstellt am</th>
+                                <th>
+                                    <a href="{{ url_for('quotes', search=search_query, sort='quote_number', dir='asc' if sort_by != 'quote_number' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Angebotsnr.
+                                        {% if sort_by == 'quote_number' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('quotes', search=search_query, sort='customer', dir='asc' if sort_by != 'customer' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Kunde
+                                        {% if sort_by == 'customer' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('quotes', search=search_query, sort='project_description', dir='asc' if sort_by != 'project_description' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Projekt
+                                        {% if sort_by == 'project_description' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('quotes', search=search_query, sort='total_amount', dir='asc' if sort_by != 'total_amount' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Betrag
+                                        {% if sort_by == 'total_amount' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('quotes', search=search_query, sort='status', dir='asc' if sort_by != 'status' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Status
+                                        {% if sort_by == 'status' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('quotes', search=search_query, sort='valid_until', dir='asc' if sort_by != 'valid_until' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Gültig bis
+                                        {% if sort_by == 'valid_until' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('quotes', search=search_query, sort='created_at', dir='asc' if sort_by != 'created_at' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Erstellt am
+                                        {% if sort_by == 'created_at' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
                                 <th>Aktionen</th>
                             </tr>
                         </thead>

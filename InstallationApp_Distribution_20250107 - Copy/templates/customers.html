@@ -10,6 +10,36 @@
     </div>
 </div>
 
+<!-- Suchbereich -->
+<div class="row mb-3">
+    <div class="col-md-6">
+        <form method="GET" action="{{ url_for('customers') }}" class="d-flex">
+            <div class="input-group">
+                <input type="text" class="form-control" name="search" 
+                       placeholder="Nach Name, E-Mail oder Stadt suchen..." 
+                       value="{{ search_query or '' }}">
+                <button class="btn btn-outline-secondary" type="submit">
+                    <i class="fas fa-search"></i> Suchen
+                </button>
+                {% if search_query %}
+                <a href="{{ url_for('customers') }}" class="btn btn-outline-danger">
+                    <i class="fas fa-times"></i> Zurücksetzen
+                </a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+    <div class="col-md-6 text-end">
+        <small class="text-muted">
+            {% if search_query %}
+                {{ customers|length }} Ergebnis(se) für "{{ search_query }}"
+            {% else %}
+                {{ customers|length }} Kunde(n) insgesamt
+            {% endif %}
+        </small>
+    </div>
+</div>
+
 <div class="row">
     <div class="col-12">
         <div class="card">
@@ -19,11 +49,47 @@
                     <table class="table table-hover">
                         <thead>
                             <tr>
-                                <th>Name</th>
-                                <th>E-Mail</th>
+                                <th>
+                                    <a href="{{ url_for('customers', search=search_query, sort='last_name', dir='asc' if sort_by != 'last_name' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Name
+                                        {% if sort_by == 'last_name' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('customers', search=search_query, sort='email', dir='asc' if sort_by != 'email' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        E-Mail
+                                        {% if sort_by == 'email' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
                                 <th>Telefon</th>
-                                <th>Stadt</th>
-                                <th>Erstellt am</th>
+                                <th>
+                                    <a href="{{ url_for('customers', search=search_query, sort='city', dir='asc' if sort_by != 'city' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Stadt
+                                        {% if sort_by == 'city' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('customers', search=search_query, sort='created_at', dir='asc' if sort_by != 'created_at' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Erstellt am
+                                        {% if sort_by == 'created_at' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
                                 <th>Aktionen</th>
                             </tr>
                         </thead>
@@ -34,7 +100,7 @@
                                 <td>{{ customer.email }}</td>
                                 <td>{{ customer.phone or '-' }}</td>
                                 <td>{{ customer.city or '-' }}</td>
-                                <td>{{ customer.created_at.strftime('%d.%m.%Y') }}</td>
+                                <td>{{ customer.id }}</td>
                                 <td>
                                     <div class="btn-group" role="group">
                                         <a href="{{ url_for('edit_customer', id=customer.id) }}" class="btn btn-sm btn-outline-primary" title="Bearbeiten">

@@ -31,6 +31,44 @@
     </div>
 </div>
 
+<!-- Suchbereich -->
+<div class="row mb-3">
+    <div class="col-md-6">
+        <form method="GET" action="{{ url_for('supplier_orders') }}" class="d-flex">
+            <!-- Behalte bestehende Filter bei -->
+            {% if request.args.get('order_id') %}
+            <input type="hidden" name="order_id" value="{{ request.args.get('order_id') }}">
+            {% endif %}
+            
+            <div class="input-group">
+                <input type="text" class="form-control" name="search" 
+                       placeholder="Nach Lieferant, Kunde, Angebot oder Auftrag suchen..." 
+                       value="{{ search_query or '' }}">
+                <button class="btn btn-outline-secondary" type="submit">
+                    <i class="fas fa-search"></i> Suchen
+                </button>
+                {% if search_query %}
+                <a href="{{ url_for('supplier_orders', order_id=request.args.get('order_id')) if request.args.get('order_id') else url_for('supplier_orders') }}" 
+                   class="btn btn-outline-danger">
+                    <i class="fas fa-times"></i> Zurücksetzen
+                </a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+    <div class="col-md-6 text-end">
+        <small class="text-muted">
+            {% if search_query %}
+                {{ orders|length }} Ergebnis(se) für "{{ search_query }}"
+                {% if filter_order %} (gefiltert nach Auftrag {{ filter_order.order_number }}){% endif %}
+            {% else %}
+                {{ orders|length }} Bestellung(en) insgesamt
+                {% if filter_order %} (gefiltert nach Auftrag {{ filter_order.order_number }}){% endif %}
+            {% endif %}
+        </small>
+    </div>
+</div>
+
 <!-- Warnung für nicht zugeordnete Bestellungen -->
 {% set unlinked_orders = orders|selectattr('order', 'none')|list %}
 {% if unlinked_orders and not filter_order %}
@@ -68,15 +106,69 @@
                     <table class="table table-hover">
                         <thead>
                             <tr>
-                                <th>Bestelldatum</th>
-                                <th>Lieferant</th>
-                                <th>Angebot</th>
-                                <th>Auftrag</th>
+                                <th>
+                                    <a href="{{ url_for('supplier_orders', search=search_query, order_id=request.args.get('order_id'), sort='order_date', dir='asc' if sort_by != 'order_date' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Bestelldatum
+                                        {% if sort_by == 'order_date' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('supplier_orders', search=search_query, order_id=request.args.get('order_id'), sort='supplier_name', dir='asc' if sort_by != 'supplier_name' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Lieferant
+                                        {% if sort_by == 'supplier_name' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('supplier_orders', search=search_query, order_id=request.args.get('order_id'), sort='quote_number', dir='asc' if sort_by != 'quote_number' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Angebot
+                                        {% if sort_by == 'quote_number' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('supplier_orders', search=search_query, order_id=request.args.get('order_id'), sort='order_number', dir='asc' if sort_by != 'order_number' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Auftrag
+                                        {% if sort_by == 'order_number' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
                                 <th>Projekt</th>
                                 <th>Positionen</th>
-                                <th>Status</th>
+                                <th>
+                                    <a href="{{ url_for('supplier_orders', search=search_query, order_id=request.args.get('order_id'), sort='status', dir='asc' if sort_by != 'status' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Status
+                                        {% if sort_by == 'status' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
                                 <th>Bestätigt</th>
-                                <th>Liefertermin</th>
+                                <th>
+                                    <a href="{{ url_for('supplier_orders', search=search_query, order_id=request.args.get('order_id'), sort='delivery_date', dir='asc' if sort_by != 'delivery_date' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Liefertermin
+                                        {% if sort_by == 'delivery_date' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
                                 <th>Aktionen</th>
                             </tr>
                         </thead>
