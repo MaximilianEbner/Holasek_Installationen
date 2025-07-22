@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <h1>{{ title }}</h1>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('customers') }}">Kunden</a></li>
+                <li class="breadcrumb-item active">{{ customer.full_name }}</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Kundendaten -->
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-user"></i> Kundendaten
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Name:</strong> 
+                            {% if customer.salutation %}{{ customer.salutation }} {% endif %}{{ customer.full_name }}
+                        </p>
+                        <p><strong>E-Mail:</strong> {{ customer.email }}</p>
+                        <p><strong>Telefon:</strong> {{ customer.phone or '-' }}</p>
+                        <p><strong>Stadt:</strong> {{ customer.city or '-' }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Kundenbetreuer:</strong> {{ customer.customer_manager or '-' }}</p>
+                        <p><strong>Akquisekanal:</strong> 
+                            {% if customer.acquisition_channel %}
+                                <span class="badge bg-info">{{ customer.acquisition_channel.name }}</span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </p>
+                        <p><strong>Erstellt am:</strong> {{ customer.created_at.strftime('%d.%m.%Y') }}</p>
+                    </div>
+                </div>
+                
+                {% if customer.address %}
+                <div class="mt-3">
+                    <p><strong>Adresse:</strong><br>
+                    {{ customer.address }}<br>
+                    {% if customer.postal_code %}{{ customer.postal_code }} {% endif %}{{ customer.city or '' }}
+                    </p>
+                </div>
+                {% endif %}
+                
+                {% if customer.comments %}
+                <div class="mt-3">
+                    <p><strong>Kommentare:</strong><br>
+                    <span class="text-muted">{{ customer.comments }}</span>
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Angebote -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-file-alt"></i> Angebote ({{ quotes|length }})
+                </h5>
+                {% if customer.status in ['3. Angebot erstellen', '2. Termin vereinbart'] %}
+                <a href="{{ url_for('new_quote', customer_id=customer.id) }}" class="btn btn-primary btn-sm">
+                    <i class="fas fa-plus"></i> Neues Angebot
+                </a>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if quotes %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Angebotsnummer</th>
+                                <th>Projekt</th>
+                                <th>Betrag</th>
+                                <th>Status</th>
+                                <th>Erstellt</th>
+                                <th>Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for quote in quotes %}
+                            <tr>
+                                <td><strong>{{ quote.quote_number }}</strong></td>
+                                <td>{{ quote.project_description[:50] }}{% if quote.project_description|length > 50 %}...{% endif %}</td>
+                                <td>{{ "{:,.2f}".format(quote.total_amount) }} €</td>
+                                <td>
+                                    <span class="badge bg-{% if quote.status == 'Angenommen' %}success{% elif quote.status == 'Abgelehnt' %}danger{% elif quote.status == 'Gesendet' %}info{% else %}secondary{% endif %}">
+                                        {{ quote.status }}
+                                    </span>
+                                </td>
+                                <td>{{ quote.created_at.strftime('%d.%m.%Y') }}</td>
+                                <td>
+                                    <a href="{{ url_for('view_quote', id=quote.id) }}" class="btn btn-sm btn-outline-primary" title="Anzeigen">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted text-center py-3">
+                    <i class="fas fa-file-alt fa-2x mb-2"></i><br>
+                    Noch keine Angebote für diesen Kunden erstellt.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Workflow-Sidebar -->
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-tasks"></i> Workflow-Status
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <h6>Aktueller Status:</h6>
+                    <span class="badge {{ customer.get_status_badge_class() }} fs-6">{{ customer.status }}</span>
+                </div>
+                
+                <div class="mb-3">
+                    <h6>Nächste Aktion:</h6>
+                    <p class="text-muted">{{ customer.get_next_action() }}</p>
+                </div>
+                
+                {% if customer.appointment_date %}
+                <div class="mb-3">
+                    <h6>Termindetails:</h6>
+                    <p><strong>Datum:</strong> {{ customer.appointment_date.strftime('%d.%m.%Y') }}</p>
+                    {% if customer.appointment_notes %}
+                    <p><strong>Notizen:</strong><br>
+                    <span class="text-muted">{{ customer.appointment_notes }}</span>
+                    </p>
+                    {% endif %}
+                </div>
+                {% endif %}
+                
+                <!-- Workflow-Aktionen -->
+                <div class="d-grid gap-2">
+                    {% if customer.status == '1. Termin vereinbaren' %}
+                    <a href="{{ url_for('schedule_appointment', id=customer.id) }}" class="btn btn-warning">
+                        <i class="fas fa-calendar-plus"></i> Termin vereinbaren
+                    </a>
+                    {% elif customer.status == '2. Termin vereinbart' %}
+                    <a href="{{ url_for('new_quote', customer_id=customer.id) }}" class="btn btn-primary">
+                        <i class="fas fa-file-alt"></i> Angebot erstellen
+                    </a>
+                    <a href="{{ url_for('schedule_appointment', id=customer.id) }}" class="btn btn-outline-warning">
+                        <i class="fas fa-calendar-edit"></i> Termin bearbeiten
+                    </a>
+                    {% elif customer.status == '3. Angebot erstellen' %}
+                    <a href="{{ url_for('new_quote', customer_id=customer.id) }}" class="btn btn-primary">
+                        <i class="fas fa-file-alt"></i> Angebot erstellen
+                    </a>
+                    {% elif customer.status == 'Angebot wurde erstellt' %}
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i> Workflow abgeschlossen!
+                    </div>
+                    {% elif customer.status == 'Kein Interesse' %}
+                    <div class="alert alert-secondary">
+                        <i class="fas fa-pause-circle"></i> Kunde hat aktuell kein Interesse
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Status manuell ändern -->
+                    <a href="{{ url_for('customer_workflow', id=customer.id) }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-cog"></i> Workflow verwalten
+                    </a>
+                    
+                    <!-- Auf "Kein Interesse" setzen (falls nicht bereits gesetzt) -->
+                    {% if customer.status != 'Kein Interesse' %}
+                    <form method="POST" action="{{ url_for('customer_workflow', id=customer.id) }}" class="d-inline">
+                        <input type="hidden" name="status" value="Kein Interesse"/>
+                        <button type="submit" class="btn btn-outline-danger btn-sm w-100" 
+                                onclick="return confirm('Kunde auf \'Kein Interesse\' setzen?')">
+                            <i class="fas fa-times-circle"></i> Kein Interesse
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Bearbeiten -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-edit"></i> Aktionen
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('edit_customer', id=customer.id) }}" class="btn btn-outline-primary">
+                        <i class="fas fa-edit"></i> Kundendaten bearbeiten
+                    </a>
+                    <a href="{{ url_for('customers') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> Zurück zur Übersicht
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

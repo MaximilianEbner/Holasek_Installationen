@@ -33,14 +33,9 @@
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h5 class="mb-0">{{ category }}</h5>
-            <div>
-                <button type="button" class="btn btn-outline-primary btn-sm me-2" onclick="addWorkStep('{{ category }}')">
-                    <i class="fas fa-plus"></i> Arbeitsschritt hinzufügen
-                </button>
-                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeCategory('{{ category }}')">
-                    <i class="fas fa-trash"></i> Kategorie löschen
-                </button>
-            </div>
+            <button type="button" class="btn btn-outline-primary btn-sm" onclick="addWorkStep('{{ category }}')">
+                <i class="fas fa-plus"></i> Arbeitsschritt hinzufügen
+            </button>
         </div>
         <div class="card-body">
             <div id="category-{{ category|replace(' ', '')|replace('&', '')|replace('/', '') }}">
@@ -103,8 +98,7 @@
 
 <script>
 function saveWorkSteps() {
-    // Vorläufige Implementierung - zeigt nur Bestätigung
-    if (confirm('Arbeitsschritte speichern?\n\nHinweis: Die vollständige Speicher-Funktionalität wird noch implementiert.')) {
+    if (confirm('Arbeitsschritte speichern?')) {
         document.getElementById('work-steps-form').submit();
     }
 }
@@ -148,23 +142,8 @@ function addWorkStep(category) {
 }
 
 function removeWorkStep(button) {
-    if (confirm('Arbeitsschritt wirklich entfernen?')) {
+    if (confirm('Arbeitsschritt löschen?')) {
         button.closest('.work-step-row').remove();
-    }
-}
-
-function removeCategory(categoryName) {
-    if (confirm(`Kategorie "${categoryName}" mit allen Arbeitsschritten wirklich löschen?\n\nDiese Aktion kann nicht rückgängig gemacht werden!`)) {
-        // Finde die entsprechende Karte und entferne sie
-        const categoryId = categoryName.replace(/[^a-zA-Z0-9]/g, '');
-        const categoryContainer = document.getElementById(`category-${categoryId}`);
-        if (categoryContainer) {
-            // Entferne die gesamte Karte (parent von parent von categoryContainer)
-            const card = categoryContainer.closest('.card');
-            if (card) {
-                card.remove();
-            }
-        }
     }
 }
 
@@ -199,16 +178,12 @@ function addNewCategory() {
         </div>
     `;
     
-    // Neue Kategorie vor der "Neue Kategorie hinzufügen" Karte einfügen
+    // Füge vor der "Neue Kategorie" Karte hinzu
     const newCategoryCard = document.querySelector('.card:last-child');
     newCategoryCard.insertAdjacentHTML('beforebegin', newCategoryHtml);
     
-    // Input zurücksetzen
+    // Leere das Eingabefeld
     document.getElementById('new-category-name').value = '';
-    
-    // Automatisch ersten Arbeitsschritt hinzufügen
-    addWorkStep(categoryName);
 }
 </script>
-
 {% endblock %}

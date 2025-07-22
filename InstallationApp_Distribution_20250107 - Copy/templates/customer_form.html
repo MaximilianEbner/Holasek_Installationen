@@ -24,7 +24,19 @@
                     {{ form.hidden_tag() }}
                     
                     <div class="row">
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4 mb-3">
+                            {{ form.salutation.label(class="form-label") }}
+                            {{ form.salutation(class="form-control", placeholder="z.B. Herr, Frau, Dr.") }}
+                            {% if form.salutation.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.salutation.errors %}
+                                        <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
                             {{ form.first_name.label(class="form-label") }}
                             {{ form.first_name(class="form-control") }}
                             {% if form.first_name.errors %}
@@ -36,7 +48,7 @@
                             {% endif %}
                         </div>
                         
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4 mb-3">
                             {{ form.last_name.label(class="form-label") }}
                             {{ form.last_name(class="form-control") }}
                             {% if form.last_name.errors %}
@@ -83,6 +95,47 @@
                             {{ form.city.label(class="form-label") }}
                             {{ form.city(class="form-control") }}
                         </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.customer_manager.label(class="form-label") }}
+                            {{ form.customer_manager(class="form-control", placeholder="Name des zuständigen Betreuers") }}
+                            {% if form.customer_manager.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.customer_manager.errors %}
+                                        <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            {{ form.acquisition_channel.label(class="form-label") }}
+                            {{ form.acquisition_channel(class="form-select") }}
+                            {% if form.acquisition_channel.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.acquisition_channel.errors %}
+                                        <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.comments.label(class="form-label") }}
+                        {{ form.comments(class="form-control", rows="4", placeholder="Allgemeine Kommentare und Notizen zu diesem Kunden...") }}
+                        {% if form.comments.errors %}
+                            <div class="text-danger">
+                                {% for error in form.comments.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <small class="form-text text-muted">
+                            Hier können Sie wichtige Informationen, Präferenzen oder besondere Hinweise zum Kunden festhalten.
+                        </small>
                     </div>
                     
                     <div class="d-flex gap-2">

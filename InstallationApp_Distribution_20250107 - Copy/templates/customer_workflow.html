@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <h1>{{ title }}</h1>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('customers') }}">Kunden</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('customer_detail', id=customer.id) }}">{{ customer.full_name }}</a></li>
+                <li class="breadcrumb-item active">{{ title }}</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-tasks"></i> Workflow für {{ customer.full_name }}
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.status.label(class="form-label") }}
+                        {{ form.status(class="form-select") }}
+                        {% if form.status.errors %}
+                            <div class="text-danger">
+                                {% for error in form.status.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.appointment_date.label(class="form-label") }}
+                        {{ form.appointment_date(class="form-control") }}
+                        {% if form.appointment_date.errors %}
+                            <div class="text-danger">
+                                {% for error in form.appointment_date.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <small class="form-text text-muted">
+                            Optional: Setzen Sie das Datum für den Kundentermin.
+                        </small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.appointment_notes.label(class="form-label") }}
+                        {{ form.appointment_notes(class="form-control", rows="3") }}
+                        {% if form.appointment_notes.errors %}
+                            <div class="text-danger">
+                                {% for error in form.appointment_notes.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.comments.label(class="form-label") }}
+                        {{ form.comments(class="form-control", rows="4") }}
+                        {% if form.comments.errors %}
+                            <div class="text-danger">
+                                {% for error in form.comments.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <small class="form-text text-muted">
+                            Allgemeine Kommentare und Notizen zu diesem Kunden.
+                        </small>
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        {{ form.submit(class="btn btn-primary") }}
+                        <a href="{{ url_for('customer_detail', id=customer.id) }}" class="btn btn-secondary">Abbrechen</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Workflow-Übersicht</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <h6>Aktueller Status:</h6>
+                    <span class="badge {{ customer.get_status_badge_class() }} fs-6">{{ customer.status }}</span>
+                </div>
+                
+                <div class="mb-3">
+                    <h6>Workflow-Schritte:</h6>
+                    <ul class="list-unstyled">
+                        <li class="mb-2">
+                            <span class="badge bg-warning me-2">1</span>
+                            <strong>Termin vereinbaren</strong><br>
+                            <small class="text-muted">Kunde kontaktieren und Termin vereinbaren</small>
+                        </li>
+                        <li class="mb-2">
+                            <span class="badge bg-info me-2">2</span>
+                            <strong>Termin vereinbart</strong><br>
+                            <small class="text-muted">Termin steht fest, Vorbereitung auf Kundenbesuch</small>
+                        </li>
+                        <li class="mb-2">
+                            <span class="badge bg-primary me-2">3</span>
+                            <strong>Angebot erstellen</strong><br>
+                            <small class="text-muted">Nach Kundentermin Angebot ausarbeiten</small>
+                        </li>
+                        <li class="mb-2">
+                            <span class="badge bg-success me-2">4</span>
+                            <strong>Angebot wurde erstellt</strong><br>
+                            <small class="text-muted">Workflow abgeschlossen</small>
+                        </li>
+                    </ul>
+                </div>
+                
+                {% if customer.appointment_date %}
+                <div class="mb-3">
+                    <h6>Termininformationen:</h6>
+                    <p><strong>Datum:</strong> {{ customer.appointment_date.strftime('%d.%m.%Y') }}</p>
+                    {% if customer.appointment_notes %}
+                    <p><strong>Notizen:</strong><br>
+                    <span class="text-muted">{{ customer.appointment_notes }}</span>
+                    </p>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Hinweise</h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text">
+                    <i class="fas fa-info-circle text-info"></i> 
+                    Verwenden Sie "Kein Interesse" wenn der Kunde aktuell nicht interessiert ist.
+                </p>
+                <p class="card-text">
+                    <i class="fas fa-lightbulb text-warning"></i> 
+                    Bei Status-Änderungen werden automatische Aktionen ausgelöst.
+                </p>
+                <p class="card-text">
+                    <i class="fas fa-calendar text-primary"></i> 
+                    Ein Termindatum setzt den Status automatisch auf "Termin vereinbart".
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

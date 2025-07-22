@@ -1,13 +1,60 @@
+
 """
 Datenbankmodelle für die InstallationApp
 """
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_login import UserMixin
 
 db = SQLAlchemy()
 
+class User(UserMixin, db.Model):
+    """Benutzer-Modell für Authentifizierung"""
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(128), nullable=False)
+    first_name = db.Column(db.String(100), nullable=False)
+    last_name = db.Column(db.String(100), nullable=False)
+    is_admin = db.Column(db.Boolean, default=False)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_login = db.Column(db.DateTime)
+    
+    def set_password(self, password):
+        """Setzt das verschlüsselte Passwort"""
+        self.password_hash = generate_password_hash(password)
+    
+    def check_password(self, password):
+        """Überprüft das Passwort"""
+        return check_password_hash(self.password_hash, password)
+    
+    @property
+    def full_name(self):
+        return f"{self.first_name} {self.last_name}"
+    
+    # Flask-Login erforderliche Methoden
+    def get_id(self):
+        """Gibt die Benutzer-ID als String zurück"""
+        return str(self.id)
+    
+    def is_authenticated(self):
+        """Gibt True zurück, wenn der Benutzer authentifiziert ist"""
+        return True
+    
+    def is_anonymous(self):
+        """Gibt True zurück, wenn der Benutzer anonym ist"""
+        return False
+    
+    def update_last_login(self):
+        """Aktualisiert den letzten Login-Zeitpunkt"""
+        self.last_login = datetime.utcnow()
+        db.session.commit()
+
 class Customer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    salutation = db.Column(db.String(100))  # Anrede (optional)
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(120), nullable=False)
@@ -15,14 +62,49 @@ class Customer(db.Model):
     address = db.Column(db.Text)
     city = db.Column(db.String(100))
     postal_code = db.Column(db.String(10))
+    customer_manager = db.Column(db.String(100))  # Kundenbetreuer (optional)
+    acquisition_channel_id = db.Column(db.Integer, db.ForeignKey('acquisition_channel.id'))  # Akquisekanal
+    
+    # Workflow-Felder
+    status = db.Column(db.String(50), default='1. Termin vereinbaren')  # Status im Workflow
+    appointment_date = db.Column(db.Date)  # Termindatum (nur Datum, ohne Uhrzeit)
+    appointment_notes = db.Column(db.Text)  # Notizen zum Termin
+    comments = db.Column(db.Text)  # Allgemeine Kommentare zum Kunden
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Beziehungen
     quotes = db.relationship('Quote', backref='customer', lazy=True)
+    acquisition_channel = db.relationship('AcquisitionChannel', backref='customers')
     
     @property
     def full_name(self):
         return f"{self.first_name} {self.last_name}"
+    
+    def get_status_badge_class(self):
+        """Gibt die Bootstrap-Badge-Klasse für den aktuellen Status zurück"""
+        status_classes = {
+            '1. Termin vereinbaren': 'bg-warning',
+            '2. Termin vereinbart': 'bg-info',
+            '3. Angebot erstellen': 'bg-primary',
+            'Angebot wurde erstellt': 'bg-success',
+            'Kein Interesse': 'bg-secondary'
+        }
+        return status_classes.get(self.status, 'bg-light')
+    
+    def get_next_action(self):
+        """Gibt die nächste erforderliche Aktion zurück"""
+        if self.status == '1. Termin vereinbaren':
+            return 'Termin im Kalender eintragen'
+        elif self.status == '2. Termin vereinbart':
+            return 'Angebot erstellen'
+        elif self.status == '3. Angebot erstellen':
+            return 'Angebot erstellen'
+        elif self.status == 'Angebot wurde erstellt':
+            return 'Workflow abgeschlossen'
+        elif self.status == 'Kein Interesse':
+            return 'Kunde hat aktuell kein Interesse'
+        return 'Unbekannter Status'
 
 class Quote(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -34,6 +116,9 @@ class Quote(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     valid_until = db.Column(db.Date)
     include_additional_info = db.Column(db.Boolean, default=True)
+    # Neue PDF-Preistransparenz Modi: 'standard', 'detailed', 'total_only'
+    price_display_mode = db.Column(db.String(20), default='standard')  
+    # Alte Kompatibilität beibehalten (deprecated, wird durch price_display_mode ersetzt)
     show_subitem_prices = db.Column(db.Boolean, default=False)  # Preistransparenz Unterpositionen
     markup_percentage = db.Column(db.Float, default=15.0)  # Aufschlag in Prozent (Standard: 15%)
     
@@ -152,6 +237,14 @@ class QuoteSubItem(db.Model):
     def update_price(self):
         """Aktualisiert den berechneten Preis"""
         self.price = self.calculate_price()
+    
+    def calculate_price_with_markup(self):
+        """Berechnet den Preis der Unterposition inklusive Aufschlag - für PDF-Export"""
+        base_price = self.calculate_price()
+        if self.quote_item and self.quote_item.quote and self.quote_item.quote.markup_percentage and self.quote_item.quote.markup_percentage > 0:
+            markup_factor = 1 + (self.quote_item.quote.markup_percentage / 100)
+            return base_price * markup_factor
+        return base_price
 
 class Supplier(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -166,15 +259,80 @@ class Supplier(db.Model):
     def __repr__(self):
         return f'<Supplier {self.name}>'
 
-class PositionTemplate(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    position = db.Column(db.Integer, nullable=False)
-    sub_position = db.Column(db.String(10), nullable=False)
-    description = db.Column(db.Text, nullable=False)
-    category = db.Column(db.String(100))
-    requires_order = db.Column(db.Boolean, default=False)
-    standard_supplier = db.Column(db.String(200))
 
+class PositionTemplate(db.Model):
+    __tablename__ = 'position_templates'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(128), nullable=False)
+    # category = db.Column(db.String(64))  # Kategorie (UmbauWanneZurDusche, etc.) - REMOVED
+    description = db.Column(db.Text)  # Beschreibung der Vorlage
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Kalkulationsfelder - welche Parameter sind für diese Vorlage aktiviert
+    enable_length = db.Column(db.Boolean, default=False)  # Länge aktiviert
+    enable_width = db.Column(db.Boolean, default=False)   # Breite aktiviert
+    enable_height = db.Column(db.Boolean, default=False)  # Höhe aktiviert
+    enable_area = db.Column(db.Boolean, default=False)    # Fläche aktiviert (wird automatisch berechnet)
+    enable_volume = db.Column(db.Boolean, default=False)  # Volumen aktiviert (wird automatisch berechnet)
+    
+    subitems = db.relationship('PositionTemplateSubItem', backref='template', cascade='all, delete-orphan', lazy=True, order_by='PositionTemplateSubItem.position')
+
+class PositionTemplateSubItem(db.Model):
+    __tablename__ = 'position_template_subitems'
+    id = db.Column(db.Integer, primary_key=True)
+    template_id = db.Column(db.Integer, db.ForeignKey('position_templates.id'), nullable=False)
+    description = db.Column(db.String(256), nullable=False)
+    item_type = db.Column(db.String(32), nullable=False)  # bestellteil, arbeitsvorgang, sonstiges
+    unit = db.Column(db.String(32))  # z.B. qm, m, Stück
+    price_per_unit = db.Column(db.Float)
+    formula = db.Column(db.String(128))  # Optional: Formel für Berechnung (z.B. hoehe*breite/10000)
+    position = db.Column(db.Integer, default=0)  # Position für Sortierung per Drag & Drop
+    
+    # Felder für Bestellteil (konsistent mit QuoteSubItem)
+    requires_order = db.Column(db.Boolean, default=False)
+    supplier = db.Column(db.String(200))
+    part_number = db.Column(db.String(100))  # Mapping: supplier_part_number -> part_number
+    part_quantity = db.Column(db.String(50), default='1')
+    part_price = db.Column(db.Float, default=0.0)
+    
+    # Felder für Arbeitsvorgang (konsistent mit QuoteSubItem)
+    hours = db.Column(db.Float, default=0.0)
+    hourly_rate = db.Column(db.Float, default=95.0)
+    
+    # Felder für Sonstiges (konsistent mit QuoteSubItem)
+    quantity = db.Column(db.String(50), default='')
+    unit_price = db.Column(db.Float, default=0.0)
+    
+    # Berechneter Preis
+    price = db.Column(db.Float, default=0.0)
+    
+    def calculate_price(self):
+        """Berechnet den Preis basierend auf dem Typ der Unterposition"""
+        if self.item_type == 'arbeitsvorgang':
+            return self.hours * self.hourly_rate
+        elif self.item_type == 'sonstiges':
+            try:
+                quantity_num = float(self.quantity.replace(',', '.')) if self.quantity else 0.0
+                return quantity_num * self.unit_price
+            except (ValueError, AttributeError):
+                return self.unit_price
+        else:  # bestellteil
+            return self.part_price
+    
+    def update_price(self):
+        """Aktualisiert den berechneten Preis"""
+        self.price = self.calculate_price()
+    
+    @property
+    def supplier_part_number(self):
+        """Alias für part_number für Template-Kompatibilität"""
+        return self.part_number
+    
+    @supplier_part_number.setter
+    def supplier_part_number(self, value):
+        """Setter für part_number über supplier_part_number Alias"""
+        self.part_number = value
 class CompanySettings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     setting_name = db.Column(db.String(100), unique=True, nullable=False)
@@ -200,19 +358,25 @@ class CompanySettings(db.Model):
     @staticmethod
     def set_setting(name, value, description=None):
         """Hilfsfunktion zum Setzen einer Einstellung"""
-        setting = CompanySettings.query.filter_by(setting_name=name).first()
-        if setting:
-            setting.setting_value = str(value)
-            setting.updated_at = datetime.utcnow()
-        else:
-            setting = CompanySettings(
-                setting_name=name,
-                setting_value=str(value),
-                description=description
-            )
-            db.session.add(setting)
-        db.session.commit()
-        return setting
+        try:
+            setting = CompanySettings.query.filter_by(setting_name=name).first()
+            if setting:
+                setting.setting_value = str(value)
+                setting.updated_at = datetime.utcnow()
+            else:
+                setting = CompanySettings(
+                    setting_name=name,
+                    setting_value=str(value),
+                    description=description
+                )
+                db.session.add(setting)
+            
+            # Erst hier committen nach allen Änderungen
+            db.session.commit()
+            return setting
+        except Exception as e:
+            db.session.rollback()
+            raise e  # Exception weiterwerfen für bessere Fehlerbehandlung
 
 class QuoteRejection(db.Model):
     """Model für Angebots-Ablehnungen mit Grund"""
@@ -252,6 +416,53 @@ class Order(db.Model):
     def total_amount(self):
         """Gesamtsumme des Auftrags (aus dem Angebot)"""
         return self.quote.total_amount if self.quote else 0.0
+    
+    @property
+    def net_amount(self):
+        """Nettosumme des Auftrags (ohne MwSt.)"""
+        return self.quote.calculate_net_total() if self.quote else 0.0
+    
+    def has_anzahlung_invoice(self):
+        """Prüft, ob bereits eine Anzahlungsrechnung existiert"""
+        return any(invoice.invoice_type == 'anzahlung' for invoice in self.invoices)
+    
+    def has_schluss_invoice(self):
+        """Prüft, ob bereits eine Schlussrechnung existiert"""
+        return any(invoice.invoice_type == 'schluss' for invoice in self.invoices)
+    
+    def can_create_anzahlung(self):
+        """Prüft, ob eine Anzahlungsrechnung erstellt werden kann"""
+        return (self.status in ['Angenommen', 'Geplant', 'In Arbeit'] and 
+                not self.has_anzahlung_invoice())
+    
+    def can_create_schluss(self):
+        """Prüft, ob eine Schlussrechnung erstellt werden kann"""
+        return (self.status == 'Abgeschlossen' and 
+                self.has_anzahlung_invoice() and 
+                not self.has_schluss_invoice())
+    
+    def get_total_invoiced_amount(self):
+        """Gibt den Gesamtbetrag aller erstellten Rechnungen zurück"""
+        return sum(invoice.final_amount for invoice in self.invoices)
+    
+    def get_outstanding_amount(self):
+        """Gibt den noch offenen Rechnungsbetrag zurück"""
+        total_invoiced = sum(invoice.final_amount for invoice in self.invoices if invoice.status == 'bezahlt')
+        return self.net_amount - total_invoiced
+    
+    def get_invoice_status_summary(self):
+        """Gibt eine Zusammenfassung des Rechnungsstatus zurück"""
+        anzahlung = next((inv for inv in self.invoices if inv.invoice_type == 'anzahlung'), None)
+        schluss = next((inv for inv in self.invoices if inv.invoice_type == 'schluss'), None)
+        
+        return {
+            'anzahlung_created': anzahlung is not None,
+            'anzahlung_paid': anzahlung.status == 'bezahlt' if anzahlung else False,
+            'schluss_created': schluss is not None,
+            'schluss_paid': schluss.status == 'bezahlt' if schluss else False,
+            'total_paid': sum(inv.final_amount for inv in self.invoices if inv.status == 'bezahlt'),
+            'total_outstanding': self.get_outstanding_amount()
+        }
 
 class SupplierOrder(db.Model):
     """Model für Lieferantenbestellungen"""
@@ -260,7 +471,7 @@ class SupplierOrder(db.Model):
     order_id = db.Column(db.Integer, db.ForeignKey('order.id'), nullable=True)  # Verknüpfung zum Auftrag
     supplier_name = db.Column(db.String(200), nullable=False)
     order_date = db.Column(db.DateTime, default=datetime.utcnow)
-    status = db.Column(db.String(20), default='Bestellt')  # Bestellt, Bestätigt, Geliefert
+    status = db.Column(db.String(20), default='Noch nicht bestellt')  # Noch nicht bestellt, Bestellt, Bestätigt, Geliefert
     confirmation_date = db.Column(db.DateTime)
     delivery_date = db.Column(db.Date)
     notes = db.Column(db.Text)
@@ -371,3 +582,165 @@ class WorkInstruction(db.Model):
             'Abgebrochen': 0
         }
         return progress_map.get(self.status, 0)
+
+class AcquisitionChannel(db.Model):
+    """Akquisekanäle für Kunden"""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    description = db.Column(db.Text)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<AcquisitionChannel {self.name}>'
+
+class Invoice(db.Model):
+    """Rechnungsmodell für Anzahlungs- und Schlussrechnungen"""
+    id = db.Column(db.Integer, primary_key=True)
+    invoice_number = db.Column(db.String(50), unique=True, nullable=False)  # z.B. "R-2025-001"
+    order_id = db.Column(db.Integer, db.ForeignKey('order.id'), nullable=False)
+    invoice_type = db.Column(db.String(20), nullable=False)  # 'anzahlung', 'schluss'
+    percentage = db.Column(db.Float, nullable=False)  # 30.0, 70.0
+    base_amount = db.Column(db.Float, nullable=False)  # Grundbetrag des Auftrags (netto)
+    invoice_amount = db.Column(db.Float, nullable=False)  # Rechnungsbetrag (% vom Grundbetrag)
+    previous_payments = db.Column(db.Float, default=0.0)  # Bereits erhaltene Anzahlungen
+    final_amount = db.Column(db.Float, nullable=False)  # Finaler Rechnungsbetrag
+    vat_rate = db.Column(db.Float, default=20.0)  # MwSt.-Satz in Prozent
+    vat_amount = db.Column(db.Float, nullable=False)  # MwSt.-Betrag
+    gross_amount = db.Column(db.Float, nullable=False)  # Bruttogesamtbetrag
+    due_date = db.Column(db.Date, nullable=False)  # Fälligkeitsdatum
+    payment_terms = db.Column(db.Integer, default=14)  # Zahlungsziel in Tagen
+    status = db.Column(db.String(20), default='erstellt')  # 'erstellt', 'versendet', 'bezahlt', 'ueberfaellig'
+    paid_date = db.Column(db.Date, nullable=True)  # Bezahldatum
+    payment_reference = db.Column(db.String(100), nullable=True)  # Zahlungsreferenz
+    comments = db.Column(db.Text, nullable=True)  # Kommentare und Notizen
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationship
+    order = db.relationship('Order', backref=db.backref('invoices', lazy=True, cascade='all, delete-orphan'))
+    
+    def __repr__(self):
+        return f'<Invoice {self.invoice_number} - {self.invoice_type.title()} - {self.final_amount}€>'
+    
+    @staticmethod
+    def generate_invoice_number():
+        """Generiert eine neue, fortlaufende Rechnungsnummer"""
+        from datetime import datetime
+        year = datetime.now().year
+        
+        # Finde die höchste Rechnungsnummer des aktuellen Jahres
+        latest_invoice = Invoice.query.filter(
+            Invoice.invoice_number.like(f'R-{year}-%')
+        ).order_by(Invoice.invoice_number.desc()).first()
+        
+        if latest_invoice:
+            # Extrahiere die Nummer aus dem Format "R-YYYY-XXX"
+            try:
+                last_number = int(latest_invoice.invoice_number.split('-')[-1])
+                new_number = last_number + 1
+            except (ValueError, IndexError):
+                new_number = 1
+        else:
+            new_number = 1
+        
+        return f'R-{year}-{new_number:03d}'
+    
+    def calculate_amounts(self):
+        """Berechnet alle Beträge basierend auf Grundbetrag und Prozentsatz"""
+        # Sichere Behandlung von None-Werten
+        if self.percentage is None:
+            raise ValueError("Prozentsatz darf nicht None sein")
+        if self.base_amount is None:
+            raise ValueError("Grundbetrag darf nicht None sein")
+        if self.vat_rate is None:
+            self.vat_rate = 20.0  # Standard-MwSt.-Satz
+        if self.previous_payments is None:
+            self.previous_payments = 0.0
+        
+        self.invoice_amount = self.base_amount * (self.percentage / 100)
+        
+        if self.invoice_type == 'schluss':
+            # Bei Schlussrechnung: Restbetrag = Auftragssumme - bereits erhaltene Anzahlungen
+            self.final_amount = self.base_amount - self.previous_payments
+        else:
+            # Bei anderen Rechnungstypen: final_amount ist der Prozentsatz-Betrag
+            self.final_amount = self.invoice_amount
+        
+        # MwSt. berechnen auf final_amount
+        self.vat_amount = self.final_amount * (self.vat_rate / 100)
+        self.gross_amount = self.final_amount + self.vat_amount
+    
+    def is_overdue(self):
+        """Prüft, ob die Rechnung überfällig ist"""
+        from datetime import date
+        return (self.status != 'bezahlt' and 
+                self.due_date and 
+                self.due_date < date.today())
+    
+    def days_overdue(self):
+        """Gibt die Anzahl der überfälligen Tage zurück"""
+        if not self.is_overdue():
+            return 0
+        from datetime import date
+        return (date.today() - self.due_date).days
+    
+    def mark_as_paid(self, paid_date=None, payment_reference=None, comment=None):
+        """Markiert die Rechnung als bezahlt"""
+        from datetime import date
+        self.status = 'bezahlt'
+        self.paid_date = paid_date or date.today()
+        if payment_reference:
+            self.payment_reference = payment_reference
+        if comment:
+            if self.comments:
+                self.comments += f"\n\n[{datetime.now().strftime('%d.%m.%Y %H:%M')}] {comment}"
+            else:
+                self.comments = f"[{datetime.now().strftime('%d.%m.%Y %H:%M')}] {comment}"
+        self.updated_at = datetime.utcnow()
+    
+    def get_status_badge_class(self):
+        """Gibt die Bootstrap-Klasse für den Status-Badge zurück"""
+        status_classes = {
+            'erstellt': 'bg-secondary',
+            'versendet': 'bg-warning',
+            'bezahlt': 'bg-success',
+            'ueberfaellig': 'bg-danger'
+        }
+        return status_classes.get(self.status, 'bg-secondary')
+    
+    def get_type_display(self):
+        """Gibt den anzeigbaren Typ zurück"""
+        return 'Anzahlungsrechnung' if self.invoice_type == 'anzahlung' else 'Schlussrechnung'
+
+
+class LoginAdmin(db.Model):
+    """Login-Admin-Model für Authentifizierung"""
+    __tablename__ = 'login_admins'
+    
+    login_id = db.Column(db.Integer, primary_key=True)
+    login_username = db.Column(db.String(50), unique=True, nullable=False)
+    login_password_hash = db.Column(db.String(255), nullable=False)
+    login_created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    login_last_login = db.Column(db.DateTime)
+    login_is_active = db.Column(db.Boolean, default=True)
+    
+    def set_login_password(self, password):
+        """Setzt ein gehashtes Passwort"""
+        from werkzeug.security import generate_password_hash
+        self.login_password_hash = generate_password_hash(password)
+    
+    def check_login_password(self, password):
+        """Überprüft das Passwort"""
+        from werkzeug.security import check_password_hash
+        return check_password_hash(self.login_password_hash, password)
+    
+    @staticmethod
+    def create_login_admin(username, password):
+        """Erstellt einen neuen Admin"""
+        login_admin = LoginAdmin(login_username=username)
+        login_admin.set_login_password(password)
+        return login_admin
+    
+    def __repr__(self):
+        return f'<LoginAdmin {self.login_username}>'

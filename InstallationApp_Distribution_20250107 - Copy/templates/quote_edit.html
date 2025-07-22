@@ -187,13 +187,39 @@
                                     Zusätzliche Informationen und AGB im PDF einschließen
                                 </label>
                             </div>
-                            <div class="form-check mt-2">
-                                <input class="form-check-input" type="checkbox" name="show_subitem_prices" 
-                                       id="show-subitem-prices" {% if quote.show_subitem_prices %}checked{% endif %}
-                                       {% if quote.status == 'Angenommen' %}disabled{% endif %}>
-                                <label class="form-check-label" for="show-subitem-prices">
-                                    Preistransparenz Unterpositionen (Preise der Unterpositionen im PDF anzeigen)
-                                </label>
+                            
+                            <!-- Neue PDF-Preistransparenz Modi -->
+                            <div class="mt-3">
+                                <label class="form-label">PDF-Preistransparenz</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="price_display_mode" value="standard" 
+                                           id="price-mode-standard" 
+                                           {% if not quote.price_display_mode or quote.price_display_mode == 'standard' %}checked{% endif %}
+                                           {% if quote.status == 'Angenommen' %}disabled{% endif %}>
+                                    <label class="form-check-label" for="price-mode-standard">
+                                        <strong>Standard</strong> - Nur Hauptpositionspreise anzeigen (empfohlen)
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="price_display_mode" value="detailed" 
+                                           id="price-mode-detailed" 
+                                           {% if quote.price_display_mode == 'detailed' or (quote.show_subitem_prices and not quote.price_display_mode) %}checked{% endif %}
+                                           {% if quote.status == 'Angenommen' %}disabled{% endif %}>
+                                    <label class="form-check-label" for="price-mode-detailed">
+                                        <strong>Detailliert</strong> - Unterpositionspreise mit Aufschlag anzeigen
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="price_display_mode" value="total_only" 
+                                           id="price-mode-total-only" 
+                                           {% if quote.price_display_mode == 'total_only' %}checked{% endif %}
+                                           {% if quote.status == 'Angenommen' %}disabled{% endif %}>
+                                    <label class="form-check-label" for="price-mode-total-only">
+                                        <strong>Nur Gesamtbetrag</strong> - Keine Einzelpreise, nur Endsumme
+                                    </label>
+                                </div>
+                                <!-- Kompatibilität: Verstecktes Feld für alte show_subitem_prices -->
+                                <input type="hidden" name="show_subitem_prices" value="false">
                             </div>
                         </div>
                     </div>
@@ -212,18 +238,18 @@
                 <h5 class="card-title mb-0">
                     <ul class="nav nav-tabs card-header-tabs" id="addPositionTabs" role="tablist">
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link active" id="detailed-tab" data-bs-toggle="tab" data-bs-target="#detailed" type="button" role="tab">
+                            <button class="nav-link active" id="templates-tab" data-bs-toggle="tab" data-bs-target="#templates" type="button" role="tab">
+                                <i class="fas fa-layer-group"></i> Positionsvorlagen
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="detailed-tab" data-bs-toggle="tab" data-bs-target="#detailed" type="button" role="tab">
                                 <i class="fas fa-list-ul"></i> Detaillierte Position
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
                             <button class="nav-link" id="work-tab" data-bs-toggle="tab" data-bs-target="#work" type="button" role="tab">
                                 <i class="fas fa-tools"></i> Arbeitsposition
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="simple-tab" data-bs-toggle="tab" data-bs-target="#simple" type="button" role="tab">
-                                <i class="fas fa-plus-circle"></i> Einfache Position
                             </button>
                         </li>
                     </ul>
@@ -379,6 +405,69 @@
                                 </div>
                             </div>
                         </form>
+                    </div>
+                    
+                    <!-- Positionsvorlagen -->
+                    <div class="tab-pane fade" id="templates" role="tabpanel">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>Positionsvorlagen verwenden:</strong> 
+                            Wählen Sie aus vorgefertigten Vorlagen und passen Sie die Berechnungsparameter an.
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-12">
+                                <button type="button" class="btn btn-primary btn-lg w-100" onclick="openTemplateSelector()">
+                                    <i class="fas fa-layer-group"></i> 
+                                    Positionsvorlage auswählen
+                                </button>
+                                <p class="text-muted text-center mt-2">
+                                    Öffnet den Vorlagen-Selector in einem neuen Fenster
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <!-- Ausgewählte Template-Info (wird nach Auswahl angezeigt) -->
+                        <div id="selectedTemplateInfo" style="display: none;" class="mt-4">
+                            <div class="card">
+                                <div class="card-header bg-success text-white">
+                                    <h6 class="mb-0"><i class="fas fa-check"></i> Ausgewählte Vorlage</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-8">
+                                            <h6 id="templateInfoName">-</h6>
+                                            <div class="row">
+                                                <div class="col-6">
+                                                    <small class="text-muted">Länge:</small> <span id="templateInfoLength">-</span> cm
+                                                </div>
+                                                <div class="col-6">
+                                                    <small class="text-muted">Breite:</small> <span id="templateInfoWidth">-</span> cm
+                                                </div>
+                                                <div class="col-6">
+                                                    <small class="text-muted">Höhe:</small> <span id="templateInfoHeight">-</span> cm
+                                                </div>
+                                                <div class="col-6">
+                                                    <small class="text-muted">Stunden:</small> <span id="templateInfoHours">-</span>
+                                                </div>
+                                                <div class="col-12 mt-2">
+                                                    <small class="text-muted">Fläche:</small> <span id="templateInfoArea">-</span> m² | 
+                                                    <small class="text-muted">Berechneter Preis:</small> <strong class="text-success" id="templateInfoPrice">-</strong>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4 text-end">
+                                            <button type="button" class="btn btn-success" onclick="addSelectedTemplate()">
+                                                <i class="fas fa-plus"></i> Position hinzufügen
+                                            </button>
+                                            <button type="button" class="btn btn-outline-secondary" onclick="clearSelectedTemplate()">
+                                                <i class="fas fa-times"></i> Abbrechen
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     
                     <!-- Detaillierte Position -->
@@ -722,19 +811,20 @@
     </div>
 </div>
 
+<!-- Lieferanten-Daten für JavaScript -->
+<script type="application/json" id="suppliers-data">
+{{ suppliers | map(attribute='name') | list | tojson }}
+</script>
+
 <script>
-// Lieferanten-Daten als JavaScript-Array
-var suppliers = [
-    {% for supplier in suppliers %}
-    { name: "{{ supplier.name|replace('"', '\\"') }}" }{% if not loop.last %},{% endif %}
-    {% endfor %}
-];
+// Lieferanten-Daten laden
+var suppliers = JSON.parse(document.getElementById('suppliers-data').textContent);
 
 // Funktion zum Erstellen der Lieferanten-Optionen
 function createSupplierOptions() {
     let options = '<option value="">Lieferant wählen</option>';
     suppliers.forEach(supplier => {
-        options += `<option value="${supplier.name}">${supplier.name}</option>`;
+        options += `<option value="${supplier}">${supplier}</option>`;
     });
     return options;
 }
@@ -1171,11 +1261,151 @@ function removeSubItem(button) {
 // Template-System (entfernt - nur Platzhalter für künftige Erweiterungen)
 let templateData = {};
 
+// Template-Selector Funktionen
+function openTemplateSelector() {
+    const url = `/quotes/{{ quote.id }}/template-selector`;
+    const popup = window.open(url, 'templateSelector', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+    
+    if (!popup) {
+        alert('Popup wurde blockiert. Bitte erlauben Sie Popups für diese Seite.');
+        return;
+    }
+    
+    // Focus auf das Popup setzen
+    popup.focus();
+}
+
+function addSelectedTemplate() {
+    if (!selectedTemplateData) {
+        alert('Keine Vorlage ausgewählt.');
+        return;
+    }
+    
+    // AJAX-Call zum Hinzufügen der Vorlage
+    fetch(`/quotes/{{ quote.id }}/add_template`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrf_token]').value
+        },
+        body: JSON.stringify({
+            template_id: selectedTemplateData.templateId,
+            calculation_parameters: selectedTemplateData.calculations
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Erfolgsmeldung anzeigen
+            showQuoteAlert('success', `Vorlage wurde als Position ${data.position_number} hinzugefügt!`);
+            
+            // Template-Selection zurücksetzen
+            clearSelectedTemplate();
+            
+            // Seite nach kurzer Verzögerung neu laden
+            setTimeout(() => {
+                location.reload();
+            }, 1500);
+        } else {
+            showQuoteAlert('danger', 'Fehler beim Hinzufügen der Vorlage: ' + data.message);
+        }
+    })
+    .catch(error => {
+        showQuoteAlert('danger', 'Fehler beim Hinzufügen der Vorlage: ' + error);
+    });
+}
+
+function clearSelectedTemplate() {
+    selectedTemplateData = null;
+    document.getElementById('selectedTemplateInfo').style.display = 'none';
+}
+
+function showQuoteAlert(type, message) {
+    // Erstelle Alert-Element
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // Füge Alert am Anfang der Seite hinzu
+    const container = document.querySelector('.row').parentNode;
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    // Automatisch nach 5 Sekunden ausblenden
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+
+// PostMessage Listener für Template-Selector
+let selectedTemplateData = null;
+
+window.addEventListener('message', function(event) {
+    // Sicherheitscheck: nur von derselben Origin
+    if (event.origin !== window.location.origin) {
+        return;
+    }
+    
+    if (event.data.type === 'TEMPLATE_SELECTED') {
+        selectedTemplateData = event.data.data;
+        
+        // Template-Info anzeigen
+        document.getElementById('selectedTemplateInfo').style.display = 'block';
+        document.getElementById('templateInfoName').textContent = `Vorlage ${selectedTemplateData.templateId}`;
+        document.getElementById('templateInfoLength').textContent = selectedTemplateData.calculations.length || '0';
+        document.getElementById('templateInfoWidth').textContent = selectedTemplateData.calculations.width || '0';
+        document.getElementById('templateInfoHeight').textContent = selectedTemplateData.calculations.height || '0';
+        document.getElementById('templateInfoHours').textContent = selectedTemplateData.calculations.hours || '0';
+        document.getElementById('templateInfoArea').textContent = selectedTemplateData.calculations.area?.toFixed(2) || '0.00';
+        document.getElementById('templateInfoPrice').textContent = selectedTemplateData.calculations.calculatedPrice?.toFixed(2) + '€' || '0.00€';
+        
+        showQuoteAlert('info', 'Vorlage ausgewählt! Klicken Sie auf "Position hinzufügen" um sie zu verwenden.');
+        
+    } else if (event.data.type === 'TEMPLATE_ADDED_AND_REFRESH') {
+        // Neue elegante Lösung: Direktes Update ohne Refresh
+        console.log('Template hinzugefügt:', event.data.templateData);
+        
+        // Zeige Erfolgs-Alert
+        showQuoteAlert('success', event.data.message || 'Vorlage wurde erfolgreich hinzugefügt!');
+        
+        // Automatisch die Seite neu laden, um die neuen Positionen anzuzeigen
+        setTimeout(() => {
+            window.location.reload();
+        }, 1500);
+        
+    } else if (event.data.type === 'template_added') {
+        // Fallback für alte Implementierung
+        console.log('Template hinzugefügt (legacy):', event.data.data);
+        showQuoteAlert('success', event.data.message || 'Vorlage wurde hinzugefügt!');
+        
+        // Kurze Verzögerung, dann Refresh
+        setTimeout(() => {
+            window.location.reload();
+        }, 1000);
+        
+    } else if (event.data.type === 'TEMPLATE_CANCELLED') {
+        // Nichts tun, Popup wurde geschlossen
+        console.log('Template-Auswahl abgebrochen');
+    }
+});
+
 // Beim Laden der Seite
 document.addEventListener('DOMContentLoaded', function() {
     calculateSimpleTotal();
     calculateDetailedTotal();
     updateMarkupDisplay(); // Initial berechnen
+    
+    // Enter-Taste in Eingabefeldern deaktivieren (verhindert ungewolltes Speichern)
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Enter' && event.target.tagName === 'INPUT' && event.target.type !== 'submit') {
+            event.preventDefault();
+            return false;
+        }
+    });
     
     // Tab-Wechsel Events
     document.querySelectorAll('#addPositionTabs button[data-bs-toggle="tab"]').forEach(tab => {

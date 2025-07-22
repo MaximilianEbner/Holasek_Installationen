@@ -251,17 +251,27 @@
                         <tfoot class="table-success">
                             <tr>
                                 <th colspan="5" class="text-end">Nettosumme:</th>
-                                <th class="text-end">{{ "%.2f"|format((quote.total_amount or 0) / 1.2) }} €</th>
+                                <th class="text-end">{{ "%.2f"|format(quote.calculate_net_total()) }} €</th>
+                                <th></th>
+                            </tr>
+                            <tr>
+                                <th colspan="5" class="text-end">Aufschlag ({{ quote.markup_percentage or 15 }}%):</th>
+                                <th class="text-end">{{ "%.2f"|format(quote.calculate_markup_amount()) }} €</th>
+                                <th></th>
+                            </tr>
+                            <tr>
+                                <th colspan="5" class="text-end">Summe:</th>
+                                <th class="text-end">{{ "%.2f"|format(quote.calculate_total()) }} €</th>
                                 <th></th>
                             </tr>
                             <tr>
                                 <th colspan="5" class="text-end">Mehrwertsteuer (20%):</th>
-                                <th class="text-end">{{ "%.2f"|format((quote.total_amount or 0) - (quote.total_amount or 0) / 1.2) }} €</th>
+                                <th class="text-end">{{ "%.2f"|format(quote.calculate_total() * 0.2) }} €</th>
                                 <th></th>
                             </tr>
                             <tr>
                                 <th colspan="5" class="text-end">Gesamtsumme inkl. MwSt:</th>
-                                <th class="text-end"><span class="h5">{{ "%.2f"|format(quote.total_amount or 0) }} €</span></th>
+                                <th class="text-end"><span class="h5">{{ "%.2f"|format(quote.calculate_total() * 1.2) }} €</span></th>
                                 <th></th>
                             </tr>
                         </tfoot>

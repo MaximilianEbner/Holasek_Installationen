@@ -208,7 +208,9 @@
                                     </button>
                                 </td>
                                 <td>
-                                    {% if order.status == 'Bestellt' %}
+                                    {% if order.status == 'Noch nicht bestellt' %}
+                                        <span class="badge bg-secondary">Noch nicht bestellt</span>
+                                    {% elif order.status == 'Bestellt' %}
                                         <span class="badge bg-warning">{{ order.status }}</span>
                                     {% elif order.status == 'Bestätigt' %}
                                         <span class="badge bg-primary">{{ order.status }}</span>
@@ -242,6 +244,13 @@
                                        class="btn btn-sm btn-outline-primary">
                                         <i class="fas fa-edit"></i> Bearbeiten
                                     </a>
+                                    {% if order.status == 'Noch nicht bestellt' %}
+                                    <form method="post" action="{{ url_for('send_supplier_order_email', order_id=order.id) }}" style="display:inline;">
+                                        <button type="submit" class="btn btn-sm btn-success ms-1" title="Jetzt bestellen">
+                                            <i class="fas fa-paper-plane"></i> Jetzt bestellen
+                                        </button>
+                                    </form>
+                                    {% endif %}
                                 </td>
                             </tr>
                             <!-- Kollabierbare Positionsdetails -->

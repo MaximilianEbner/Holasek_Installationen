@@ -80,29 +80,39 @@
                                         {% endif %}
                                     </a>
                                 </th>
-                                <th>
-                                    <a href="{{ url_for('customers', search=search_query, sort='created_at', dir='asc' if sort_by != 'created_at' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
-                                        Erstellt am
-                                        {% if sort_by == 'created_at' %}
-                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
-                                        {% else %}
-                                            <i class="fas fa-sort text-muted"></i>
-                                        {% endif %}
-                                    </a>
-                                </th>
+                                <th>Kundenbetreuer</th>
+                                <th>Akquisekanal</th>
+                                <th>Status</th>
                                 <th>Aktionen</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for customer in customers %}
                             <tr>
-                                <td><strong>{{ customer.first_name }} {{ customer.last_name }}</strong></td>
+                                <td>
+                                    <strong>
+                                        {% if customer.salutation %}{{ customer.salutation }} {% endif %}{{ customer.first_name }} {{ customer.last_name }}
+                                    </strong>
+                                </td>
                                 <td>{{ customer.email }}</td>
                                 <td>{{ customer.phone or '-' }}</td>
                                 <td>{{ customer.city or '-' }}</td>
-                                <td>{{ customer.id }}</td>
+                                <td>{{ customer.customer_manager or '-' }}</td>
+                                <td>
+                                    {% if customer.acquisition_channel %}
+                                        <span class="badge bg-info">{{ customer.acquisition_channel.name }}</span>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge {{ customer.get_status_badge_class() }}">{{ customer.status }}</span>
+                                </td>
                                 <td>
                                     <div class="btn-group" role="group">
+                                        <a href="{{ url_for('customer_detail', id=customer.id) }}" class="btn btn-sm btn-outline-info" title="Details">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
                                         <a href="{{ url_for('edit_customer', id=customer.id) }}" class="btn btn-sm btn-outline-primary" title="Bearbeiten">
                                             <i class="fas fa-edit"></i>
                                         </a>

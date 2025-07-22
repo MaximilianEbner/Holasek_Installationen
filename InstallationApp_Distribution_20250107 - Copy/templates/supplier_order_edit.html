@@ -117,13 +117,33 @@
                 <hr>
                 
                 <h6>Aktueller Status:</h6>
-                {% if order.status == 'Bestellt' %}
+                {% if order.status == 'Noch nicht bestellt' %}
+                    <span class="badge bg-secondary fs-6">Noch nicht bestellt</span>
+                {% elif order.status == 'Bestellt' %}
                     <span class="badge bg-warning fs-6">{{ order.status }}</span>
                 {% elif order.status == 'Bestätigt' %}
                     <span class="badge bg-primary fs-6">{{ order.status }}</span>
                 {% elif order.status == 'Geliefert' %}
                     <span class="badge bg-success fs-6">{{ order.status }}</span>
                 {% endif %}
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-paper-plane"></i> Bestellung per E-Mail senden
+                </h6>
+            </div>
+            <div class="card-body">
+                {% if order.status == 'Noch nicht bestellt' %}
+                    <form method="post" action="{{ url_for('send_supplier_order_email', order_id=order.id) }}">
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-envelope"></i> Bestellung jetzt per E-Mail senden
+                        </button>
+                    </form>
+                {% else %}
+                    <span class="text-muted">Diese Bestellung wurde bereits per E-Mail versendet.</span>
+                {% endif %}
+            </div>
+        </div>
                 
                 {% if order.confirmation_date %}
                 <p class="mt-2"><strong>Bestätigt:</strong> {{ order.confirmation_date.strftime('%d.%m.%Y') }}</p>

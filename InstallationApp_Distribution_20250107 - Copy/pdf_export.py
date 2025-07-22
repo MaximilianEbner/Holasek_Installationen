@@ -248,11 +248,22 @@ class PDFExporter:
         for i, item in enumerate(quote.quote_items, 1):
             pos_number = item.position_number or i
             
+            # Bestimme Preisanzeigemodus
+            display_mode = getattr(quote, 'price_display_mode', 'standard')
+            if display_mode == 'standard' and getattr(quote, 'show_subitem_prices', False):
+                # Kompatibilität: Wenn alte Checkbox aktiviert war, verwende 'detailed' Modus
+                display_mode = 'detailed'
+            
             # Hauptposition
             pos_title = f"Position {pos_number}: {item.description}"
-            pos_price = f"{item.calculate_price_with_markup():.2f} EUR"
             
-            main_pos_data = [[Paragraph(pos_title, main_pos_style), Paragraph(pos_price, price_style)]]
+            if display_mode == 'total_only':
+                # Nur Gesamtbetrag Modus: Keine einzelnen Positionspreise anzeigen
+                main_pos_data = [[Paragraph(pos_title, main_pos_style), ""]]
+            else:
+                # Standard/Detailed Modus: Positionspreise mit Aufschlag anzeigen
+                pos_price = f"{item.calculate_price_with_markup():.2f} EUR"
+                main_pos_data = [[Paragraph(pos_title, main_pos_style), Paragraph(pos_price, price_style)]]
             main_pos_table = Table(main_pos_data, colWidths=[13*cm, 4*cm])
             main_pos_table.setStyle(TableStyle([
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),
@@ -262,7 +273,7 @@ class PDFExporter:
             ]))
             elements.append(main_pos_table)
             
-            # Unterpositionen
+            # Unterpositionen - immer anzeigen (außer wenn keine vorhanden)
             if item.sub_items:
                 sub_style = ParagraphStyle(
                     'SubItem',
@@ -274,9 +285,18 @@ class PDFExporter:
                 )
                 
                 for sub_item in item.sub_items:
-                    if quote.show_subitem_prices and sub_item.price > 0:
-                        sub_text = f"{sub_item.sub_number} {sub_item.description} - {sub_item.price:.2f} EUR"
+                    # Bestimme Preisanzeigemodus (Rückwärtskompatibilität mit show_subitem_prices)
+                    display_mode = getattr(quote, 'price_display_mode', 'standard')
+                    if display_mode == 'standard' and getattr(quote, 'show_subitem_prices', False):
+                        # Kompatibilität: Wenn alte Checkbox aktiviert war, verwende 'detailed' Modus
+                        display_mode = 'detailed'
+                    
+                    if display_mode == 'detailed' and sub_item.price > 0:
+                        # Detailliert: Zeige Unterpositionspreise mit Aufschlag
+                        sub_price_with_markup = sub_item.calculate_price_with_markup()
+                        sub_text = f"{sub_item.sub_number} {sub_item.description} - {sub_price_with_markup:.2f} EUR"
                     else:
+                        # Standard und Total_only: Keine Preise für Unterpositionen
                         sub_text = f"{sub_item.sub_number} {sub_item.description}"
                     
                     elements.append(Paragraph(sub_text, sub_style))
@@ -803,3 +823,16 @@ Die von uns gelieferte, montierte oder sonst übergebene Ware bleibt bis zur vol
         buffer.seek(0)
         
         return buffer
+
+    def export_invoice(self, invoice_id):
+        """Exportiert eine Rechnung als PDF"""
+        from models import Invoice
+        from invoice_pdf import InvoicePDFGenerator
+        
+        invoice = Invoice.query.get_or_404(invoice_id)
+        
+        # PDF-Generator verwenden
+        pdf_generator = InvoicePDFGenerator()
+        pdf_buffer = pdf_generator.generate_invoice_pdf(invoice)
+        
+        return pdf_buffer

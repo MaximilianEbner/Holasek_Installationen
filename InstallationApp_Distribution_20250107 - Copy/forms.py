@@ -2,15 +2,16 @@
 Formulare für die InstallationApp
 """
 from flask_wtf import FlaskForm
-from wtforms import StringField, TextAreaField, FloatField, IntegerField, DateField, SelectField, SubmitField, BooleanField, HiddenField
+from wtforms import StringField, TextAreaField, FloatField, IntegerField, DateField, SelectField, SubmitField, BooleanField, HiddenField, DateTimeLocalField
 from wtforms.validators import DataRequired, Email, NumberRange, Optional
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 
 class CustomerSearchField(StringField):
     """Custom Field für Kunden-Autocomplete"""
     pass
 
 class CustomerForm(FlaskForm):
+    salutation = StringField('Anrede', validators=[Optional()])
     first_name = StringField('Vorname *', validators=[DataRequired()])
     last_name = StringField('Nachname *', validators=[DataRequired()])
     email = StringField('E-Mail *', validators=[DataRequired(), Email()])
@@ -18,6 +19,9 @@ class CustomerForm(FlaskForm):
     address = TextAreaField('Adresse', validators=[Optional()])
     city = StringField('Stadt', validators=[Optional()])
     postal_code = StringField('PLZ', validators=[Optional()])
+    customer_manager = StringField('Kundenbetreuer', validators=[Optional()])
+    acquisition_channel = SelectField('Akquisekanal', coerce=int, validators=[Optional()])
+    comments = TextAreaField('Kommentare zum Kunden', validators=[Optional()])
     submit = SubmitField('Speichern')
 
 class QuoteForm(FlaskForm):
@@ -66,6 +70,7 @@ class SupplierOrderUpdateForm(FlaskForm):
     notes = TextAreaField('Notizen', validators=[Optional()],
                          render_kw={"rows": 3, "placeholder": "Zusätzliche Informationen zur Bestellung..."})
     status = SelectField('Status', choices=[
+        ('Noch nicht bestellt', 'Noch nicht bestellt'),
         ('Bestellt', 'Bestellt'),
         ('Bestätigt', 'Bestätigt'),
         ('Geliefert', 'Geliefert')
@@ -73,9 +78,9 @@ class SupplierOrderUpdateForm(FlaskForm):
     submit = SubmitField('Bestellung aktualisieren')
 
 class OrderForm(FlaskForm):
-    start_date = DateField('Projektstart *', validators=[DataRequired()], 
+    start_date = DateField('Projektstart', validators=[], 
                           default=lambda: date.today() + timedelta(days=7))
-    end_date = DateField('Projektende *', validators=[DataRequired()],
+    end_date = DateField('Projektende', validators=[],
                         default=lambda: date.today() + timedelta(days=21))
     project_manager = StringField('Projektleiter', validators=[Optional()],
                                  default='Michael Holasek')
@@ -84,8 +89,8 @@ class OrderForm(FlaskForm):
     submit = SubmitField('Auftrag erstellen')
 
 class OrderUpdateForm(FlaskForm):
-    start_date = DateField('Projektstart *', validators=[DataRequired()])
-    end_date = DateField('Projektende *', validators=[DataRequired()])
+    start_date = DateField('Projektstart', validators=[])
+    end_date = DateField('Projektende', validators=[])
     project_manager = StringField('Projektleiter', validators=[Optional()])
     status = SelectField('Status', choices=[
         ('Geplant', 'Geplant'),
@@ -96,3 +101,30 @@ class OrderUpdateForm(FlaskForm):
     notes = TextAreaField('Projektnotizen', validators=[Optional()],
                          render_kw={"rows": 4})
     submit = SubmitField('Auftrag aktualisieren')
+
+class AcquisitionChannelForm(FlaskForm):
+    name = StringField('Name *', validators=[DataRequired()])
+    description = TextAreaField('Beschreibung', validators=[Optional()])
+    is_active = BooleanField('Aktiv', default=True)
+    submit = SubmitField('Speichern')
+
+class CustomerWorkflowForm(FlaskForm):
+    """Form für Workflow-Updates des Kunden"""
+    status = SelectField('Status', choices=[
+        ('1. Termin vereinbaren', '1. Termin vereinbaren'),
+        ('2. Termin vereinbart', '2. Termin vereinbart'),
+        ('3. Angebot erstellen', '3. Angebot erstellen'),
+        ('Angebot wurde erstellt', 'Angebot wurde erstellt'),
+        ('Kein Interesse', 'Kein Interesse')
+    ], validators=[DataRequired()])
+    appointment_date = DateField('Termindatum', validators=[Optional()])
+    appointment_notes = TextAreaField('Terminnotizen', validators=[Optional()])
+    comments = TextAreaField('Kommentare zum Kunden', validators=[Optional()])
+    submit = SubmitField('Status aktualisieren')
+
+class AppointmentForm(FlaskForm):
+    """Form für Terminvereinbarung"""
+    appointment_date = DateField('Termindatum *', validators=[DataRequired()])
+    appointment_notes = TextAreaField('Notizen zum Termin', validators=[Optional()], 
+                                    render_kw={"placeholder": "Zusätzliche Informationen zum Termin..."})
+    submit = SubmitField('Termin speichern')
