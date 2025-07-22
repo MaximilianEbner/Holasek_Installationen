@@ -16,35 +16,12 @@ def generate_quote_number():
     return f"ANG-{date.today().strftime('%Y')}-{quote_count:03d}"
 
 def load_position_templates():
-    """Lädt Positionsvorlagen aus CSV"""
+    """Lädt Positionsvorlagen aus CSV - DEAKTIVIERT da neues Template-System verwendet wird"""
     try:
-        templates_path = os.path.join(os.path.dirname(__file__), 'templates_excel', 'positionen_template.csv')
-        
-        if not os.path.exists(templates_path):
-            print(f"CSV-Datei nicht gefunden: {templates_path}")
-            return False
-        
-        # Lösche vorhandene Templates
-        PositionTemplate.query.delete()
-        
-        with open(templates_path, 'r', encoding='utf-8') as file:
-            reader = csv.DictReader(file)
-            for row in reader:
-                template = PositionTemplate(
-                    position=int(row['Position']),
-                    sub_position=row['Subposition'],
-                    description=row['Beschreibung'],
-                    category=row['Kategorie'],
-                    requires_order=row['Bestellung_notwendig'].lower() == 'ja',
-                    standard_supplier=row['Standard_Lieferant']
-                )
-                db.session.add(template)
-        
-        db.session.commit()
+        print("CSV-Import von Positionsvorlagen wurde deaktiviert - verwende neues Template-System")
         return True
     except Exception as e:
         print(f"Fehler beim Laden der Positionsvorlagen: {e}")
-        db.session.rollback()
         return False
 
 def load_suppliers():
@@ -122,51 +99,47 @@ def parse_quantity_from_text(quantity_text):
 
 def generate_supplier_order_email(quote, supplier_name, order_items, order_number=None):
     """Generiert E-Mail-Template für Lieferantenbestellung"""
-    
-    # E-Mail Betreff
-    subject = f"{quote.quote_number} - {quote.project_description[:50]}..."
-    if order_number:
-        subject = f"{order_number} / {subject}"
-    
+    # E-Mail Betreff: BVH: <Projekt> & <Nachname des Kunden>
+    subject = f"Bestellung für {supplier_name} - BVH: {quote.customer.last_name}"
+
+    # Lieferort und Liefertermin berechnen
+    lieferort = "Lager"
+    angestrebter_liefertermin = ""
+    # Versuche das zugehörige Order-Objekt zu finden
+    order_obj = getattr(quote, 'order', None)
+    if not order_obj and order_number:
+        # Suche das Order-Objekt über die order_number
+        from models import Order
+        order_obj = Order.query.filter_by(order_number=order_number).first()
+    start_date = getattr(order_obj, 'start_date', None) if order_obj else None
+    if start_date:
+        from datetime import timedelta
+        zieltermin = start_date - timedelta(weeks=2)
+        cw = zieltermin.isocalendar()[1]
+        angestrebter_liefertermin = f"KW {cw}"
+
     # Plain Text E-Mail Body für mailto-Link
     plain_body = f"""Sehr geehrte Damen und Herren,
 
 hiermit bestellen wir folgende Positionen für das Projekt:
-
-Angebot: {quote.quote_number}"""
-    
+"""
     if order_number:
-        plain_body += f"""
-Auftrag: {order_number}"""
-    
+        plain_body += f"\nAuftrag: {order_number}"
     plain_body += f"""
-Projekt: {quote.project_description}
-Kunde: {quote.customer.full_name}
+BVH: {quote.customer.last_name}
+Lieferort: {lieferort}
+Angestrebter Liefertermin: {angestrebter_liefertermin}
 
 Bestellpositionen:
 """
-    
-    # Plain Text Tabelle - optimiert für E-Mail-Clients mit Tabs
+
+    # Neue Formatierung: Jeder Artikel als ' <Stückzahl> x <Teilenummer> <Teilebeschreibung>'
     plain_body += "\n"
-    plain_body += "Unterposition\t\tBeschreibung\t\t\t\t\tTeilenummer\t\t\tAnzahl\n"
-    plain_body += "-" * 80 + "\n"
-    
     for item in order_items:
-        # Formatierung mit Tabs für bessere Ausrichtung
-        sub_number = item['sub_number'][:12]
-        description = item['description'][:35]
-        part_number = item['part_number'][:15] if item['part_number'] else ''
         quantity = str(item['quantity'])
-        
-        # Tabs basierend auf Länge anpassen
-        sub_tabs = "\t\t" if len(sub_number) < 8 else "\t"
-        desc_tabs = "\t\t\t" if len(description) < 20 else ("\t\t" if len(description) < 30 else "\t")
-        part_tabs = "\t\t" if len(part_number) < 8 else "\t"
-        
-        plain_body += f"{sub_number}{sub_tabs}{description}{desc_tabs}{part_number}{part_tabs}{quantity}\n"
-    
-    plain_body += "-" * 80
-    
+        part_number = item['part_number'] if item['part_number'] else ''
+        description = item['description']
+        plain_body += f"{quantity}x {part_number}: {description}\n"
     plain_body += f"""
 
 Bitte bestätigen Sie den Erhalt dieser Bestellung und teilen Sie uns die Lieferzeit mit.
@@ -180,52 +153,36 @@ InnSan"""
 Sehr geehrte Damen und Herren,
 
 hiermit bestellen wir folgende Positionen für das Projekt:
-
-Angebot: {quote.quote_number}"""
-    
+"""
     if order_number:
-        html_body += f"""
-Auftrag: {order_number}"""
-    
+        html_body += f"<br>Auftrag: {order_number}"
     html_body += f"""
-Projekt: {quote.project_description}
-Kunde: {quote.customer.full_name}
 
-Bestellpositionen:
+<br>BVH: {quote.customer.last_name}
+<br>Lieferort: {lieferort}
+<br>Angestrebter Liefertermin: {angestrebter_liefertermin}
+<br><br>Bestellpositionen:
 
-<table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;">
+<table border=\"1\" cellpadding=\"8\" cellspacing=\"0\" style=\"border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;\">
     <thead>
-        <tr style="background-color: #f8f9fa;">
-            <th style="text-align: left; padding: 10px;">Unterposition</th>
-            <th style="text-align: left; padding: 10px;">Beschreibung</th>
-            <th style="text-align: left; padding: 10px;">Teilenummer</th>
-            <th style="text-align: center; padding: 10px;">Anzahl</th>
+        <tr style=\"background-color: #f8f9fa;\">
+            <th style=\"text-align: left; padding: 10px;\">Unterposition</th>
+            <th style=\"text-align: left; padding: 10px;\">Beschreibung</th>
+            <th style=\"text-align: left; padding: 10px;\">Teilenummer</th>
+            <th style=\"text-align: center; padding: 10px;\">Anzahl</th>
         </tr>
     </thead>
     <tbody>
 """
-    
     for item in order_items:
-        html_body += f"""        <tr>
-            <td style="padding: 8px; border: 1px solid #ddd;">{item['sub_number']}</td>
-            <td style="padding: 8px; border: 1px solid #ddd;">{item['description']}</td>
-            <td style="padding: 8px; border: 1px solid #ddd;">{item['part_number']}</td>
-            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">{item['quantity']}</td>
-        </tr>
-"""
-    
-    html_body += """    </tbody>
-</table>
-
-"""
-    
+        html_body += f"        <tr>\n            <td style=\"padding: 8px; border: 1px solid #ddd;\">{item['sub_number']}</td>\n            <td style=\"padding: 8px; border: 1px solid #ddd;\">{item['description']}</td>\n            <td style=\"padding: 8px; border: 1px solid #ddd;\">{item['part_number']}</td>\n            <td style=\"padding: 8px; border: 1px solid #ddd; text-align: center;\">{item['quantity']}</td>\n        </tr>\n"
+    html_body += "    </tbody>\n</table>\n\n"
     html_body += f"""
 Bitte bestätigen Sie den Erhalt dieser Bestellung und teilen Sie uns die Lieferzeit mit.
 
 Mit freundlichen Grüßen
 Ing. Michael Holasek
 InnSan"""
-    
     return subject, html_body, plain_body
 
 def collect_supplier_orders(quote):
