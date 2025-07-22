@@ -85,63 +85,7 @@ def create_app():
     # Flask-Migrate initialisieren
     migrate = Migrate(app, db)
     
-    # Datenbankinitialisierung (für Production)
-    with app.app_context():
-        try:
-            # Prüfe ob Tabellen existieren (moderne SQLAlchemy Syntax)
-            from sqlalchemy import text
-            with db.engine.connect() as connection:
-                connection.execute(text("SELECT 1 FROM login_admins LIMIT 1"))
-        except:
-            # Tabellen existieren nicht - initialisiere DB
-            print("🔧 Initialisiere Datenbank...")
-            
-            # Importiere und erstelle alle Tabellen
-            from models import LoginAdmin, Customer, Quote, QuoteItem, QuoteSubItem, Supplier, CompanySettings, AcquisitionChannel
-            db.create_all()
-            
-            # Erstelle Standard-Admin
-            admin = LoginAdmin.create_login_admin('admin', 'admin123')
-            db.session.add(admin)
-            
-            # Erstelle Grundeinstellungen
-            settings_data = [
-                ("company_name", "innSAN Installationsbetrieb", "Name des Unternehmens"),
-                ("address", "Musterstraße 1", "Firmenadresse"),
-                ("city", "Wien", "Stadt"),
-                ("postal_code", "1010", "Postleitzahl"),
-                ("country", "Österreich", "Land"),
-                ("phone", "+43 1 234 5678", "Telefonnummer"),
-                ("email", "office@innsan.at", "E-Mail-Adresse"),
-                ("website", "www.innsan.at", "Website"),
-                ("hourly_rate", "95.0", "Standard-Stundensatz in Euro"),
-                ("vat_rate", "20.0", "Mehrwertsteuersatz in Prozent")
-            ]
-            
-            for setting_name, setting_value, description in settings_data:
-                setting = CompanySettings(
-                    setting_name=setting_name,
-                    setting_value=setting_value,
-                    description=description
-                )
-                db.session.add(setting)
-            
-            # Erstelle Standard-Akquisekanäle
-            channels = [
-                "Website/Online",
-                "Empfehlung", 
-                "Wiederholungskunde",
-                "Werbung",
-                "Messe/Event",
-                "Sonstiges"
-            ]
-            
-            for channel_name in channels:
-                channel = AcquisitionChannel(name=channel_name, is_active=True)
-                db.session.add(channel)
-            
-            db.session.commit()
-            print("✅ Datenbank wurde erfolgreich initialisiert!")
+    # Keine automatische DB-Initialisierung mehr - wird von init_railway_db.py übernommen
     
     # Upload-Konfiguration
     app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'uploads')
@@ -3027,8 +2971,13 @@ def update_quote_status(quote_id, new_status):
     
     return redirect(url_for('edit_quote', id=quote_id))
 
-# App erstellen und starten
-app = create_app()
+# App für Deployment (nur wenn direkt ausgeführt)
+if __name__ == '__main__':
+    app = create_app()
+    app.run(debug=True)
+else:
+    # Für Gunicorn/Railway - App-Factory ohne sofortige Initialisierung
+    app = create_app()
 
 # ===============================
 # LOGIN-SYSTEM
