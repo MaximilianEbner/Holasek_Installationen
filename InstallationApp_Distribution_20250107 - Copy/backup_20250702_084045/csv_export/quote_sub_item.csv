@@ -1,5 +1,0 @@
-id;quote_item_id;sub_number;description;item_type;requires_order;supplier;part_number;part_quantity;part_price;hours;hourly_rate;quantity;unit_price;price
-1;1;1;Abbruch: WC abbauen;arbeitsvorgang;0;;;1;0.0;1.0;95.0;;0.0;95.0
-2;1;2;Abbruch: Duschglas abbauen;arbeitsvorgang;0;;;1;0.0;1.0;95.0;;0.0;95.0
-3;2;2.1;Duschtasse 1mx1.5m - Links ;bestellteil;1;Sanitär Großhandel;uuiuiu;1;750.0;0.0;0.0;;0.0;750.0
-4;2;2.2;Stemmen alte;arbeitsvorgang;0;;;1;0.0;2.0;95.0;;0.0;190.0
