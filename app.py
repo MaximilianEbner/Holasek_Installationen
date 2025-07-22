@@ -88,8 +88,10 @@ def create_app():
     # Datenbankinitialisierung (für Production)
     with app.app_context():
         try:
-            # Prüfe ob Tabellen existieren
-            db.engine.execute("SELECT 1 FROM login_admins LIMIT 1")
+            # Prüfe ob Tabellen existieren (moderne SQLAlchemy Syntax)
+            from sqlalchemy import text
+            with db.engine.connect() as connection:
+                connection.execute(text("SELECT 1 FROM login_admins LIMIT 1"))
         except:
             # Tabellen existieren nicht - initialisiere DB
             print("🔧 Initialisiere Datenbank...")
@@ -116,8 +118,12 @@ def create_app():
                 ("vat_rate", "20.0", "Mehrwertsteuersatz in Prozent")
             ]
             
-            for key, value, description in settings_data:
-                setting = CompanySettings(key=key, value=value, description=description)
+            for setting_name, setting_value, description in settings_data:
+                setting = CompanySettings(
+                    setting_name=setting_name,
+                    setting_value=setting_value,
+                    description=description
+                )
                 db.session.add(setting)
             
             # Erstelle Standard-Akquisekanäle
