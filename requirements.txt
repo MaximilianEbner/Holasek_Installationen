@@ -1,0 +1,46 @@
+# Core Flask Framework
+Flask==3.1.1
+Flask-SQLAlchemy==3.0.5
+Flask-WTF==1.2.2
+WTForms==3.2.1
+Flask-Login==0.6.3
+
+# Core Dependencies
+Werkzeug==3.1.3
+Jinja2==3.1.6
+MarkupSafe==3.0.2
+blinker==1.9.0
+click==8.2.1
+itsdangerous==2.2.0
+
+# Database
+SQLAlchemy==1.4.54
+psycopg2-binary==2.9.9
+
+# Document Generation
+reportlab==4.4.2
+pillow==11.3.0
+
+# Excel Support
+openpyxl==3.1.5
+et_xmlfile==2.0.0
+
+# Form Validation
+email-validator==2.2.0
+dnspython==2.7.0
+idna==3.10
+
+# Text Processing
+charset-normalizer==3.4.2
+
+# System Dependencies
+colorama==0.4.6
+
+# Optional: Add python-docx if needed for Word documents
+# python-docx==0.8.11
+
+# Optional: Environment variables support
+# python-dotenv==1.0.0
+
+# Production Server
+gunicorn==21.2.0

@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Flask
+instance/
+.flaskenv
+
+# Database
+*.db
+*.sqlite
+
+# Uploads and temp files
+uploads/
+temp_pdfs/
+static/uploads/
+
+# Backups
+backups/
+
+# PDFs (might contain sensitive data)
+*.pdf
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

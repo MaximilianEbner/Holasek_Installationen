@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1>Bestellung bearbeiten</h1>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="{{ url_for('supplier_orders') }}">Bestellungen</a></li>
+                        <li class="breadcrumb-item active">{{ order.supplier_name }}</li>
+                    </ol>
+                </nav>
+            </div>
+            <div>
+                <a href="{{ url_for('supplier_orders') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> Zurück zur Übersicht
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-edit"></i> Bestellstatus aktualisieren
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.status.label(class="form-label") }}
+                            {{ form.status(class="form-control") }}
+                            {% if form.status.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.status.errors %}
+                                        <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.confirmation_date.label(class="form-label") }}
+                            {{ form.confirmation_date(class="form-control") }}
+                            <small class="form-text text-muted">Datum der Lieferantenbestätigung</small>
+                            {% if form.confirmation_date.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.confirmation_date.errors %}
+                                        <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.delivery_date.label(class="form-label") }}
+                            {{ form.delivery_date(class="form-control") }}
+                            <small class="form-text text-muted">Geplanter oder tatsächlicher Liefertermin</small>
+                            {% if form.delivery_date.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.delivery_date.errors %}
+                                        <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.notes.label(class="form-label") }}
+                        {{ form.notes(class="form-control") }}
+                        {% if form.notes.errors %}
+                            <div class="text-danger">
+                                {% for error in form.notes.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('supplier_orders') }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Abbrechen
+                        </a>
+                        {{ form.submit(class="btn btn-primary") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-info-circle"></i> Bestelldetails
+                </h6>
+            </div>
+            <div class="card-body">
+                <p><strong>Lieferant:</strong> {{ order.supplier_name }}</p>
+                <p><strong>Bestelldatum:</strong> {{ order.order_date.strftime('%d.%m.%Y um %H:%M') }}</p>
+                <p><strong>Angebot:</strong> 
+                    <a href="{{ url_for('edit_quote', id=order.quote.id) }}">{{ order.quote.quote_number }}</a>
+                </p>
+                <p><strong>Projekt:</strong> {{ order.quote.project_description[:50] }}{{ '...' if order.quote.project_description|length > 50 else '' }}</p>
+                <p><strong>Kunde:</strong> {{ order.quote.customer.full_name }}</p>
+                
+                <hr>
+                
+                <h6>Aktueller Status:</h6>
+                {% if order.status == 'Noch nicht bestellt' %}
+                    <span class="badge bg-secondary fs-6">Noch nicht bestellt</span>
+                {% elif order.status == 'Bestellt' %}
+                    <span class="badge bg-warning fs-6">{{ order.status }}</span>
+                {% elif order.status == 'Bestätigt' %}
+                    <span class="badge bg-primary fs-6">{{ order.status }}</span>
+                {% elif order.status == 'Geliefert' %}
+                    <span class="badge bg-success fs-6">{{ order.status }}</span>
+                {% endif %}
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-paper-plane"></i> Bestellung per E-Mail senden
+                </h6>
+            </div>
+            <div class="card-body">
+                {% if order.status == 'Noch nicht bestellt' %}
+                    <form method="post" action="{{ url_for('send_supplier_order_email', order_id=order.id) }}">
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-envelope"></i> Bestellung jetzt per E-Mail senden
+                        </button>
+                    </form>
+                {% else %}
+                    <span class="text-muted">Diese Bestellung wurde bereits per E-Mail versendet.</span>
+                {% endif %}
+            </div>
+        </div>
+                
+                {% if order.confirmation_date %}
+                <p class="mt-2"><strong>Bestätigt:</strong> {{ order.confirmation_date.strftime('%d.%m.%Y') }}</p>
+                {% endif %}
+                
+                {% if order.delivery_date %}
+                <p><strong>Liefertermin:</strong> {{ order.delivery_date.strftime('%d.%m.%Y') }}</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-list"></i> Bestellpositionen ({{ order.items|length }})
+                </h6>
+            </div>
+            <div class="card-body">
+                {% for item in order.items %}
+                <div class="border-bottom pb-2 mb-2">
+                    <strong>{{ item.sub_number }}</strong><br>
+                    <small>{{ item.description }}</small><br>
+                    {% if item.part_number %}
+                    <small class="text-muted">Teil-Nr: {{ item.part_number }}</small><br>
+                    {% endif %}
+                    <small class="text-primary">Anzahl: {{ item.quantity }}</small>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Heute als Standard für Bestätigungsdatum setzen
+document.addEventListener('DOMContentLoaded', function() {
+    const statusSelect = document.querySelector('select[name="status"]');
+    const confirmationDateInput = document.querySelector('input[name="confirmation_date"]');
+    const deliveryDateInput = document.querySelector('input[name="delivery_date"]');
+    
+    statusSelect.addEventListener('change', function() {
+        const today = new Date().toISOString().split('T')[0];
+        
+        if (this.value === 'Bestätigt' && !confirmationDateInput.value) {
+            confirmationDateInput.value = today;
+        }
+        
+        if (this.value === 'Geliefert' && !deliveryDateInput.value) {
+            deliveryDateInput.value = today;
+        }
+    });
+});
+</script>
+{% endblock %}

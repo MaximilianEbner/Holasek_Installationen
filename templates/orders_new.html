@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1>Aufträge</h1>
+                <p class="text-muted">Übersicht aller Projektaufträge und deren Realisierung</p>
+            </div>
+            <div>
+                <a href="{{ url_for('quotes') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-file-alt"></i> Zu den Angeboten
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-clipboard-list"></i> Aktuelle Aufträge
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if orders %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Auftragsnr.</th>
+                                <th>Angebot</th>
+                                <th>Kunde</th>
+                                <th>Projekt</th>
+                                <th>Projektleiter</th>
+                                <th>Zeitraum</th>
+                                <th>Status</th>
+                                <th>Bestellungen</th>
+                                <th>Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in orders %}
+                            <tr>
+                                <td>
+                                    <strong>{{ order.order_number }}</strong>
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('edit_quote', id=order.quote.id) }}">
+                                        {{ order.quote.quote_number }}
+                                    </a>
+                                </td>
+                                <td>{{ order.quote.customer.full_name }}</td>
+                                <td>{{ order.quote.project_description[:40] }}{{ '...' if order.quote.project_description|length > 40 else '' }}</td>
+                                <td>{{ order.project_manager or '-' }}</td>
+                                <td>
+                                    <small>
+                                        {{ order.start_date.strftime('%d.%m.%Y') }} - 
+                                        {{ order.end_date.strftime('%d.%m.%Y') }}
+                                    </small>
+                                    <br>
+                                    {% set today = moment().date() if moment is defined else none %}
+                                    {% if order.start_date <= (today or order.start_date) <= order.end_date %}
+                                        <span class="badge bg-warning">Läuft</span>
+                                    {% elif order.end_date < (today or order.end_date) %}
+                                        <span class="badge bg-secondary">Abgelaufen</span>
+                                    {% else %}
+                                        <span class="badge bg-info">Geplant</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if order.status == 'Geplant' %}
+                                        <span class="badge bg-secondary">{{ order.status }}</span>
+                                    {% elif order.status == 'In Arbeit' %}
+                                        <span class="badge bg-primary">{{ order.status }}</span>
+                                    {% elif order.status == 'Abgeschlossen' %}
+                                        <span class="badge bg-success">{{ order.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if order.supplier_orders %}
+                                        <span class="badge bg-info">{{ order.supplier_orders|length }} Best.</span>
+                                        <br>
+                                        <small class="text-muted">
+                                            {{ order.supplier_orders|selectattr('status', 'equalto', 'Geliefert')|list|length }} geliefert
+                                        </small>
+                                    {% else %}
+                                        <span class="text-muted">Keine</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <a href="{{ url_for('view_order', order_id=order.id) }}" 
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="{{ url_for('edit_order', order_id=order.id) }}" 
+                                           class="btn btn-sm btn-outline-secondary">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">Keine Aufträge vorhanden</h5>
+                    <p class="text-muted">
+                        Aufträge entstehen aus angenommenen Angeboten. 
+                        Nehmen Sie ein Angebot an und erstellen Sie daraus einen Auftrag.
+                    </p>
+                    <a href="{{ url_for('quotes') }}" class="btn btn-primary">
+                        <i class="fas fa-file-alt"></i> Zu den Angeboten
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if orders %}
+<div class="row mt-4">
+    <div class="col-md-3">
+        <div class="card bg-secondary text-white">
+            <div class="card-body">
+                <h5>
+                    <i class="fas fa-clock"></i> 
+                    {{ orders|selectattr('status', 'equalto', 'Geplant')|list|length }}
+                </h5>
+                <p class="mb-0">Geplante Aufträge</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <h5>
+                    <i class="fas fa-tools"></i> 
+                    {{ orders|selectattr('status', 'equalto', 'In Arbeit')|list|length }}
+                </h5>
+                <p class="mb-0">In Bearbeitung</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <h5>
+                    <i class="fas fa-check-circle"></i> 
+                    {{ orders|selectattr('status', 'equalto', 'Abgeschlossen')|list|length }}
+                </h5>
+                <p class="mb-0">Abgeschlossen</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <h5>
+                    <i class="fas fa-euro-sign"></i> 
+                    {{ "%.0f"|format(orders|sum(attribute='quote.total_amount') or 0) }}
+                </h5>
+                <p class="mb-0">Gesamt EUR</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

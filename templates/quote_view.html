@@ -1,0 +1,390 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1>Angebot: {{ quote.quote_number }}</h1>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="{{ url_for('quotes') }}">Angebote</a></li>
+                        <li class="breadcrumb-item active">{{ quote.quote_number }}</li>
+                    </ol>
+                </nav>
+            </div>
+            <div>
+                {% if quote.status != 'Angenommen' %}
+                <a href="{{ url_for('edit_quote', id=quote.id) }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-edit"></i> Bearbeiten
+                </a>
+                {% endif %}
+                
+                <a href="{{ url_for('export_quote_pdf', id=quote.id) }}" class="btn btn-outline-info">
+                    <i class="fas fa-file-pdf"></i> PDF Export
+                </a>
+                
+                {% if quote.order %}
+                <a href="{{ url_for('view_order', order_id=quote.order.id) }}" class="btn btn-outline-success">
+                    <i class="fas fa-clipboard-list"></i> Auftrag {{ quote.order.order_number }}
+                </a>
+                {% endif %}
+                
+                <span class="badge bg-{{ 'secondary' if quote.status == 'Entwurf' else 'primary' if quote.status == 'Gesendet' else 'success' if quote.status == 'Angenommen' else 'danger' }} fs-6">
+                    {{ quote.status }}
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Status-spezifische Informationen -->
+{% if quote.status == 'Abgelehnt' and quote.rejection %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-warning">
+            <h5><i class="fas fa-times-circle"></i> Angebot abgelehnt</h5>
+            <p><strong>Grund:</strong> {{ quote.rejection.rejection_reason }}</p>
+            <small class="text-muted">Abgelehnt am: {{ quote.rejection.rejected_at.strftime('%d.%m.%Y um %H:%M') }}</small>
+        </div>
+    </div>
+</div>
+{% elif quote.status == 'Angenommen' %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-success">
+            <h5><i class="fas fa-check-circle"></i> Angebot angenommen</h5>
+            <p>Dieses Angebot wurde angenommen und ist nun eingefroren. Keine Änderungen mehr möglich.</p>
+            {% if quote.order %}
+            <p><strong>Zugehöriger Auftrag:</strong> 
+                <a href="{{ url_for('view_order', order_id=quote.order.id) }}" class="btn btn-sm btn-outline-success">
+                    {{ quote.order.order_number }}
+                </a>
+            </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Angebots-Übersicht -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-info-circle"></i> Angebots-Übersicht</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Angebotsnummer:</strong> {{ quote.quote_number }}</p>
+                        <p><strong>Status:</strong> 
+                            <span class="badge bg-{{ 'secondary' if quote.status == 'Entwurf' else 'primary' if quote.status == 'Gesendet' else 'success' if quote.status == 'Angenommen' else 'danger' }}">
+                                {{ quote.status }}
+                            </span>
+                        </p>
+                        <p><strong>Erstellt am:</strong> {{ quote.created_at.strftime('%d.%m.%Y um %H:%M') }}</p>
+                        <p><strong>Gültig bis:</strong> {{ quote.valid_until.strftime('%d.%m.%Y') }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Gesamtsumme:</strong> <span class="h5 text-success">{{ "%.2f"|format(quote.total_amount or 0) }} €</span></p>
+                        <p><strong>Anzahl Positionen:</strong> {{ quote.quote_items|length }}</p>
+                        <p><strong>Aufschlag:</strong> {{ quote.markup_percentage or 15 }}%</p>
+                        {% if quote.quote_items %}
+                        <p><strong>Durchschnittspreis:</strong> {{ "%.2f"|format((quote.total_amount or 0) / quote.quote_items|length) }} € pro Position</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-user"></i> Kunde</h5>
+            </div>
+            <div class="card-body">
+                <h6>{{ quote.customer.first_name }} {{ quote.customer.last_name }}</h6>
+                <p class="mb-1"><i class="fas fa-envelope"></i> {{ quote.customer.email }}</p>
+                {% if quote.customer.phone %}
+                <p class="mb-1"><i class="fas fa-phone"></i> {{ quote.customer.phone }}</p>
+                {% endif %}
+                {% if quote.customer.address %}
+                <p class="mb-0">
+                    <i class="fas fa-map-marker-alt"></i> 
+                    {{ quote.customer.address }}<br>
+                    <span class="ms-3">{{ quote.customer.postal_code }} {{ quote.customer.city }}</span>
+                </p>
+                {% endif %}
+                <div class="mt-2">
+                    <a href="{{ url_for('edit_customer', id=quote.customer.id) }}" class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-edit"></i> Bearbeiten
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Projektbeschreibung -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-project-diagram"></i> Projektbeschreibung</h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-0">{{ quote.project_description }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detaillierte Positionen -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-list"></i> Angebotspositionen</h5>
+            </div>
+            <div class="card-body">
+                {% if quote.quote_items %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 60px;">Pos.</th>
+                                <th>Beschreibung</th>
+                                <th style="width: 80px;" class="text-center">Typ</th>
+                                <th style="width: 100px;" class="text-center">Menge</th>
+                                <th style="width: 120px;" class="text-end">Einzelpreis</th>
+                                <th style="width: 120px;" class="text-end">Gesamtpreis</th>
+                                <th style="width: 150px;">Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in quote.quote_items %}
+                            <tr>
+                                <td>{{ item.position_number or loop.index }}</td>
+                                <td>
+                                    <strong>{{ item.description }}</strong>
+                                    {% if item.sub_items %}
+                                    <br><small class="text-muted">{{ item.sub_items|length }} Unterpositionen</small>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if item.item_type == 'arbeitsposition' %}
+                                    <span class="badge bg-info">Arbeit</span>
+                                    {% elif item.sub_items %}
+                                    <span class="badge bg-secondary">Detail</span>
+                                    {% else %}
+                                    <span class="badge bg-primary">Standard</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">{{ item.quantity }}</td>
+                                <td class="text-end">{{ "%.2f"|format(item.unit_price) }} €</td>
+                                <td class="text-end"><strong>{{ "%.2f"|format(item.total_price) }} €</strong></td>
+                                <td>
+                                    {% if item.requires_order %}
+                                    <span class="badge bg-warning text-dark mb-1">
+                                        <i class="fas fa-shopping-cart"></i> Bestellung
+                                    </span><br>
+                                    {% endif %}
+                                    {% if item.supplier %}
+                                    <small class="text-muted">{{ item.supplier }}</small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            
+                            <!-- Unterpositionen anzeigen -->
+                            {% if item.sub_items %}
+                            {% for sub_item in item.sub_items %}
+                            <tr class="table-light">
+                                <td></td>
+                                <td class="ps-4">
+                                    <small>
+                                        <i class="fas fa-arrow-right me-1"></i>
+                                        {{ sub_item.description }}
+                                        {% if sub_item.item_type == 'arbeitsvorgang' and sub_item.hours %}
+                                        <br><span class="text-muted ms-3">{{ sub_item.hours }}h × {{ "%.2f"|format(sub_item.hourly_rate) }}€/h</span>
+                                        {% endif %}
+                                    </small>
+                                </td>
+                                <td class="text-center">
+                                    {% if sub_item.item_type == 'arbeitsvorgang' %}
+                                    <small><span class="badge bg-info">Arbeit</span></small>
+                                    {% elif sub_item.item_type == 'bestellteil' %}
+                                    <small><span class="badge bg-warning">Bestellung</span></small>
+                                    {% else %}
+                                    <small><span class="badge bg-light text-dark">Material</span></small>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <small>
+                                        {% if sub_item.item_type == 'arbeitsvorgang' %}
+                                        {{ sub_item.hours }}h
+                                        {% else %}
+                                        {{ sub_item.quantity or '1' }}
+                                        {% endif %}
+                                    </small>
+                                </td>
+                                <td class="text-end">
+                                    <small>
+                                        {% if sub_item.item_type == 'arbeitsvorgang' %}
+                                        {{ "%.2f"|format(sub_item.hourly_rate) }} €/h
+                                        {% else %}
+                                        {{ "%.2f"|format(sub_item.unit_price or 0) }} €
+                                        {% endif %}
+                                    </small>
+                                </td>
+                                <td class="text-end"><small>{{ "%.2f"|format(sub_item.price) }} €</small></td>
+                                <td>
+                                    {% if sub_item.part_number %}
+                                    <small class="text-muted">Art.-Nr: {{ sub_item.part_number }}</small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-success">
+                            <tr>
+                                <th colspan="5" class="text-end">Nettosumme:</th>
+                                <th class="text-end">{{ "%.2f"|format(quote.calculate_net_total()) }} €</th>
+                                <th></th>
+                            </tr>
+                            <tr>
+                                <th colspan="5" class="text-end">Aufschlag ({{ quote.markup_percentage or 15 }}%):</th>
+                                <th class="text-end">{{ "%.2f"|format(quote.calculate_markup_amount()) }} €</th>
+                                <th></th>
+                            </tr>
+                            <tr>
+                                <th colspan="5" class="text-end">Summe:</th>
+                                <th class="text-end">{{ "%.2f"|format(quote.calculate_total()) }} €</th>
+                                <th></th>
+                            </tr>
+                            <tr>
+                                <th colspan="5" class="text-end">Mehrwertsteuer (20%):</th>
+                                <th class="text-end">{{ "%.2f"|format(quote.calculate_total() * 0.2) }} €</th>
+                                <th></th>
+                            </tr>
+                            <tr>
+                                <th colspan="5" class="text-end">Gesamtsumme inkl. MwSt:</th>
+                                <th class="text-end"><span class="h5">{{ "%.2f"|format(quote.calculate_total() * 1.2) }} €</span></th>
+                                <th></th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-inbox fa-3x mb-3"></i>
+                    <p>Keine Positionen vorhanden</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Zusätzliche Informationen -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        {% if quote.supplier_orders %}
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-shopping-cart"></i> Lieferantenbestellungen</h6>
+            </div>
+            <div class="card-body">
+                {% for supplier_order in quote.supplier_orders %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <strong>{{ supplier_order.supplier_name }}</strong>
+                        <br><small class="text-muted">{{ supplier_order.order_items|length }} Positionen</small>
+                    </div>
+                    <span class="badge bg-{{ 'success' if supplier_order.status == 'Geliefert' else 'warning' if supplier_order.status == 'Bestellt' else 'secondary' }}">
+                        {{ supplier_order.status }}
+                    </span>
+                </div>
+                {% if not loop.last %}<hr>{% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-cog"></i> Einstellungen</h6>
+            </div>
+            <div class="card-body">
+                <p><strong>Aufschlag:</strong> {{ quote.markup_percentage or 15 }}%</p>
+                <p><strong>Zusatzinfos einschließen:</strong> 
+                    {% if quote.include_additional_info %}
+                    <span class="badge bg-success">Ja</span>
+                    {% else %}
+                    <span class="badge bg-secondary">Nein</span>
+                    {% endif %}
+                </p>
+                <p><strong>Unterposition-Preise anzeigen:</strong> 
+                    {% if quote.show_subitem_prices %}
+                    <span class="badge bg-success">Ja</span>
+                    {% else %}
+                    <span class="badge bg-secondary">Nein</span>
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Aktionen -->
+{% if quote.status == 'Entwurf' %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-primary">
+            <div class="card-header bg-primary text-white">
+                <h6 class="mb-0"><i class="fas fa-play"></i> Verfügbare Aktionen</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex gap-2 flex-wrap">
+                    <a href="{{ url_for('send_quote', id=quote.id) }}" class="btn btn-primary">
+                        <i class="fas fa-paper-plane"></i> Angebot senden
+                    </a>
+                    <a href="{{ url_for('accept_quote', id=quote.id) }}" class="btn btn-success">
+                        <i class="fas fa-check"></i> Angebot annehmen
+                    </a>
+                    <a href="{{ url_for('reject_quote', id=quote.id) }}" class="btn btn-warning">
+                        <i class="fas fa-times"></i> Angebot ablehnen
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% elif quote.status == 'Gesendet' %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-warning">
+            <div class="card-header bg-warning">
+                <h6 class="mb-0"><i class="fas fa-clock"></i> Angebot gesendet - Warten auf Rückmeldung</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex gap-2 flex-wrap">
+                    <a href="{{ url_for('accept_quote', id=quote.id) }}" class="btn btn-success">
+                        <i class="fas fa-check"></i> Angebot annehmen
+                    </a>
+                    <a href="{{ url_for('reject_quote', id=quote.id) }}" class="btn btn-warning">
+                        <i class="fas fa-times"></i> Angebot ablehnen
+                    </a>
+                    <a href="{{ url_for('reset_quote', id=quote.id) }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-undo"></i> Zurück zu Entwurf
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

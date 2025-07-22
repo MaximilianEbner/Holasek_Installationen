@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 d-flex justify-content-between align-items-center mb-4">
+        <h1>Angebote</h1>
+        <a href="{{ url_for('new_quote') }}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Neues Angebot
+        </a>
+    </div>
+</div>
+
+<!-- Suchbereich -->
+<div class="row mb-3">
+    <div class="col-md-6">
+        <form method="GET" action="{{ url_for('quotes') }}" class="d-flex">
+            <div class="input-group">
+                <input type="text" class="form-control" name="search" 
+                       placeholder="Nach Kunde, Angebotsnummer oder Projekt suchen..." 
+                       value="{{ search_query or '' }}">
+                <button class="btn btn-outline-secondary" type="submit">
+                    <i class="fas fa-search"></i> Suchen
+                </button>
+                {% if search_query %}
+                <a href="{{ url_for('quotes') }}" class="btn btn-outline-danger">
+                    <i class="fas fa-times"></i> Zurücksetzen
+                </a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+    <div class="col-md-6 text-end">
+        <small class="text-muted">
+            {% if search_query %}
+                {{ quotes|length }} Ergebnis(se) für "{{ search_query }}"
+            {% else %}
+                {{ quotes|length }} Angebot(e) insgesamt
+            {% endif %}
+        </small>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                {% if quotes %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>
+                                    <a href="{{ url_for('quotes', search=search_query, sort='quote_number', dir='asc' if sort_by != 'quote_number' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Angebotsnr.
+                                        {% if sort_by == 'quote_number' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('quotes', search=search_query, sort='customer', dir='asc' if sort_by != 'customer' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Kunde
+                                        {% if sort_by == 'customer' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('quotes', search=search_query, sort='project_description', dir='asc' if sort_by != 'project_description' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Projekt
+                                        {% if sort_by == 'project_description' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('quotes', search=search_query, sort='total_amount', dir='asc' if sort_by != 'total_amount' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Betrag
+                                        {% if sort_by == 'total_amount' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('quotes', search=search_query, sort='status', dir='asc' if sort_by != 'status' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Status
+                                        {% if sort_by == 'status' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('quotes', search=search_query, sort='valid_until', dir='asc' if sort_by != 'valid_until' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Gültig bis
+                                        {% if sort_by == 'valid_until' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('quotes', search=search_query, sort='created_at', dir='asc' if sort_by != 'created_at' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Erstellt am
+                                        {% if sort_by == 'created_at' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for quote in quotes %}
+                            <tr>
+                                <td><strong>{{ quote.quote_number }}</strong></td>
+                                <td>{{ quote.customer.first_name }} {{ quote.customer.last_name }}</td>
+                                <td>{{ quote.project_description[:30] + '...' if quote.project_description and quote.project_description|length > 30 else quote.project_description or '-' }}</td>
+                                <td><strong>{{ "%.2f"|format(quote.total_amount or 0) }} €</strong></td>
+                                <td>
+                                    {% if quote.status == 'Entwurf' %}
+                                        <span class="badge bg-secondary">{{ quote.status }}</span>
+                                    {% elif quote.status == 'Gesendet' %}
+                                        <span class="badge bg-primary">{{ quote.status }}</span>
+                                    {% elif quote.status == 'Angenommen' %}
+                                        <span class="badge bg-success">{{ quote.status }}</span>
+                                    {% elif quote.status == 'Angenommen, Auftrag storniert' %}
+                                        <span class="badge bg-warning">Auftrag storniert</span>
+                                    {% elif quote.status == 'Abgelehnt' %}
+                                        {% if quote.rejection and quote.rejection.rejection_reason %}
+                                        <span class="badge bg-danger" data-bs-toggle="tooltip" 
+                                              title="Grund: {{ quote.rejection.rejection_reason[:100] }}{{ '...' if quote.rejection.rejection_reason|length > 100 else '' }}">
+                                            {{ quote.status }} <i class="fas fa-info-circle"></i>
+                                        </span>
+                                        {% else %}
+                                        <span class="badge bg-danger">{{ quote.status }}</span>
+                                        {% endif %}
+                                    {% endif %}
+                                </td>
+                                <td>{{ quote.valid_until.strftime('%d.%m.%Y') if quote.valid_until else '-' }}</td>
+                                <td>{{ quote.created_at.strftime('%d.%m.%Y') }}</td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <a href="{{ url_for('view_quote', id=quote.id) }}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        {% if quote.status not in ['Angenommen'] %}
+                                            <a href="{{ url_for('edit_quote', id=quote.id) }}" class="btn btn-sm btn-outline-secondary">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                        {% endif %}
+                                        <a href="{{ url_for('export_quote_pdf', id=quote.id) }}" class="btn btn-sm btn-outline-info">
+                                            <i class="fas fa-file-pdf"></i>
+                                        </a>
+                                        {% if quote.status == 'Angenommen, Auftrag storniert' %}
+                                            <a href="{{ url_for('accept_quote', id=quote.id) }}" class="btn btn-sm btn-success" 
+                                               title="Neuen Auftrag erstellen">
+                                                <i class="fas fa-redo"></i> Neuer Auftrag
+                                            </a>
+                                        {% endif %}
+                                        {% if quote.status not in ['Angenommen'] %}
+                                            <a href="{{ url_for('delete_quote', id=quote.id) }}" 
+                                               class="btn btn-sm btn-outline-danger"
+                                               onclick="return confirm('Angebot {{ quote.quote_number }} wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden!')">
+                                                <i class="fas fa-trash"></i>
+                                            </a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-file-alt fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">Keine Angebote vorhanden</h5>
+                    <p class="text-muted">Erstellen Sie Ihr erstes Angebot für einen Kunden.</p>
+                    <a href="#" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Erstes Angebot erstellen
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Bootstrap Tooltips aktivieren
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+</script>
+{% endblock %}
