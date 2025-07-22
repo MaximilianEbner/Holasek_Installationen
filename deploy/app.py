@@ -3000,12 +3000,29 @@ app = create_app()
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Admin Login"""
+    """Admin Login mit automatischer Initialisierung"""
+    
+    # Automatische Datenbank-Initialisierung beim ersten Zugriff
+    from models import LoginAdmin
+    try:
+        admin_count = LoginAdmin.query.count()
+        if admin_count == 0:
+            print("🔧 Keine Admins gefunden - erstelle Standard-Admin...")
+            ensure_default_admin()
+    except Exception as e:
+        print(f"⚠️  Datenbank-Initialisierung: {e}")
+        # Falls Tabelle nicht existiert, erstelle alle Tabellen
+        try:
+            db.create_all()
+            ensure_default_admin()
+            print("✅ Datenbank und Admin erfolgreich erstellt!")
+        except Exception as init_error:
+            print(f"❌ Fehler bei Datenbank-Initialisierung: {init_error}")
+    
     if request.method == 'POST':
         login_username = request.form['login_username']
         login_password = request.form['login_password']
         
-        from models import LoginAdmin
         login_admin = LoginAdmin.query.filter_by(
             login_username=login_username, 
             login_is_active=True
