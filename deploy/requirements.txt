@@ -21,7 +21,7 @@ itsdangerous==2.2.0
 
 # Database
 SQLAlchemy==1.4.54
-psycopg2-binary==2.9.9
+psycopg2-binary==2.9.7
 
 # PDF Generation
 reportlab==4.4.2
