@@ -85,7 +85,65 @@ def create_app():
     # Flask-Migrate initialisieren
     migrate = Migrate(app, db)
     
-    # Keine automatische DB-Initialisierung mehr - wird von init_railway_db.py übernommen
+    # Datenbankinitialisierung für Railway (nur zur Laufzeit)
+    if os.environ.get('DATABASE_URL'):  # Nur auf Railway
+        with app.app_context():
+            try:
+                # Teste DB-Verbindung
+                from sqlalchemy import text
+                with db.engine.connect() as connection:
+                    connection.execute(text("SELECT 1 FROM login_admins LIMIT 1"))
+                print("✅ Datenbank bereits initialisiert")
+            except:
+                # Initialisiere DB
+                print("🔧 Initialisiere Railway-Datenbank...")
+                
+                from models import (LoginAdmin, Customer, Quote, QuoteItem, QuoteSubItem, 
+                                  Supplier, CompanySettings, AcquisitionChannel)
+                db.create_all()
+                
+                # Standard-Admin erstellen
+                admin = LoginAdmin.create_login_admin('admin', 'admin123')
+                db.session.add(admin)
+                
+                # Grundeinstellungen
+                settings_data = [
+                    ("company_name", "innSAN Installationsbetrieb", "Name des Unternehmens"),
+                    ("address", "Musterstraße 1", "Firmenadresse"),
+                    ("city", "Wien", "Stadt"),
+                    ("postal_code", "1010", "Postleitzahl"),
+                    ("country", "Österreich", "Land"),
+                    ("phone", "+43 1 234 5678", "Telefonnummer"),
+                    ("email", "office@innsan.at", "E-Mail-Adresse"),
+                    ("website", "www.innsan.at", "Website"),
+                    ("hourly_rate", "95.0", "Standard-Stundensatz in Euro"),
+                    ("vat_rate", "20.0", "Mehrwertsteuersatz in Prozent")
+                ]
+                
+                for setting_name, setting_value, description in settings_data:
+                    setting = CompanySettings(
+                        setting_name=setting_name,
+                        setting_value=setting_value,
+                        description=description
+                    )
+                    db.session.add(setting)
+                
+                # Standard-Akquisekanäle
+                channels = [
+                    "Website/Online",
+                    "Empfehlung", 
+                    "Wiederholungskunde",
+                    "Werbung",
+                    "Messe/Event",
+                    "Sonstiges"
+                ]
+                
+                for channel_name in channels:
+                    channel = AcquisitionChannel(name=channel_name, is_active=True)
+                    db.session.add(channel)
+                
+                db.session.commit()
+                print("✅ Railway-Datenbank erfolgreich initialisiert!")
     
     # Upload-Konfiguration
     app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'uploads')
