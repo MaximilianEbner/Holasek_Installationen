@@ -10,7 +10,7 @@ from werkzeug.utils import secure_filename
 
 # Lokale Imports
 from config import Config
-from models import db, Customer, Quote, QuoteItem, QuoteSubItem, Supplier, CompanySettings, QuoteRejection, Order, SupplierOrder, SupplierOrderItem, WorkInstruction, AcquisitionChannel, PositionTemplate, PositionTemplateSubItem, Invoice, LoginAdmin
+from models import db, Customer, Quote, QuoteItem, QuoteSubItem, Supplier, CompanySettings, QuoteRejection, Order, SupplierOrder, SupplierOrderItem, WorkInstruction, AcquisitionChannel, PositionTemplate, PositionTemplateSubItem, Invoice
 from flask_migrate import Migrate
 from forms import CustomerForm, QuoteForm, SupplierForm, SettingsForm, QuoteRejectionForm, SupplierOrderUpdateForm, OrderForm, OrderUpdateForm, AcquisitionChannelForm, CustomerWorkflowForm, AppointmentForm
 from utils import get_default_hourly_rate, generate_quote_number, load_position_templates, load_suppliers, update_quote_total, safe_float_conversion, parse_quantity_from_text
@@ -71,28 +71,6 @@ def safe_sqlite_operation(db_path, operation_func, *args, **kwargs):
     except Exception as e:
         print(f"SQLite operation failed: {str(e)}")
         raise e
-
-def ensure_default_admin():
-    """Erstellt automatisch einen Standard-Admin-Benutzer falls keiner existiert"""
-    try:
-        existing_admin = LoginAdmin.query.first()
-        if not existing_admin:
-            print("🔧 Erstelle Standard-Admin-Benutzer...")
-            admin_user = LoginAdmin()
-            admin_user.create_login_admin(
-                login_username="admin",
-                login_password="admin123"  # WICHTIG: Nach dem ersten Login ändern!
-            )
-            db.session.add(admin_user)
-            db.session.commit()
-            print("✅ Standard-Admin erstellt (admin/admin123)")
-            print("⚠️  WICHTIG: Passwort nach dem ersten Login ändern!")
-            return True
-        return False
-    except Exception as e:
-        print(f"❌ Fehler beim Erstellen des Admin-Benutzers: {e}")
-        safe_rollback()
-        return False
 
 def create_app():
     """App Factory Pattern"""
@@ -3000,29 +2978,12 @@ app = create_app()
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Admin Login mit automatischer Initialisierung"""
-    
-    # Automatische Datenbank-Initialisierung beim ersten Zugriff
-    from models import LoginAdmin
-    try:
-        admin_count = LoginAdmin.query.count()
-        if admin_count == 0:
-            print("🔧 Keine Admins gefunden - erstelle Standard-Admin...")
-            ensure_default_admin()
-    except Exception as e:
-        print(f"⚠️  Datenbank-Initialisierung: {e}")
-        # Falls Tabelle nicht existiert, erstelle alle Tabellen
-        try:
-            db.create_all()
-            ensure_default_admin()
-            print("✅ Datenbank und Admin erfolgreich erstellt!")
-        except Exception as init_error:
-            print(f"❌ Fehler bei Datenbank-Initialisierung: {init_error}")
-    
+    """Admin Login"""
     if request.method == 'POST':
         login_username = request.form['login_username']
         login_password = request.form['login_password']
         
+        from models import LoginAdmin
         login_admin = LoginAdmin.query.filter_by(
             login_username=login_username, 
             login_is_active=True
@@ -3452,15 +3413,33 @@ if __name__ == '__main__':
     # Cloud-Hosting-Erkennung
     is_production = bool(os.environ.get('DATABASE_URL'))
     
+    # Admin-Initialisierung (Railway/Cloud & lokal)
+    def ensure_admin():
+        from models import LoginAdmin, db
+        admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
+        admin_password = os.environ.get('ADMIN_PASSWORD', 'admin123')
+        existing_admin = LoginAdmin.query.filter_by(login_username=admin_username).first()
+        if not existing_admin:
+            admin = LoginAdmin.create_login_admin(admin_username, admin_password)
+            db.session.add(admin)
+            db.session.commit()
+            print(f"✓ Admin-Benutzer initialisiert: {admin_username} / {admin_password}")
+        else:
+            # Im Entwicklungsmodus Passwort immer setzen
+            if not is_production:
+                existing_admin.set_login_password(admin_password)
+                db.session.commit()
+                print(f"✓ Admin-Passwort aktualisiert: {admin_username} / {admin_password}")
+            else:
+                print(f"✓ Admin-Benutzer vorhanden: {existing_admin.login_username}")
+
     if is_production:
         # Produktion: Einfacher Start ohne Browser-Öffnung
         with app.app_context():
             db.create_all()
-            ensure_default_admin()  # Erstelle Standard-Admin falls keiner existiert
-        
+            ensure_admin()
         port = int(os.environ.get('PORT', 5000))
         app.run(host='0.0.0.0', port=port, debug=False)
-    
     else:
         # Entwicklung: Wie bisher mit Browser-Öffnung
         import webbrowser
@@ -3481,7 +3460,7 @@ if __name__ == '__main__':
             # Datenbank erstellen falls nicht vorhanden
             db.create_all()
             print("✓ Datenbank initialisiert")
-            
+            ensure_admin()
             # Initialisiere Standard-Einstellungen falls nicht vorhanden
             if not CompanySettings.query.filter_by(setting_name='default_hourly_rate').first():
                 CompanySettings.set_setting(
@@ -3490,7 +3469,6 @@ if __name__ == '__main__':
                     'Standard-Stundensatz für Arbeitsvorgänge'
                 )
                 print("✓ Standard-Stundensatz initialisiert (95.00 €)")
-            
             # Lade Excel-Templates beim Start
             try:
                 if load_position_templates():
@@ -3499,7 +3477,6 @@ if __name__ == '__main__':
                     print("⚠ Positionsvorlagen konnten nicht geladen werden")
             except Exception as e:
                 print("⚠ Positionsvorlagen nicht gefunden (normal bei Erstinstallation)")
-            
             try:
                 if load_suppliers():
                     print("✓ Lieferanten erfolgreich geladen")
