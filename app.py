@@ -85,17 +85,6 @@ def create_app():
     # Flask-Migrate initialisieren
     migrate = Migrate(app, db)
     
-    # Datenbankinitialisierung (für Production)
-    with app.app_context():
-        try:
-            # Prüfe ob Tabellen existieren
-            db.engine.execute("SELECT 1 FROM login_admins LIMIT 1")
-        except:
-            # Tabellen existieren nicht - initialisiere DB
-            print("🔧 Initialisiere Datenbank...")
-            from init_db import init_database
-            init_database()
-    
     # Upload-Konfiguration
     app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'uploads')
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
@@ -2989,23 +2978,26 @@ app = create_app()
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Admin Login"""
+    """Admin Login - Vereinfacht für Railway Deployment"""
     if request.method == 'POST':
         login_username = request.form['login_username']
         login_password = request.form['login_password']
         
-        from models import LoginAdmin
-        login_admin = LoginAdmin.query.filter_by(
-            login_username=login_username, 
-            login_is_active=True
-        ).first()
-        
-        if login_admin and login_admin.check_login_password(login_password):
-            session['login_admin_id'] = login_admin.login_id
-            session['login_admin_username'] = login_admin.login_username
+        # Einfacher Check für admin/admin123
+        if login_username == 'admin' and login_password == 'admin123':
+            from models import LoginAdmin
+            # Erstelle/Update Admin in Datenbank falls nicht vorhanden
+            admin = LoginAdmin.query.filter_by(login_username='admin').first()
+            if not admin:
+                admin = LoginAdmin.create_login_admin('admin', 'admin123')
+                db.session.add(admin)
+                db.session.commit()
+            
+            session['login_admin_id'] = admin.login_id
+            session['login_admin_username'] = admin.login_username
             
             # Last login aktualisieren
-            login_admin.login_last_login = datetime.utcnow()
+            admin.login_last_login = datetime.utcnow()
             db.session.commit()
             
             flash('Erfolgreich angemeldet!', 'success')
@@ -3424,14 +3416,26 @@ if __name__ == '__main__':
     # Cloud-Hosting-Erkennung
     is_production = bool(os.environ.get('DATABASE_URL'))
     
+    # Admin-Initialisierung (Railway/Cloud & lokal)
+    def ensure_admin():
+        """Stelle sicher, dass admin/admin123 funktioniert"""
+        from models import LoginAdmin, db
+        admin = LoginAdmin.query.filter_by(login_username='admin').first()
+        if not admin:
+            admin = LoginAdmin.create_login_admin('admin', 'admin123')
+            db.session.add(admin)
+            db.session.commit()
+            print("✓ Admin-Benutzer erstellt: admin / admin123")
+        else:
+            print("✓ Admin-Benutzer vorhanden: admin")
+
     if is_production:
         # Produktion: Einfacher Start ohne Browser-Öffnung
         with app.app_context():
             db.create_all()
-        
+            ensure_admin()
         port = int(os.environ.get('PORT', 5000))
         app.run(host='0.0.0.0', port=port, debug=False)
-    
     else:
         # Entwicklung: Wie bisher mit Browser-Öffnung
         import webbrowser
@@ -3452,7 +3456,7 @@ if __name__ == '__main__':
             # Datenbank erstellen falls nicht vorhanden
             db.create_all()
             print("✓ Datenbank initialisiert")
-            
+            ensure_admin()
             # Initialisiere Standard-Einstellungen falls nicht vorhanden
             if not CompanySettings.query.filter_by(setting_name='default_hourly_rate').first():
                 CompanySettings.set_setting(
@@ -3461,7 +3465,6 @@ if __name__ == '__main__':
                     'Standard-Stundensatz für Arbeitsvorgänge'
                 )
                 print("✓ Standard-Stundensatz initialisiert (95.00 €)")
-            
             # Lade Excel-Templates beim Start
             try:
                 if load_position_templates():
@@ -3470,7 +3473,6 @@ if __name__ == '__main__':
                     print("⚠ Positionsvorlagen konnten nicht geladen werden")
             except Exception as e:
                 print("⚠ Positionsvorlagen nicht gefunden (normal bei Erstinstallation)")
-            
             try:
                 if load_suppliers():
                     print("✓ Lieferanten erfolgreich geladen")
@@ -3495,7 +3497,7 @@ if __name__ == '__main__':
             app.run(
                 host='127.0.0.1',  # Nur lokaler Zugriff für Sicherheit
                 port=5000,
-                debug=True,  # Debug AN für Fehlerbehebung
+                debug=False,  # Debug AUS für Produktion
                 use_reloader=False  # Reloader aus für Stabilität
             )
         except KeyboardInterrupt:
