@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 d-flex justify-content-between align-items-center mb-4">
+        <h1>Auftrag bearbeiten</h1>
+        <div>
+            <a href="{{ url_for('view_order', order_id=order.id) }}" class="btn btn-outline-secondary">
+                <i class="fas fa-eye"></i> Anzeigen
+            </a>
+            <a href="{{ url_for('orders') }}" class="btn btn-outline-primary">
+                <i class="fas fa-arrow-left"></i> Zurück zur Übersicht
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-edit"></i> Auftragsdaten bearbeiten
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Auftragsnummer</label>
+                            <input type="text" class="form-control" value="{{ order.order_number }}" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="{{ form.status.id }}" class="form-label">Status</label>
+                            {{ form.status(class="form-control") }}
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="{{ form.start_date.id }}" class="form-label">Geplanter Start</label>
+                            {{ form.start_date(class="form-control") }}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="{{ form.end_date.id }}" class="form-label">Geplantes Ende</label>
+                            {{ form.end_date(class="form-control") }}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.project_manager.id }}" class="form-label">Projektleiter</label>
+                        {{ form.project_manager(class="form-control") }}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.notes.id }}" class="form-label">Notizen</label>
+                        {{ form.notes(class="form-control", rows="4") }}
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Änderungen speichern
+                        </button>
+                        <a href="{{ url_for('view_order', order_id=order.id) }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Abbrechen
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-info-circle"></i> Auftragsinformationen
+                </h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Kunde:</strong><br>
+                {{ order.quote.customer.first_name }} {{ order.quote.customer.last_name }}</p>
+                
+                <p><strong>Projekts:</strong><br>
+                {{ order.quote.project_description or '-' }}</p>
+                
+                <p><strong>Auftragswert:</strong><br>
+                <span class="h5 text-success">{{ "%.2f"|format(order.quote.total_amount or 0) }} €</span></p>
+                
+                <p><strong>Erstellt am:</strong><br>
+                {{ order.created_at.strftime('%d.%m.%Y %H:%M') if order.created_at else '-' }}</p>
+                
+                <hr>
+                
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('edit_quote', id=order.quote_id) }}" class="btn btn-outline-info">
+                        <i class="fas fa-file-alt"></i> Zugehöriges Angebot
+                    </a>
+                    <a href="{{ url_for('supplier_orders') }}?order_id={{ order.id }}" class="btn btn-outline-success">
+                        <i class="fas fa-clipboard-list"></i> Bestellungen anzeigen
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
