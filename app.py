@@ -85,6 +85,17 @@ def create_app():
     # Flask-Migrate initialisieren
     migrate = Migrate(app, db)
     
+    # Datenbankinitialisierung (für Production)
+    with app.app_context():
+        try:
+            # Prüfe ob Tabellen existieren
+            db.engine.execute("SELECT 1 FROM login_admins LIMIT 1")
+        except:
+            # Tabellen existieren nicht - initialisiere DB
+            print("🔧 Initialisiere Datenbank...")
+            from init_db import init_database
+            init_database()
+    
     # Upload-Konfiguration
     app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'uploads')
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
