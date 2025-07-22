@@ -120,8 +120,8 @@ def create_app():
             
             for setting_name, setting_value, description in settings_data:
                 setting = CompanySettings(
-                    setting_name=setting_name,
-                    setting_value=setting_value,
+                    key=setting_name,  # Korrigiert: key statt setting_name
+                    value=setting_value,  # Korrigiert: value statt setting_value
                     description=description
                 )
                 db.session.add(setting)
