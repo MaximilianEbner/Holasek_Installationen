@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Neue Positionsvorlage anlegen</h2>
+<form method="post">
+  <div class="mb-3">
+    <label for="name" class="form-label">Name der Vorlage</label>
+    <input type="text" class="form-control" id="name" name="name" required>
+  </div>
+  <button type="submit" class="btn btn-primary">Vorlage anlegen</button>
+  <a href="{{ url_for('stammdaten') }}" class="btn btn-secondary">Abbrechen</a>
+</form>
+{% endblock %}

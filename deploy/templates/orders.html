@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 d-flex justify-content-between align-items-center mb-4">
+        <h1>Aufträge</h1>
+        <a href="#" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Neuer Auftrag
+        </a>
+    </div>
+</div>
+
+<!-- Suchbereich -->
+<div class="row mb-3">
+    <div class="col-md-6">
+        <form method="GET" action="{{ url_for('orders') }}" class="d-flex">
+            <div class="input-group">
+                <input type="text" class="form-control" name="search" 
+                       placeholder="Nach Kunde, Auftragsnummer oder Projekt suchen..." 
+                       value="{{ search_query or '' }}">
+                <button class="btn btn-outline-secondary" type="submit">
+                    <i class="fas fa-search"></i> Suchen
+                </button>
+                {% if search_query %}
+                <a href="{{ url_for('orders') }}" class="btn btn-outline-danger">
+                    <i class="fas fa-times"></i> Zurücksetzen
+                </a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+    <div class="col-md-6 text-end">
+        <small class="text-muted">
+            {% if search_query %}
+                {{ orders|length }} Ergebnis(se) für "{{ search_query }}"
+            {% else %}
+                {{ orders|length }} Auftrag/Aufträge insgesamt
+            {% endif %}
+        </small>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                {% if orders %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>
+                                    <a href="{{ url_for('orders', search=search_query, sort='order_number', dir='asc' if sort_by != 'order_number' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Auftragsnr.
+                                        {% if sort_by == 'order_number' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('orders', search=search_query, sort='customer', dir='asc' if sort_by != 'customer' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Kunde
+                                        {% if sort_by == 'customer' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('orders', search=search_query, sort='project_description', dir='asc' if sort_by != 'project_description' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Projekt
+                                        {% if sort_by == 'project_description' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('orders', search=search_query, sort='total_amount', dir='asc' if sort_by != 'total_amount' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Betrag
+                                        {% if sort_by == 'total_amount' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('orders', search=search_query, sort='status', dir='asc' if sort_by != 'status' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Status
+                                        {% if sort_by == 'status' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('orders', search=search_query, sort='start_date', dir='asc' if sort_by != 'start_date' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Geplanter Start
+                                        {% if sort_by == 'start_date' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('orders', search=search_query, sort='created_at', dir='asc' if sort_by != 'created_at' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Auftragsdatum
+                                        {% if sort_by == 'created_at' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in orders %}
+                            <tr>
+                                <td><strong>{{ order.order_number }}</strong></td>
+                                <td>{{ order.quote.customer.first_name }} {{ order.quote.customer.last_name }}</td>
+                                <td>{{ order.quote.project_description[:50] + '...' if order.quote.project_description and order.quote.project_description|length > 50 else order.quote.project_description or '-' }}</td>
+                                <td><strong>{{ "%.2f"|format(order.quote.total_amount or 0) }} €</strong></td>
+                                <td>
+                                    {% if order.status == 'Geplant' %}
+                                        <span class="badge bg-info">{{ order.status }}</span>
+                                    {% elif order.status == 'In Arbeit' %}
+                                        <span class="badge bg-warning">{{ order.status }}</span>
+                                    {% elif order.status == 'Abgeschlossen' %}
+                                        <span class="badge bg-success">{{ order.status }}</span>
+                                    {% elif order.status == 'Storniert' %}
+                                        <span class="badge bg-danger">{{ order.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ order.start_date.strftime('%d.%m.%Y') if order.start_date else '-' }}</td>
+                                <td>{{ order.created_at.strftime('%d.%m.%Y') if order.created_at else '-' }}</td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <a href="{{ url_for('view_order', order_id=order.id) }}" class="btn btn-sm btn-outline-primary" title="Auftrag anzeigen">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="{{ url_for('edit_order', order_id=order.id) }}" class="btn btn-sm btn-outline-secondary" title="Auftrag bearbeiten">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <a href="{{ url_for('edit_quote', id=order.quote_id) }}" class="btn btn-sm btn-outline-info" title="Zugehöriges Angebot">
+                                            <i class="fas fa-file-alt"></i>
+                                        </a>
+                                        <a href="{{ url_for('supplier_orders') }}?order_id={{ order.id }}" class="btn btn-sm btn-outline-success" title="Bestellungen anzeigen">
+                                            <i class="fas fa-clipboard-list"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-shopping-cart fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">Keine Aufträge vorhanden</h5>
+                    <p class="text-muted">Aufträge entstehen aus angenommenen Angeboten oder direkt.</p>
+                    <a href="#" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Ersten Auftrag erstellen
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
