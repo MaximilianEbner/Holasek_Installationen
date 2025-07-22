@@ -4,7 +4,7 @@ Konfigurationsdatei für die InstallationApp
 import os
 
 class Config:
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'your-secret-key-here-change-in-production'
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'a7f8d9e2b1c4567890abcdef12345678901234567890abcdef1234567890abc'
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///installation_business.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
