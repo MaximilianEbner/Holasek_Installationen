@@ -12,7 +12,7 @@ project_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_dir)
 
 from app import app
-from models import db, Customer, Quote, QuoteItem, QuoteSubItem, Supplier, CompanySettings, AcquisitionChannel
+from models import db, Customer, Quote, QuoteItem, QuoteSubItem, Supplier, CompanySettings, AcquisitionChannel, LoginAdmin
 from datetime import date, timedelta
 
 def init_database():
@@ -25,7 +25,15 @@ def init_database():
         print("🔧 Erstelle neue Datenbankstruktur...")
         db.create_all()
         
-        print("📊 Erstelle Grunddaten...")
+        print("� Erstelle Login-Admin...")
+        
+        # Login-Admin erstellen
+        admin = LoginAdmin.create_login_admin('admin', 'admin123')
+        db.session.add(admin)
+        db.session.commit()
+        print("✅ Login-Admin erstellt (admin/admin123)")
+        
+        print("�📊 Erstelle Grunddaten...")
         
         # Erstelle Grundeinstellungen
         settings_data = [
