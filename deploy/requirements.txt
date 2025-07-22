@@ -3,7 +3,7 @@ Flask==3.1.1
 Flask-SQLAlchemy==3.0.5
 Flask-WTF==1.2.2
 Flask-Migrate==4.0.5
-Flask-Login==0.6.3
+Flask-Login
 
 # Form Handling
 WTForms==3.2.1
@@ -21,7 +21,7 @@ itsdangerous==2.2.0
 
 # Database
 SQLAlchemy==1.4.54
-psycopg2-binary==2.9.7
+# psycopg2-binary==2.9.7  # Nicht benötigt für SQLite
 
 # PDF Generation
 reportlab==4.4.2

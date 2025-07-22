@@ -7,17 +7,9 @@ class Config:
     # Sicherheit
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'your-production-secret-key-change-this'
     
-    # Datenbank - PostgreSQL für Railway, SQLite für lokale Entwicklung
-    DATABASE_URL = os.environ.get('DATABASE_URL')
-    print(f"DEBUG: DATABASE_URL = {DATABASE_URL}")  # Debug-Ausgabe
-    
-    if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
-        # Railway/Heroku PostgreSQL URL fix
-        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
-        print(f"DEBUG: Fixed DATABASE_URL = {DATABASE_URL}")  # Debug-Ausgabe
-    
-    SQLALCHEMY_DATABASE_URI = DATABASE_URL or 'sqlite:///installation_business.db'
-    print(f"DEBUG: SQLALCHEMY_DATABASE_URI = {SQLALCHEMY_DATABASE_URI}")  # Debug-Ausgabe
+    # Datenbank - Immer SQLite verwenden (wie früher)
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///installation_business.db'
+    print(f"DEBUG: Using SQLite: {SQLALCHEMY_DATABASE_URI}")  # Debug-Ausgabe
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # PDF-Konfiguration
