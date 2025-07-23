@@ -11,9 +11,26 @@ def get_default_hourly_rate():
     return CompanySettings.get_setting('default_hourly_rate', 95.0)
 
 def generate_quote_number():
-    """Generiert eine neue Angebotsnummer"""
-    quote_count = Quote.query.count() + 1
-    return f"ANG-{date.today().strftime('%Y')}-{quote_count:03d}"
+    """Generiert eine neue, eindeutige Angebotsnummer"""
+    from datetime import date
+    year = date.today().strftime('%Y')
+    
+    # Finde die höchste Angebotsnummer des aktuellen Jahres
+    latest_quote = Quote.query.filter(
+        Quote.quote_number.like(f'ANG-{year}-%')
+    ).order_by(Quote.quote_number.desc()).first()
+    
+    if latest_quote:
+        # Extrahiere die Nummer aus dem Format "ANG-YYYY-XXX"
+        try:
+            last_number = int(latest_quote.quote_number.split('-')[-1])
+            new_number = last_number + 1
+        except (ValueError, IndexError):
+            new_number = 1
+    else:
+        new_number = 1
+    
+    return f'ANG-{year}-{new_number:03d}'
 
 def load_position_templates():
     """Lädt Positionsvorlagen aus CSV - DEAKTIVIERT da neues Template-System verwendet wird"""

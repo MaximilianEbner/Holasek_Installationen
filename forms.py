@@ -79,9 +79,9 @@ class SupplierOrderUpdateForm(FlaskForm):
 
 class OrderForm(FlaskForm):
     start_date = DateField('Projektstart', validators=[], 
-                          default=lambda: date.today() + timedelta(days=7))
+                          default=lambda: date.today() + timedelta(days=56))
     end_date = DateField('Projektende', validators=[],
-                        default=lambda: date.today() + timedelta(days=21))
+                        default=lambda: date.today() + timedelta(days=59))
     project_manager = StringField('Projektleiter', validators=[Optional()],
                                  default='Michael Holasek')
     notes = TextAreaField('Projektnotizen', validators=[Optional()],

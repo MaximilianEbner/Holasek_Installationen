@@ -18,8 +18,9 @@ itsdangerous==2.2.0
 SQLAlchemy==1.4.54
 psycopg2-binary==2.9.7
 
-# Document Generation
-reportlab==4.4.2
+# Document Generation & PDF Processing
+reportlab==4.2.2
+pypdf==4.0.1
 pillow==11.3.0
 
 # Excel Support
@@ -37,11 +38,8 @@ charset-normalizer==3.4.2
 # System Dependencies
 colorama==0.4.6
 
-# Optional: Add python-docx if needed for Word documents
-# python-docx==0.8.11
-
-# Optional: Environment variables support
-# python-dotenv==1.0.0
-
 # Production Server
 gunicorn==21.2.0
+
+# Environment Variables (Railway)
+python-dotenv==1.0.0

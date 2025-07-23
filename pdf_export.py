@@ -12,6 +12,7 @@ from io import BytesIO
 from models import Quote
 import os
 import json
+from pypdf import PdfWriter, PdfReader
 
 class PDFExporter:
     """Klasse für PDF-Export von Angeboten"""
@@ -47,6 +48,38 @@ class PDFExporter:
             parent=self.styles['Normal'], 
             alignment=TA_RIGHT
         )
+    
+    def _wrap_text_for_table(self, text, max_width=None):
+        """Umbruch von langem Text für Tabellenzellen mit Paragraph-Objekten"""
+        if not text:
+            return "-"
+        
+        # Teile Text an Zeilenumbrüchen auf
+        lines = str(text).split('\n')
+        paragraphs = []
+        
+        for line in lines:
+            if line.strip():
+                # Lange Zeilen automatisch umbrechen
+                if len(line) > 40:  # Threshold für automatischen Umbruch
+                    # Einfacher Umbruch bei Leerzeichen
+                    words = line.split(' ')
+                    current_line = ""
+                    for word in words:
+                        if len(current_line + word) > 40:
+                            if current_line:
+                                paragraphs.append(Paragraph(current_line.strip(), self.styles['Normal']))
+                            current_line = word + " "
+                        else:
+                            current_line += word + " "
+                    if current_line:
+                        paragraphs.append(Paragraph(current_line.strip(), self.styles['Normal']))
+                else:
+                    paragraphs.append(Paragraph(line, self.styles['Normal']))
+            else:
+                paragraphs.append(Paragraph(" ", self.styles['Normal']))  # Leere Zeile
+        
+        return paragraphs if len(paragraphs) > 1 else (paragraphs[0] if paragraphs else Paragraph("-", self.styles['Normal']))
     
     def export_quote(self, quote_id):
         """Exportiert ein Angebot als PDF"""
@@ -90,7 +123,7 @@ class PDFExporter:
         
         # Zusätzliche Informationen
         if quote.include_additional_info:
-            story.extend(self._build_additional_info())
+            story.extend(self._build_additional_info(quote))
         
         # Zahlungsbedingungen und AGB
         story.extend(self._build_terms_and_conditions())
@@ -339,7 +372,7 @@ class PDFExporter:
             ('ALIGN', (2, 0), (2, -1), 'RIGHT'),
             ('FONTSIZE', (1, 0), (2, 1), 12),
             ('FONTNAME', (1, 0), (2, 1), 'Helvetica'),
-            ('FONTSIZE', (1, 2), (2, 2), 14),
+            ('FONTSIZE', (1, 2), (2, 2), 12),
             ('FONTNAME', (1, 2), (2, 2), 'Helvetica-Bold'),
             ('LINEABOVE', (1, 2), (2, 2), 1, colors.black),
             ('BACKGROUND', (1, 2), (2, 2), colors.HexColor('#fff3e6')),
@@ -353,32 +386,81 @@ class PDFExporter:
         
         return elements
     
-    def _build_additional_info(self):
-        """Erstellt zusätzliche Informationen"""
-        leistung_text = """
+    def _build_additional_info(self, quote):
+        """Erstellt zusätzliche Informationen basierend auf Quote-Daten"""
+        elements = [
+            Paragraph("Wir bedanken uns für Ihr Vertrauen und bieten Ihnen folgenden Leistungsumfang:", self.small_style)
+        ]
+        
+        # Leistungsumfang
+        if quote.leistungsumfang and quote.leistungsumfang != '<keine>':
+            leistungsumfang_html = quote.leistungsumfang.replace('\n', '<br/>')
+            elements.extend([
+                Paragraph(leistungsumfang_html, self.small_style),
+                Spacer(1, 0.3*cm)
+            ])
+        else:
+            # Fallback auf Default-Text oder leer lassen wenn "<keine>"
+            if not quote.leistungsumfang or quote.leistungsumfang == '<keine>':
+                # Feld ist leer - nichts anzeigen oder Platzhalter
+                pass
+            else:
+                default_leistung = """
 • Demontage der bestehenden Produkte inklusive Entsorgung<br/>
 • Montage der im Angebot angeführten Produkte<br/>
 • Anschluss an bestehendes Gebäudeleitungssystem im unmittelbaren Umbaubereich ab Badezimmer oder in der Dusche<br/>
-• Diverse Ausgleichs- und Abdichtungsarbeiten<br/><br/>
-
+• Diverse Ausgleichs- und Abdichtungsarbeiten<br/>
+                """
+                elements.extend([
+                    Paragraph(default_leistung, self.small_style),
+                    Spacer(1, 0.3*cm)
+                ])
+        
+        # Informationen zum Objekt
+        if quote.objektinformationen and quote.objektinformationen != '<keine>':
+            elements.append(Paragraph("<b>Informationen zum Objekt:</b><br/>", self.small_style))
+            objektinfo_html = quote.objektinformationen.replace('\n', '<br/>')
+            elements.extend([
+                Paragraph(objektinfo_html, self.small_style),
+                Spacer(1, 0.3*cm)
+            ])
+        elif quote.objektinformationen != '<keine>':
+            # Nur Default-Text anzeigen wenn nicht explizit als "<keine>" markiert
+            default_objekt = """
 <b>Informationen zum Objekt:</b><br/>
 • Einfamilienhaus<br/>
 • Zuschnitt vor dem Gebäude möglich<br/>
-• Parken vor dem Gebäude möglich<br/><br/>
-
+• Parken vor dem Gebäude möglich<br/>
+            """
+            elements.extend([
+                Paragraph(default_objekt, self.small_style),
+                Spacer(1, 0.3*cm)
+            ])
+        
+        # Installationsleistungen
+        if quote.installationsleistungen and quote.installationsleistungen != '<keine>':
+            elements.append(Paragraph("<b>Installationsleistungen:</b><br/>", self.small_style))
+            installations_html = quote.installationsleistungen.replace('\n', '<br/>')
+            elements.extend([
+                Paragraph(installations_html, self.small_style),
+                Spacer(1, 0.5*cm)
+            ])
+        elif quote.installationsleistungen != '<keine>':
+            # Nur Default-Text anzeigen wenn nicht explizit als "<keine>" markiert
+            default_installation = """
 <b>Installationsleistungen:</b><br/>
 • Abfluss Dusche herrichten<br/>
 • Armatur Dusche versetzen<br/><br/>
 
 <b>Nebenabsprache mit dem Kunden:</b><br/>
-• Demontage , Vorbereitung und Entsorgung erfolgt durch Innsan
-        """
+• Demontage, Vorbereitung und Entsorgung erfolgt durch Innsan<br/>
+            """
+            elements.extend([
+                Paragraph(default_installation, self.small_style),
+                Spacer(1, 0.5*cm)
+            ])
         
-        return [
-            Paragraph("Wir bedanken uns für Ihr Vertrauen und bieten Ihnen folgenden Leistungsumfang:", self.small_style),
-            Paragraph(leistung_text, self.small_style),
-            Spacer(1, 0.5*cm)
-        ]
+        return elements
     
     def _build_terms_and_conditions(self):
         """Erstellt Zahlungsbedingungen und AGB"""
@@ -540,79 +622,129 @@ Die von uns gelieferte, montierte oder sonst übergebene Ware bleibt bis zur vol
         story.append(Spacer(1, 0.8*cm))
         
         # 2a. Arbeitsanweisungen und Hinweise
-        if work_instruction.work_description or work_instruction.special_instructions or work_instruction.safety_notes:
+        if work_instruction.sonstiges or work_instruction.tools_required or work_instruction.access_requirements:
             story.append(Paragraph("2a. ARBEITSANWEISUNGEN UND HINWEISE", self.heading_style))
             story.append(Spacer(1, 0.3*cm))
             
-            if work_instruction.work_description:
-                story.append(Paragraph("<b>Detaillierte Arbeitsbeschreibung:</b>", self.styles['Normal']))
-                story.append(Paragraph(work_instruction.work_description, self.styles['Normal']))
-                story.append(Spacer(1, 0.3*cm))
-            
-            if work_instruction.special_instructions:
-                story.append(Paragraph("<b>⚠ Besondere Hinweise:</b>", self.styles['Normal']))
-                story.append(Paragraph(work_instruction.special_instructions, self.styles['Normal']))
-                story.append(Spacer(1, 0.3*cm))
-            
-            if work_instruction.safety_notes:
-                story.append(Paragraph("<b>🛡 Sicherheitshinweise:</b>", self.styles['Normal']))
-                story.append(Paragraph(work_instruction.safety_notes, self.styles['Normal']))
-                story.append(Spacer(1, 0.3*cm))
-            
-            if work_instruction.preparation_work:
-                story.append(Paragraph("<b>Vorarbeiten:</b>", self.styles['Normal']))
-                story.append(Paragraph(work_instruction.preparation_work, self.styles['Normal']))
+            if work_instruction.sonstiges:
+                story.append(Paragraph("<b>📄 Sonstiges:</b>", self.styles['Normal']))
+                # Add line breaks properly
+                sonstiges_lines = work_instruction.sonstiges.split('\n')
+                for line in sonstiges_lines:
+                    if line.strip():
+                        story.append(Paragraph(line, self.styles['Normal']))
                 story.append(Spacer(1, 0.3*cm))
             
             if work_instruction.tools_required:
                 story.append(Paragraph("<b>Benötigte Werkzeuge:</b>", self.styles['Normal']))
-                story.append(Paragraph(work_instruction.tools_required, self.styles['Normal']))
+                tools_lines = work_instruction.tools_required.split('\n')
+                for line in tools_lines:
+                    if line.strip():
+                        story.append(Paragraph(line, self.styles['Normal']))
                 story.append(Spacer(1, 0.3*cm))
             
             if work_instruction.access_requirements:
                 story.append(Paragraph("<b>Zugangserfordernisse:</b>", self.styles['Normal']))
-                story.append(Paragraph(work_instruction.access_requirements, self.styles['Normal']))
+                access_lines = work_instruction.access_requirements.split('\n')
+                for line in access_lines:
+                    if line.strip():
+                        story.append(Paragraph(line, self.styles['Normal']))
                 story.append(Spacer(1, 0.3*cm))
             
             story.append(Spacer(1, 0.5*cm))
         
-        # 3a. Bestellübersicht - Bestellteile
-        story.append(Paragraph("3a. BESTELLTEILE", self.heading_style))
-        story.append(Spacer(1, 0.3*cm))
+        # 2b. Arbeitsschritte - gespeicherte Daten haben Vorrang vor Quote-Daten
+        work_steps = []
+        if work_instruction.work_steps_data:
+            # Verwende gespeicherte Arbeitsschritte
+            try:
+                work_steps = json.loads(work_instruction.work_steps_data)
+            except:
+                work_steps = []
         
-        # Sammle alle Bestellteile
-        bestellteile = []
-        for item in quote.quote_items:
-            for sub_item in item.sub_items:
-                if sub_item.item_type == 'bestellteil':
-                    bestellteile.append([
-                        f"Pos. {item.position_number}",
-                        sub_item.description,
-                        sub_item.supplier or "-",
-                        sub_item.part_number or "-",
-                        sub_item.part_quantity or "1"
-                    ])
+        # Falls keine gespeicherten Arbeitsschritte vorhanden, lade aus Quote
+        if not work_steps and quote:
+            step_number = 1
+            for item in quote.quote_items:
+                for sub_item in item.sub_items:
+                    if sub_item.item_type == 'arbeitsvorgang':
+                        work_steps.append({
+                            'step_number': step_number,
+                            'description': sub_item.description,
+                            'notes': '',  # Keine automatischen Notizen mehr
+                            'estimated_time': int(sub_item.hours * 60) if sub_item.hours else 0  # Convert hours to minutes
+                        })
+                        step_number += 1
         
-        if bestellteile:
-            bestellteile_header = [["Position", "Bezeichnung", "Lieferant", "Teilenummer", "Anzahl"]]
-            bestellteile_table = Table(bestellteile_header + bestellteile, 
-                                     colWidths=[2*cm, 7*cm, 3*cm, 3*cm, 2*cm])
-            bestellteile_table.setStyle(TableStyle([
-                ('FONTSIZE', (0, 0), (-1, -1), 9),
+        if work_steps:
+            story.append(Paragraph("2b. ARBEITSSCHRITTE", self.heading_style))
+            story.append(Spacer(1, 0.3*cm))
+            
+            work_steps_data = [["Nr.", "Beschreibung", "Notizen", "Zeit (Min)"]]
+            for step in work_steps:
+                work_steps_data.append([
+                    str(step['step_number']),
+                    self._wrap_text_for_table(step['description']),
+                    self._wrap_text_for_table(step['notes'] or "-"),
+                    str(step['estimated_time']) if step['estimated_time'] else "-"
+                ])
+            
+            work_steps_table = Table(work_steps_data, colWidths=[1.5*cm, 10*cm, 4*cm, 1.5*cm])
+            work_steps_table.setStyle(TableStyle([
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f8f9fa')),
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),
             ]))
-            story.append(bestellteile_table)
-        else:
-            story.append(Paragraph("Keine Bestellteile vorhanden.", self.styles['Normal']))
+            story.append(work_steps_table)
+            story.append(Spacer(1, 0.8*cm))
         
+        # 2c. Teile/Materialien: gespeicherte Daten haben Vorrang vor Quote-Daten
+        work_parts = []
+        if work_instruction.work_parts_data:
+            try:
+                work_parts = json.loads(work_instruction.work_parts_data)
+            except:
+                work_parts = []
+        # Falls keine gespeicherten Teile vorhanden, lade aus Quote
+        if not work_parts and quote:
+            for item in quote.quote_items:
+                for sub_item in item.sub_items:
+                    if sub_item.item_type == 'bestellteil':
+                        work_parts.append({
+                            'part_name': sub_item.description,
+                            'part_number': sub_item.part_number or '',
+                            'quantity': sub_item.part_quantity or '1',
+                            'supplier': sub_item.supplier or '',
+                            'storage_location': ''
+                        })
+        if work_parts:
+            story.append(Paragraph("2c. BESTELLTEILE", self.heading_style))
+            story.append(Spacer(1, 0.3*cm))
+            work_parts_data = [["Lieferant", "Artikelnr.", "Teilename", "Anzahl", "Lagerort"]]
+            for part in work_parts:
+                work_parts_data.append([
+                    self._wrap_text_for_table(part.get('supplier', '-') or "-"),
+                    self._wrap_text_for_table(part.get('part_number', '-') or "-"),
+                    self._wrap_text_for_table(part.get('part_name', '-') or "-"),
+                    str(part.get('quantity', 1)),
+                    self._wrap_text_for_table(part.get('storage_location', '-') or "-")
+                ])
+            work_parts_table = Table(work_parts_data, colWidths=[4*cm, 3*cm, 5*cm, 1.5*cm, 3.5*cm])
+            work_parts_table.setStyle(TableStyle([
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f8f9fa')),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ]))
+            story.append(work_parts_table)
+            story.append(Spacer(1, 0.8*cm))
         
         # 3b. Sonstige Materialien
-        story.append(Paragraph("3b. SONSTIGE MATERIALIEN", self.heading_style))
+        story.append(Paragraph("3. SONSTIGE MATERIALIEN", self.heading_style))
         story.append(Spacer(1, 0.3*cm))
-        
         sonstige = []
         for item in quote.quote_items:
             for sub_item in item.sub_items:
@@ -622,13 +754,12 @@ Die von uns gelieferte, montierte oder sonst übergebene Ware bleibt bis zur vol
                         sub_item.description,
                         sub_item.quantity or "1"
                     ])
-        
         if sonstige:
             sonstige_header = [["Position", "Bezeichnung", "Anzahl"]]
             sonstige_table = Table(sonstige_header + sonstige, 
                                  colWidths=[2*cm, 12*cm, 3*cm])
             sonstige_table.setStyle(TableStyle([
-                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f8f9fa')),
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
@@ -637,47 +768,9 @@ Die von uns gelieferte, montierte oder sonst übergebene Ware bleibt bis zur vol
             story.append(sonstige_table)
         else:
             story.append(Paragraph("Keine sonstigen Materialien vorhanden.", self.styles['Normal']))
-        
         story.append(Spacer(1, 0.8*cm))
-        
-        # 4. Arbeitsvorgänge
-        story.append(Paragraph("4. ARBEITSVORGÄNGE", self.heading_style))
-        story.append(Spacer(1, 0.3*cm))
-        
-        arbeitsvorgaenge = []
-        for item in quote.quote_items:
-            # Hauptposition anzeigen
-            item_header = f"Position {item.position_number}: {item.description}"
-            arbeitsvorgaenge.append([item_header, ""])
-            
-            # Arbeitsvorgänge dieser Position
-            for sub_item in item.sub_items:
-                if sub_item.item_type == 'arbeitsvorgang':
-                    arbeitsvorgaenge.append([
-                        f"  • {sub_item.description}",
-                        f"{sub_item.hours or '0'} h"
-                    ])
-        
-        if arbeitsvorgaenge:
-            arbeitsvorgaenge_header = [["Arbeitsvorgang", "Stunden"]]
-            arbeitsvorgaenge_table = Table(arbeitsvorgaenge_header + arbeitsvorgaenge, 
-                                         colWidths=[13*cm, 4*cm])
-            arbeitsvorgaenge_table.setStyle(TableStyle([
-                ('FONTSIZE', (0, 0), (-1, -1), 9),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f8f9fa')),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),  # Hauptpositionen fett
-            ]))
-            story.append(arbeitsvorgaenge_table)
-        else:
-            story.append(Paragraph("Keine Arbeitsvorgänge definiert.", self.styles['Normal']))
-        
-        story.append(Spacer(1, 1*cm))
-        
-        # 5. Fotos und Medien
-        story.append(Paragraph("5. FOTOS UND MEDIEN", self.heading_style))
+        # 4. Fotos und Medien
+        story.append(Paragraph("4. FOTOS UND MEDIEN", self.heading_style))
         story.append(Spacer(1, 0.3*cm))
         
         # Tatsächliche Fotos anzeigen falls vorhanden
@@ -701,16 +794,31 @@ Die von uns gelieferte, montierte oder sonst übergebene Ware bleibt bis zur vol
                                 # Prüfe Dateiendung - nur Bilder als Bilder darstellen
                                 file_extension = os.path.splitext(photo_filename)[1].lower()
                                 if file_extension in ['.png', '.jpg', '.jpeg', '.gif']:
-                                    # Bild hinzufügen - automatische Höhenberechnung für korrektes Seitenverhältnis
-                                    # Verwende die volle verfügbare Breite (17cm = A4 minus Ränder)
-                                    img = Image(photo_path, width=17*cm, height=None)
-                                    # Begrenze die Höhe nur falls das Bild zu hoch wird
-                                    if img.drawHeight > 12*cm:
-                                        # Berechne die Breite neu basierend auf der maximalen Höhe
-                                        aspect_ratio = img.drawWidth / img.drawHeight
-                                        img.drawHeight = 12*cm
-                                        img.drawWidth = 12*cm * aspect_ratio
-                                    story.append(img)
+                                    # Bild hinzufügen - einfache proportionale Skalierung
+                                    # A4 ist 21cm breit, mit 2cm Rand links und rechts = 17cm verfügbar
+                                    max_width = 16*cm  # Etwas kleiner für mehr Sicherheit
+                                    max_height = 12*cm  # Maximale Höhe für Fotos
+                                    
+                                    # Lade das Bild ohne Größenangabe zunächst
+                                    img = Image(photo_path)
+                                    
+                                    # Berechne das Seitenverhältnis
+                                    img_ratio = img.imageWidth / img.imageHeight
+                                    
+                                    # Bestimme finale Größe basierend auf verfügbarem Platz
+                                    if img_ratio > (max_width / max_height):
+                                        # Bild ist breiter -> Breite begrenzt
+                                        final_width = max_width
+                                        final_height = max_width / img_ratio
+                                    else:
+                                        # Bild ist höher -> Höhe begrenzt
+                                        final_height = max_height
+                                        final_width = max_height * img_ratio
+                                    
+                                    # Erstelle finales Bild mit berechneten Dimensionen
+                                    final_img = Image(photo_path, width=final_width, height=final_height)
+                                    story.append(final_img)
+                                    
                                 else:
                                     # Für andere Dateitypen (z.B. PDF) nur Dateiname anzeigen
                                     story.append(Paragraph(f"Datei: {photo_filename} (Typ: {file_extension})", self.styles['Normal']))
@@ -756,8 +864,8 @@ Die von uns gelieferte, montierte oder sonst übergebene Ware bleibt bis zur vol
             story.append(photo_table)
         story.append(Spacer(1, 1*cm))
         
-        # 6. Pläne und technische Zeichnungen
-        story.append(Paragraph("6. PLÄNE UND TECHNISCHE ZEICHNUNGEN", self.heading_style))
+        # 5. Pläne und technische Zeichnungen
+        story.append(Paragraph("5. PLÄNE UND TECHNISCHE ZEICHNUNGEN", self.heading_style))
         story.append(Spacer(1, 0.3*cm))
         
         # Tatsächliche Pläne anzeigen falls vorhanden
@@ -774,16 +882,25 @@ Die von uns gelieferte, montierte oder sonst übergebene Ware bleibt bis zur vol
                     # Prüfe Dateiendung - nur Bilder als Bilder darstellen
                     file_extension = os.path.splitext(work_instruction.plan_path)[1].lower()
                     if file_extension in ['.png', '.jpg', '.jpeg', '.gif']:
-                        # Plan hinzufügen - automatische Höhenberechnung für korrektes Seitenverhältnis
-                        # Verwende die volle verfügbare Breite (17cm = A4 minus Ränder)
-                        img = Image(plan_path, width=17*cm, height=None)
-                        # Begrenze die Höhe nur falls das Bild zu hoch wird
-                        if img.drawHeight > 15*cm:
-                            # Berechne die Breite neu basierend auf der maximalen Höhe
-                            aspect_ratio = img.drawWidth / img.drawHeight
-                            img.drawHeight = 15*cm
-                            img.drawWidth = 15*cm * aspect_ratio
-                        story.append(img)
+                        # Plan-Bild hinzufügen - intelligente Größenbestimmung
+                        max_width = 17*cm
+                        max_height = 20*cm  # Größere Höhe für Pläne
+                        
+                        # Erstelle zwei Versionen und wähle die passendere
+                        # Version 1: Breite maximieren
+                        img_width = Image(plan_path, width=max_width, height=None)
+                        
+                        # Version 2: Höhe maximieren  
+                        img_height = Image(plan_path, width=None, height=max_height)
+                        
+                        # Wähle die Version die besser in den verfügbaren Raum passt
+                        if img_width.drawHeight <= max_height:
+                            # Breite-optimierte Version passt in die Höhe
+                            story.append(img_width)
+                        else:
+                            # Höhe-optimierte Version verwenden
+                            story.append(img_height)
+                        
                     else:
                         # Für andere Dateitypen (z.B. PDF) nur Dateiname anzeigen
                         story.append(Paragraph(f"Plan-Datei: {work_instruction.plan_path} (Typ: {file_extension})", self.styles['Normal']))
@@ -822,7 +939,53 @@ Die von uns gelieferte, montierte oder sonst übergebene Ware bleibt bis zur vol
         doc.build(story)
         buffer.seek(0)
         
+        # Wenn ein PDF-Plan hochgeladen wurde, hänge diesen an
+        if work_instruction.plan_path and work_instruction.plan_path.lower().endswith('.pdf'):
+            upload_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
+            plan_pdf_path = os.path.join(upload_folder, work_instruction.plan_path)
+            
+            if os.path.exists(plan_pdf_path):
+                try:
+                    # Kombiniere beide PDFs
+                    final_buffer = self._merge_pdfs(buffer, plan_pdf_path)
+                    return final_buffer
+                except Exception as e:
+                    print(f"Fehler beim Anhängen des Plans: {e}")
+                    # Fallback: Nur die Arbeitsanweisung zurückgeben
+                    buffer.seek(0)
+                    return buffer
+        
         return buffer
+    
+    def _merge_pdfs(self, work_instruction_buffer, plan_pdf_path):
+        """Fügt das Plan-PDF an die Arbeitsanweisung an"""
+        try:
+            # PDF Writer für das finale PDF erstellen
+            writer = PdfWriter()
+            
+            # Arbeitsanweisung hinzufügen
+            work_instruction_buffer.seek(0)
+            work_instruction_reader = PdfReader(work_instruction_buffer)
+            for page in work_instruction_reader.pages:
+                writer.add_page(page)
+            
+            # Plan-PDF hinzufügen
+            plan_reader = PdfReader(plan_pdf_path)
+            for page in plan_reader.pages:
+                writer.add_page(page)
+            
+            # Finales PDF in Buffer schreiben
+            final_buffer = BytesIO()
+            writer.write(final_buffer)
+            final_buffer.seek(0)
+            
+            return final_buffer
+            
+        except Exception as e:
+            print(f"Fehler beim Zusammenfügen der PDFs: {e}")
+            # Fallback: Nur die Arbeitsanweisung zurückgeben
+            work_instruction_buffer.seek(0)
+            return work_instruction_buffer
 
     def export_invoice(self, invoice_id):
         """Exportiert eine Rechnung als PDF"""

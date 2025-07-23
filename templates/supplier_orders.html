@@ -128,7 +128,7 @@
                                 </th>
                                 <th>
                                     <a href="{{ url_for('supplier_orders', search=search_query, order_id=request.args.get('order_id'), sort='quote_number', dir='asc' if sort_by != 'quote_number' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
-                                        Angebot
+                                        Kunde
                                         {% if sort_by == 'quote_number' %}
                                             <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
                                         {% else %}
@@ -183,9 +183,8 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <a href="{{ url_for('edit_quote', id=order.quote.id) }}">
-                                        {{ order.quote.quote_number }}
-                                    </a>
+                                    <strong>{{ order.quote.customer.first_name }} {{ order.quote.customer.last_name }}</strong>
+                                    <br><small class="text-muted">{{ order.quote.quote_number }}</small>
                                 </td>
                                 <td>
                                     {% if order.order %}
@@ -227,13 +226,14 @@
                                 </td>
                                 <td>
                                     {% if order.delivery_date %}
-                                        {% set today = moment().date() if moment is defined else none %}
-                                        {% if today and order.delivery_date < today %}
-                                            <span class="text-danger">{{ order.delivery_date.strftime('%d.%m.%Y') }}</span>
-                                        {% elif today and order.delivery_date == today %}
-                                            <span class="text-warning">{{ order.delivery_date.strftime('%d.%m.%Y') }}</span>
+                                        {% set calendar_week = order.delivery_date.isocalendar()[1] %}
+                                        {% set year = order.delivery_date.year %}
+                                        {% set project_start = order.order.start_date if order.order else none %}
+                                        {% if project_start and order.delivery_date > project_start %}
+                                            <span class="text-danger">CW {{ calendar_week }}/{{ year }}</span>
+                                            <br><small class="text-danger">(Verzug)</small>
                                         {% else %}
-                                            <span class="text-success">{{ order.delivery_date.strftime('%d.%m.%Y') }}</span>
+                                            <span class="text-success">CW {{ calendar_week }}/{{ year }}</span>
                                         {% endif %}
                                     {% else %}
                                         <span class="text-muted">Offen</span>

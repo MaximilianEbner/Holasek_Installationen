@@ -27,6 +27,13 @@
                     </button>
                 {% endif %}
                 
+                {% if order.status == 'Storniert' %}
+                    <!-- Lösch-Button für stornierte Aufträge -->
+                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteOrderModal">
+                        <i class="fas fa-trash"></i> Löschen
+                    </button>
+                {% endif %}
+                
                 <a href="{{ url_for('orders') }}" class="btn btn-outline-secondary">
                     <i class="fas fa-arrow-left"></i> Zurück zur Übersicht
                 </a>
@@ -438,6 +445,47 @@
                 <form method="POST" action="{{ url_for('cancel_order', order_id=order.id) }}" style="display: inline;">
                     <button type="submit" class="btn btn-danger">
                         <i class="fas fa-times-circle"></i> Auftrag stornieren
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal für Auftragslöschung -->
+<div class="modal fade" id="deleteOrderModal" tabindex="-1" aria-labelledby="deleteOrderModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteOrderModalLabel">
+                    <i class="fas fa-exclamation-triangle text-danger"></i> Auftrag löschen
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong>Sind Sie sicher, dass Sie diesen stornierten Auftrag endgültig löschen möchten?</strong></p>
+                
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Achtung - Diese Aktion kann nicht rückgängig gemacht werden!</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>Der Auftrag wird endgültig aus der Datenbank entfernt</li>
+                        <li>Alle zugehörigen Arbeitsanweisungen werden ebenfalls gelöscht</li>
+                        <li>Verknüpfte Lieferantenbestellungen werden vom Auftrag getrennt</li>
+                        <li>Das zugehörige Angebot bleibt bestehen</li>
+                    </ul>
+                </div>
+                
+                <p class="mb-0"><strong>Auftrag:</strong> {{ order.order_number }}</p>
+                <p class="mb-0"><strong>Kunde:</strong> {{ order.customer.full_name }}</p>
+                <p class="mb-0"><strong>Projekt:</strong> {{ order.quote.project_description[:100] }}{% if order.quote.project_description|length > 100 %}...{% endif %}</p>
+                <p class="mb-0"><strong>Status:</strong> <span class="badge bg-danger">{{ order.status }}</span></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <form method="POST" action="{{ url_for('delete_order', order_id=order.id) }}" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash"></i> Endgültig löschen
                     </button>
                 </form>
             </div>

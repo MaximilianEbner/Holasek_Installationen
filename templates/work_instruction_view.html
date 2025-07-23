@@ -161,45 +161,117 @@
                     <h5 class="mb-0"><i class="fas fa-tasks"></i> Arbeitsbeschreibung</h5>
                 </div>
                 <div class="card-body">
-                    {% if work_instruction.work_description %}
+                    {% if work_instruction.sonstiges %}
                     <div class="mb-3">
-                        <label class="form-label"><strong>Detaillierte Arbeitsbeschreibung:</strong></label>
-                        <div class="border rounded p-3 bg-light">
-                            {{ work_instruction.work_description|replace('\n', '<br>')|safe }}
-                        </div>
-                    </div>
-                    {% endif %}
-                    
-                    {% if work_instruction.special_instructions %}
-                    <div class="mb-3">
-                        <label class="form-label"><strong>Besondere Hinweise:</strong></label>
-                        <div class="border rounded p-3 bg-warning bg-opacity-10">
-                            <i class="fas fa-exclamation-triangle text-warning"></i>
-                            {{ work_instruction.special_instructions|replace('\n', '<br>')|safe }}
-                        </div>
-                    </div>
-                    {% endif %}
-                    
-                    {% if work_instruction.safety_notes %}
-                    <div class="mb-3">
-                        <label class="form-label"><strong>Sicherheitshinweise:</strong></label>
-                        <div class="border rounded p-3 bg-danger bg-opacity-10">
-                            <i class="fas fa-shield-alt text-danger"></i>
-                            {{ work_instruction.safety_notes|replace('\n', '<br>')|safe }}
-                        </div>
-                    </div>
-                    {% endif %}
-                    
-                    {% if work_instruction.preparation_work %}
-                    <div class="mb-3">
-                        <label class="form-label"><strong>Vorarbeiten:</strong></label>
+                        <label class="form-label"><strong>Sonstiges:</strong></label>
                         <div class="border rounded p-3 bg-info bg-opacity-10">
-                            {{ work_instruction.preparation_work|replace('\n', '<br>')|safe }}
+                            <i class="fas fa-clipboard-list text-info"></i>
+                            {{ work_instruction.sonstiges|replace('\n', '<br>')|safe }}
                         </div>
                     </div>
                     {% endif %}
                 </div>
             </div>
+
+            <!-- Arbeitsschritte -->
+            {% if work_steps %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-list-ol"></i> Arbeitsschritte</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px;">Nr.</th>
+                                    <th>Beschreibung</th>
+                                    <th>Notizen</th>
+                                    <th style="width: 100px;">Zeit (Min)</th>
+                                    <th style="width: 80px;">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for step in work_steps %}
+                                <tr>
+                                    <td><strong>{{ step.step_number }}</strong></td>
+                                    <td>{{ step.description }}</td>
+                                    <td>{{ step.notes or '-' }}</td>
+                                    <td>{{ step.estimated_time or '-' }}</td>
+                                    <td>
+                                        {% if step.is_completed %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check"></i> Erledigt
+                                        </span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">
+                                            <i class="fas fa-clock"></i> Offen
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Teile/Materialien -->
+            {% if work_parts %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-boxes"></i> Teile/Materialien</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th style="width: 150px;">Lieferant</th>
+                                    <th style="width: 120px;">Teilenummer</th>
+                                    <th>Teilename</th>
+                                    <th style="width: 80px;">Anzahl</th>
+                                    <th>Lagerort</th>
+                                    <th style="width: 80px;">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for part in work_parts %}
+                                <tr>
+                                    <td>{{ part.supplier or '-' }}</td>
+                                    <td>{{ part.part_number or '-' }}</td>
+                                    <td><strong>{{ part.part_name }}</strong></td>
+                                    <td>{{ part.quantity }}</td>
+                                    <td>
+                                        {% if part.storage_location %}
+                                        <span class="badge bg-info">
+                                            <i class="fas fa-map-marker-alt"></i> {{ part.storage_location }}
+                                        </span>
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if part.is_available %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check"></i> Verfügbar
+                                        </span>
+                                        {% else %}
+                                        <span class="badge bg-warning">
+                                            <i class="fas fa-exclamation-triangle"></i> Fehlt
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
 
             <!-- Werkzeuge und Materialien -->
             {% if work_instruction.tools_required %}
@@ -262,21 +334,12 @@
             </div>
 
             <!-- Notizen -->
-            {% if work_instruction.notes or work_instruction.completion_notes %}
+            {% if work_instruction.completion_notes %}
             <div class="card mb-4">
                 <div class="card-header">
                     <h5 class="mb-0"><i class="fas fa-sticky-note"></i> Notizen</h5>
                 </div>
                 <div class="card-body">
-                    {% if work_instruction.notes %}
-                    <div class="mb-3">
-                        <label class="form-label"><strong>Allgemeine Notizen:</strong></label>
-                        <div class="border rounded p-3 bg-light">
-                            {{ work_instruction.notes|replace('\n', '<br>')|safe }}
-                        </div>
-                    </div>
-                    {% endif %}
-                    
                     {% if work_instruction.completion_notes %}
                     <div class="mb-3">
                         <label class="form-label"><strong>Abschlussnotizen:</strong></label>

@@ -19,57 +19,72 @@
 <!-- Statistik Karten -->
 <div class="row mb-4">
     <div class="col-xl-4 col-md-4 mb-4">
-        <div class="card h-100 border-0 shadow-sm">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="flex-shrink-0">
-                        <div class="bg-primary bg-gradient rounded-3 p-3">
-                            <i class="fas fa-users text-white fa-lg"></i>
+        <a href="{{ url_for('customers') }}" class="text-decoration-none">
+            <div class="card h-100 border-0 shadow-sm card-hover">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <div class="bg-primary bg-gradient rounded-3 p-3">
+                                <i class="fas fa-users text-white fa-lg"></i>
+                            </div>
                         </div>
-                    </div>
-                    <div class="flex-grow-1 ms-3">
-                        <div class="small text-muted">Kunden</div>
-                        <div class="h4 mb-0">{{ total_customers }}</div>
+                        <div class="flex-grow-1 ms-3">
+                            <div class="small text-muted">Kunden</div>
+                            <div class="h4 mb-0 text-dark">{{ total_customers }}</div>
+                        </div>
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-arrow-right text-muted"></i>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
     
     <div class="col-xl-4 col-md-4 mb-4">
-        <div class="card h-100 border-0 shadow-sm">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="flex-shrink-0">
-                        <div class="bg-warning bg-gradient rounded-3 p-3">
-                            <i class="fas fa-file-alt text-white fa-lg"></i>
+        <a href="{{ url_for('quotes') }}" class="text-decoration-none">
+            <div class="card h-100 border-0 shadow-sm card-hover">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <div class="bg-warning bg-gradient rounded-3 p-3">
+                                <i class="fas fa-file-alt text-white fa-lg"></i>
+                            </div>
                         </div>
-                    </div>
-                    <div class="flex-grow-1 ms-3">
-                        <div class="small text-muted">Offene Angebote</div>
-                        <div class="h4 mb-0">{{ pending_quotes }}</div>
+                        <div class="flex-grow-1 ms-3">
+                            <div class="small text-muted">Offene Angebote</div>
+                            <div class="h4 mb-0 text-dark">{{ pending_quotes }}</div>
+                        </div>
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-arrow-right text-muted"></i>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
     
     <div class="col-xl-4 col-md-4 mb-4">
-        <div class="card h-100 border-0 shadow-sm">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="flex-shrink-0">
-                        <div class="bg-success bg-gradient rounded-3 p-3">
-                            <i class="fas fa-tools text-white fa-lg"></i>
+        <a href="{{ url_for('orders') }}" class="text-decoration-none">
+            <div class="card h-100 border-0 shadow-sm card-hover">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <div class="bg-success bg-gradient rounded-3 p-3">
+                                <i class="fas fa-tools text-white fa-lg"></i>
+                            </div>
                         </div>
-                    </div>
-                    <div class="flex-grow-1 ms-3">
-                        <div class="small text-muted">Aktive Aufträge</div>
-                        <div class="h4 mb-0">{{ active_orders }}</div>
+                        <div class="flex-grow-1 ms-3">
+                            <div class="small text-muted">Aktive Aufträge</div>
+                            <div class="h4 mb-0 text-dark">{{ active_orders }}</div>
+                        </div>
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-arrow-right text-muted"></i>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
 </div>
 
@@ -272,12 +287,36 @@
     transform: translateY(-2px);
 }
 
+.card-hover {
+    transition: all 0.3s ease-in-out;
+    cursor: pointer;
+}
+
+.card-hover:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+
+.card-hover:hover .fa-arrow-right {
+    transform: translateX(3px);
+    transition: transform 0.2s ease-in-out;
+}
+
 .bg-gradient {
     background: linear-gradient(45deg, var(--bs-primary), var(--bs-primary-dark)) !important;
 }
 
 .text-primary-dark {
     color: #0056b3 !important;
+}
+
+/* Sicherstellen dass die Zahlen bei verlinkten Karten sichtbar bleiben */
+a .card-hover .text-dark {
+    color: #212529 !important;
+}
+
+a .card-hover:hover .text-dark {
+    color: #000 !important;
 }
 </style>
 

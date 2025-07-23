@@ -79,6 +79,11 @@ class Quote(db.Model):
     show_subitem_prices = db.Column(db.Boolean, default=False)  # Preistransparenz Unterpositionen
     markup_percentage = db.Column(db.Float, default=15.0)  # Aufschlag in Prozent (Standard: 15%)
     
+    # Editierbare Zusatzinformationen für PDF
+    leistungsumfang = db.Column(db.Text, default='• Demontage der bestehenden Produkte inklusive Entsorgung\n• Montage der im Angebot angeführten Produkte\n• Anschluss an bestehendes Gebäudeleitungssystem im unmittelbaren Umbaubereich ab Badezimmer oder in der Dusche\n• Diverse Ausgleichs- und Abdichtungsarbeiten')
+    objektinformationen = db.Column(db.Text, default='• Einfamilienhaus\n• Zuschnitt vor dem Gebäude möglich\n• Parken vor dem Gebäude möglich')
+    installationsleistungen = db.Column(db.Text, default='• Abfluss Dusche herrichten\n• Armatur Dusche versetzen\n\nNebenabsprache mit dem Kunden:\n• Demontage, Vorbereitung und Entsorgung erfolgt durch Innsan')
+    
     # Beziehungen
     quote_items = db.relationship('QuoteItem', backref='quote', lazy=True, cascade='all, delete-orphan')
     
@@ -462,9 +467,7 @@ class WorkInstruction(db.Model):
     status = db.Column(db.String(20), default='Erstellt')  # Erstellt, In Bearbeitung, Abgeschlossen
     
     # Arbeitsinhalt
-    work_description = db.Column(db.Text)  # Detaillierte Arbeitsbeschreibung
-    special_instructions = db.Column(db.Text)  # Besondere Hinweise/Anweisungen
-    safety_notes = db.Column(db.Text)  # Sicherheitshinweise
+    sonstiges = db.Column(db.Text)  # Sonstiges (früher Sicherheitshinweise)
     tools_required = db.Column(db.Text)  # Benötigte Werkzeuge
     estimated_duration = db.Column(db.Integer)  # Geschätzte Dauer in Stunden
     priority = db.Column(db.String(20), default='Normal')  # Niedrig, Normal, Hoch, Dringend
@@ -472,7 +475,6 @@ class WorkInstruction(db.Model):
     # Montage-spezifisch
     installation_location = db.Column(db.String(255))  # Montageort (z.B. Raum)
     access_requirements = db.Column(db.Text)  # Zugangserfordernisse
-    preparation_work = db.Column(db.Text)  # Vorarbeiten
     
     # PDF und Medien
     pdf_path = db.Column(db.String(255))  # Pfad zur gespeicherten PDF-Datei
@@ -489,8 +491,9 @@ class WorkInstruction(db.Model):
     quality_check = db.Column(db.Boolean, default=False)  # Qualitätskontrolle durchgeführt
     customer_signature = db.Column(db.Boolean, default=False)  # Kunde hat abgenommen
     
-    # Allgemeine Notizen
-    notes = db.Column(db.Text)  # Zusätzliche Notizen
+    # Gespeicherte Arbeitsschritte und Teile (als JSON)
+    work_steps_data = db.Column(db.Text)  # JSON-Array mit bearbeiteten Arbeitsschritten
+    work_parts_data = db.Column(db.Text)  # JSON-Array mit bearbeiteten Teilen
     
     # Beziehung
     order = db.relationship('Order', backref=db.backref('work_instruction', uselist=False))
@@ -539,6 +542,7 @@ class WorkInstruction(db.Model):
             'Abgebrochen': 0
         }
         return progress_map.get(self.status, 0)
+
 
 class AcquisitionChannel(db.Model):
     """Akquisekanäle für Kunden"""

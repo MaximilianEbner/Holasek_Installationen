@@ -2,6 +2,38 @@
 
 {% block title %}Rechnungen{% endblock %}
 
+{% block extra_css %}
+<style>
+/* Auftragssuche Dropdown Styling */
+#order_dropdown {
+    display: none;
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    background: white;
+}
+
+#order_dropdown .dropdown-item {
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid #f8f9fa;
+    cursor: pointer;
+}
+
+#order_dropdown .dropdown-item:hover {
+    background-color: #f8f9fa;
+}
+
+#order_dropdown .dropdown-item:last-child {
+    border-bottom: none;
+}
+
+#order_dropdown .dropdown-item-text {
+    padding: 0.5rem 1rem;
+    color: #6c757d;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>Rechnungsübersicht</h2>
@@ -266,16 +298,17 @@
             <form id="createInvoiceForm">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label for="order_id" class="form-label">Auftrag *</label>
-                        <select name="order_id" id="order_id" class="form-select" required>
-                            <option value="">Auftrag auswählen...</option>
-                            {% for order in available_orders %}
-                            <option value="{{ order.id }}">
-                                {{ order.order_number }} - {{ order.quote.customer.full_name }} 
-                                ({{ order.quote.total_amount|currency }})
-                            </option>
-                            {% endfor %}
-                        </select>
+                        <label for="order_search" class="form-label">Auftrag *</label>
+                        <div class="position-relative">
+                            <input type="text" id="order_search" class="form-control" 
+                                   placeholder="Auftragsnummer oder Kundenname eingeben..." 
+                                   autocomplete="off" required>
+                            <input type="hidden" name="order_id" id="order_id" required>
+                            <div id="order_dropdown" class="dropdown-menu position-absolute w-100" style="max-height: 200px; overflow-y: auto; z-index: 1050;">
+                                <!-- Dropdown-Optionen werden hier dynamisch eingefügt -->
+                            </div>
+                        </div>
+                        <div class="form-text">Suchen Sie nach Auftragsnummer oder Kundenname</div>
                     </div>
                     
                     <div class="mb-3">
@@ -350,6 +383,16 @@
 // Rechnung erstellen
 document.getElementById('createInvoiceForm').addEventListener('submit', function(e) {
     e.preventDefault();
+    
+    // Zusätzliche Validierung für verstecktes Feld
+    const orderIdField = document.getElementById('order_id');
+    const orderSearchField = document.getElementById('order_search');
+    
+    if (!orderIdField.value) {
+        alert('Bitte wählen Sie einen Auftrag aus.');
+        orderSearchField.focus();
+        return;
+    }
     
     const formData = new FormData(this);
     
@@ -468,13 +511,91 @@ function showInvoiceDetails(invoiceId) {
 }
 
 // Fälligkeitsdatum automatisch setzen
-document.getElementById('due_date').valueAsDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+document.getElementById('due_date').valueAsDate = new Date(Date.now() + 0 * 24 * 60 * 60 * 1000);
 
 // Bezahldatum auf heute setzen
 document.getElementById('paid_date').valueAsDate = new Date();
 
+// Auftragssuche-Funktionalität
+let availableOrders = [
+    {% for order in available_orders %}
+    {
+        id: {{ order.id }},
+        order_number: "{{ order.order_number }}",
+        customer_name: "{{ order.quote.customer.full_name }}",
+        total_amount: "{{ order.quote.total_amount|currency }}",
+        display_text: "{{ order.order_number }} - {{ order.quote.customer.full_name }} ({{ order.quote.total_amount|currency }})"
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+];
+
+function initOrderSearch() {
+    const searchInput = document.getElementById('order_search');
+    const hiddenInput = document.getElementById('order_id');
+    const dropdown = document.getElementById('order_dropdown');
+    
+    // Initial alle Aufträge anzeigen
+    showOrderOptions(availableOrders);
+    
+    searchInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase().trim();
+        hiddenInput.value = ''; // Reset hidden value
+        
+        if (searchTerm === '') {
+            showOrderOptions(availableOrders);
+            return;
+        }
+        
+        const filteredOrders = availableOrders.filter(order => 
+            order.order_number.toLowerCase().includes(searchTerm) ||
+            order.customer_name.toLowerCase().includes(searchTerm)
+        );
+        
+        showOrderOptions(filteredOrders);
+    });
+    
+    searchInput.addEventListener('focus', function() {
+        dropdown.style.display = 'block';
+    });
+    
+    // Dropdown ausblenden wenn außerhalb geklickt wird
+    document.addEventListener('click', function(e) {
+        if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.style.display = 'none';
+        }
+    });
+}
+
+function showOrderOptions(orders) {
+    const dropdown = document.getElementById('order_dropdown');
+    
+    if (orders.length === 0) {
+        dropdown.innerHTML = '<div class="dropdown-item-text text-muted">Keine Aufträge gefunden</div>';
+        dropdown.style.display = 'block';
+        return;
+    }
+    
+    dropdown.innerHTML = orders.map(order => 
+        `<a href="#" class="dropdown-item" onclick="selectOrder(${order.id}, '${order.display_text.replace(/'/g, "\\'")}')">
+            <div><strong>${order.order_number}</strong></div>
+            <div class="text-muted small">${order.customer_name} - ${order.total_amount}</div>
+        </a>`
+    ).join('');
+    
+    dropdown.style.display = 'block';
+}
+
+function selectOrder(orderId, displayText) {
+    document.getElementById('order_search').value = displayText;
+    document.getElementById('order_id').value = orderId;
+    document.getElementById('order_dropdown').style.display = 'none';
+}
+
 // Bootstrap Dropdowns explizit initialisieren
 document.addEventListener('DOMContentLoaded', function() {
+    // Auftragssuche initialisieren
+    initOrderSearch();
+    
     // Alle Dropdown-Toggle-Buttons finden und initialisieren
     var dropdownElementList = [].slice.call(document.querySelectorAll('[data-bs-toggle="dropdown"]'));
     var dropdownList = dropdownElementList.map(function (dropdownToggleEl) {

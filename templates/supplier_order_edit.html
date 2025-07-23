@@ -112,6 +112,10 @@
                     <a href="{{ url_for('edit_quote', id=order.quote.id) }}">{{ order.quote.quote_number }}</a>
                 </p>
                 <p><strong>Projekt:</strong> {{ order.quote.project_description[:50] }}{{ '...' if order.quote.project_description|length > 50 else '' }}</p>
+                {% if order.order %}
+                <p><strong>Projektstart:</strong> {{ order.order.start_date.strftime('%d.%m.%Y') if order.order.start_date else 'Nicht festgelegt' }}</p>
+                <p><strong>Projektende:</strong> {{ order.order.end_date.strftime('%d.%m.%Y') if order.order.end_date else 'Nicht festgelegt' }}</p>
+                {% endif %}
                 <p><strong>Kunde:</strong> {{ order.quote.customer.full_name }}</p>
                 
                 <hr>

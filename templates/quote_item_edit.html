@@ -126,14 +126,15 @@
                                             <label class="form-label">Anzahl</label>
                                             <input type="text" name="sub_part_quantity[]" class="form-control" 
                                                    value="{{ sub_item.part_quantity if sub_item.item_type == 'bestellteil' else '1' }}" 
-                                                   placeholder="z.B. 1, 2.5">
+                                                   placeholder="z.B. 1, 2.5" onchange="recalculateEditPartPrice(this)">
                                         </div>
                                         <div class="col-md-2">
                                             <label class="form-label">Preis für Kalkulation</label>
                                             <div class="input-group">
                                                 <input type="number" name="sub_part_price[]" class="form-control sub-price-input" 
                                                        value="{{ sub_item.part_price if sub_item.item_type == 'bestellteil' else '' }}" 
-                                                       min="0" step="0.01" placeholder="0.00" onchange="calculateEditDetailedTotal()">
+                                                       min="0" step="0.01" placeholder="0.00" onchange="calculateEditDetailedTotal()" 
+                                                       data-original-quantity="{{ sub_item.part_quantity if sub_item.item_type == 'bestellteil' else '1' }}">
                                                 <span class="input-group-text">€</span>
                                             </div>
                                         </div>
@@ -340,6 +341,36 @@
 const SUPPLIERS = {{ suppliers|map(attribute='name')|list|tojson | safe }};
 const DEFAULT_HOURLY_RATE = {{ get_default_hourly_rate() }};
 
+// Bestellteil-Preis bei Anzahl-Änderung neu berechnen (für Item-Edit)
+function recalculateEditPartPrice(quantityInput) {
+    // Finde das zugehörige Preis-Input-Feld
+    const row = quantityInput.closest('.bestellteil-fields') || quantityInput.closest('.sub-item-row');
+    if (!row) return;
+    
+    const priceInput = row.querySelector('input[name="sub_part_price[]"]');
+    if (!priceInput) return;
+    
+    const newQuantity = parseFloat(quantityInput.value) || 1;
+    const originalQuantity = parseFloat(priceInput.dataset.originalQuantity) || 1;
+    const currentPrice = parseFloat(priceInput.value) || 0;
+    
+    // Wenn noch kein Preis eingegeben wurde, nichts berechnen
+    if (currentPrice === 0) return;
+    
+    // Berechne Einzelpreis basierend auf aktuellem Preis und ursprünglicher Menge
+    const unitPrice = currentPrice / originalQuantity;
+    
+    // Berechne neuen Gesamtpreis
+    const newPrice = newQuantity * unitPrice;
+    
+    // Aktualisiere Preis und speichere neue Menge als "Original"
+    priceInput.value = newPrice.toFixed(2);
+    priceInput.dataset.originalQuantity = newQuantity;
+    
+    // Aktualisiere Gesamtsumme
+    calculateEditDetailedTotal();
+}
+
 // Detaillierte Bearbeitung Berechnung
 function calculateEditDetailedTotal() {
     let total = 0;
@@ -454,13 +485,13 @@ function addEditSubItem() {
             <div class="col-md-2">
                 <label class="form-label">Anzahl</label>
                 <input type="text" name="sub_part_quantity[]" class="form-control" 
-                       placeholder="z.B. 1, 2.5" value="1">
+                       placeholder="z.B. 1, 2.5" value="1" onchange="recalculateEditPartPrice(this)">
             </div>
             <div class="col-md-2">
                 <label class="form-label">Preis für Kalkulation</label>
                 <div class="input-group">
                     <input type="number" name="sub_part_price[]" class="form-control sub-price-input" 
-                           min="0" step="0.01" placeholder="0.00" onchange="calculateEditDetailedTotal()">
+                           min="0" step="0.01" placeholder="0.00" onchange="calculateEditDetailedTotal()" data-original-quantity="1">
                     <span class="input-group-text">€</span>
                 </div>
             </div>

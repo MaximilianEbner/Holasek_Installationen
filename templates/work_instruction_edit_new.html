@@ -156,22 +156,24 @@
                             <table class="table table-striped" id="workPartsTable">
                                 <thead>
                                     <tr>
-                                        <th style="width: 150px;">Lieferant</th>
-                                        <th style="width: 120px;">Teilenummer</th>
                                         <th>Teilename</th>
+                                        <th style="width: 120px;">Teilenummer</th>
                                         <th style="width: 80px;">Anzahl</th>
+                                        <th style="width: 80px;">Einheit</th>
                                         <th style="width: 150px;">Lagerort</th>
+                                        <th style="width: 120px;">Notizen</th>
                                         <th style="width: 80px;">Aktionen</th>
                                     </tr>
                                 </thead>
                                 <tbody id="workPartsBody">
                                     {% for part in work_parts %}
                                     <tr>
-                                        <td><input type="text" class="form-control" name="part_supplier[]" value="{{ part.supplier or '' }}" placeholder="Lieferant"></td>
-                                        <td><input type="text" class="form-control" name="part_number[]" value="{{ part.part_number or '' }}" placeholder="Artikelnr."></td>
                                         <td><input type="text" class="form-control" name="part_name[]" value="{{ part.part_name }}" placeholder="Name des Teils"></td>
+                                        <td><input type="text" class="form-control" name="part_number[]" value="{{ part.part_number or '' }}" placeholder="Artikelnr."></td>
                                         <td><input type="number" class="form-control" name="part_quantity[]" value="{{ part.quantity }}" min="1" placeholder="1"></td>
+                                        <td><input type="text" class="form-control" name="part_unit[]" value="{{ part.unit }}" placeholder="Stk"></td>
                                         <td><input type="text" class="form-control" name="part_storage_location[]" value="{{ part.storage_location or '' }}" placeholder="Lagerort"></td>
+                                        <td><input type="text" class="form-control" name="part_notes[]" value="{{ part.notes or '' }}" placeholder="Notizen"></td>
                                         <td>
                                             <button type="button" class="btn btn-sm btn-danger" onclick="removeWorkPart(this)">
                                                 <i class="fas fa-trash"></i>
@@ -181,11 +183,12 @@
                                     {% endfor %}
                                     {% if not work_parts %}
                                     <tr>
-                                        <td><input type="text" class="form-control" name="part_supplier[]" placeholder="Lieferant"></td>
-                                        <td><input type="text" class="form-control" name="part_number[]" placeholder="Artikelnr."></td>
                                         <td><input type="text" class="form-control" name="part_name[]" placeholder="Name des Teils"></td>
+                                        <td><input type="text" class="form-control" name="part_number[]" placeholder="Artikelnr."></td>
                                         <td><input type="number" class="form-control" name="part_quantity[]" min="1" placeholder="1" value="1"></td>
+                                        <td><input type="text" class="form-control" name="part_unit[]" placeholder="Stk" value="Stk"></td>
                                         <td><input type="text" class="form-control" name="part_storage_location[]" placeholder="Lagerort"></td>
+                                        <td><input type="text" class="form-control" name="part_notes[]" placeholder="Notizen"></td>
                                         <td>
                                             <button type="button" class="btn btn-sm btn-danger" onclick="removeWorkPart(this)">
                                                 <i class="fas fa-trash"></i>
@@ -216,99 +219,6 @@
                             <textarea class="form-control" id="access_requirements" name="access_requirements" rows="3" 
                                       placeholder="Besondere Zugangserfordernisse, Schlüssel, Genehmigungen...">{{ work_instruction.access_requirements or '' }}</textarea>
                         </div>
-                    </div>
-                </div>
-
-                <!-- Fotos und Medien -->
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5 class="mb-0"><i class="fas fa-camera"></i> Fotos und Medien</h5>
-                    </div>
-                    <div class="card-body">
-                        <!-- Vorhandene Fotos anzeigen -->
-                        {% if work_instruction.photo_paths %}
-                            {% set photo_paths = work_instruction.photo_paths | from_json %}
-                            <div class="mb-3">
-                                <label class="form-label">Vorhandene Fotos:</label>
-                                <div class="row">
-                                    {% for photo_path in photo_paths %}
-                                    <div class="col-md-4 mb-3">
-                                        <div class="card">
-                                            <img src="{{ url_for('static', filename='uploads/' + photo_path.split('/')[-1]) }}" 
-                                                 class="card-img-top" style="width: 100%; height: auto; max-height: 200px; object-fit: contain; cursor: pointer;"
-                                                 onclick="showImageModal('{{ url_for('static', filename='uploads/' + photo_path.split('/')[-1]) }}')">
-                                            <div class="card-body p-2">
-                                                <div class="form-check">
-                                                    <input class="form-check-input" type="checkbox" name="delete_photos[]" 
-                                                           value="{{ photo_path }}" id="delete_photo_{{ loop.index }}">
-                                                    <label class="form-check-label small text-danger" for="delete_photo_{{ loop.index }}">
-                                                        Löschen
-                                                    </label>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    {% endfor %}
-                                </div>
-                            </div>
-                        {% endif %}
-                        
-                        <!-- Neue Fotos hinzufügen -->
-                        <div class="mb-3">
-                            <label for="photos" class="form-label">Neue Fotos hinzufügen (JPEG/PNG):</label>
-                            <input type="file" class="form-control" id="photos" name="photos" multiple 
-                                   accept=".jpg,.jpeg,.png" onchange="previewPhotos(this)">
-                            <div class="form-text">
-                                Nur JPEG und PNG Dateien sind erlaubt. Mehrfachauswahl möglich.
-                            </div>
-                        </div>
-                        
-                        <!-- Foto-Vorschau -->
-                        <div id="photo-preview" class="row"></div>
-                    </div>
-                </div>
-
-                <!-- Pläne und technische Zeichnungen -->
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5 class="mb-0"><i class="fas fa-drafting-compass"></i> Pläne und technische Zeichnungen</h5>
-                    </div>
-                    <div class="card-body">
-                        <!-- Vorhandener Plan anzeigen -->
-                        {% if work_instruction.plan_path %}
-                        <div class="mb-3">
-                            <label class="form-label">Vorhandener Plan:</label>
-                            <div class="card">
-                                <div class="card-body">
-                                    <i class="fas fa-file-pdf text-danger me-2"></i>
-                                    <a href="{{ url_for('static', filename='uploads/' + work_instruction.plan_path.split('/')[-1]) }}" 
-                                       target="_blank" class="text-decoration-none">
-                                        {{ work_instruction.plan_path.split('/')[-1] }}
-                                    </a>
-                                    <div class="form-check mt-2">
-                                        <input class="form-check-input" type="checkbox" name="delete_plan" 
-                                               value="true" id="delete_plan">
-                                        <label class="form-check-label text-danger" for="delete_plan">
-                                            Plan löschen
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        {% endif %}
-                        
-                        <!-- Neuen Plan hinzufügen -->
-                        <div class="mb-3">
-                            <label for="plan" class="form-label">Plan hochladen (PDF):</label>
-                            <input type="file" class="form-control" id="plan" name="plan" 
-                                   accept=".pdf" onchange="previewPlan(this)">
-                            <div class="form-text">
-                                Nur PDF-Dateien sind erlaubt. Der Plan wird an die Arbeitsanweisung angehängt.
-                            </div>
-                        </div>
-                        
-                        <!-- Plan-Vorschau -->
-                        <div id="plan-preview"></div>
                     </div>
                 </div>
             </div>
@@ -424,11 +334,12 @@ function addWorkPart() {
     
     const newRow = tbody.insertRow();
     newRow.innerHTML = `
-        <td><input type="text" class="form-control" name="part_supplier[]" placeholder="Lieferant"></td>
-        <td><input type="text" class="form-control" name="part_number[]" placeholder="Artikelnr."></td>
         <td><input type="text" class="form-control" name="part_name[]" placeholder="Name des Teils"></td>
+        <td><input type="text" class="form-control" name="part_number[]" placeholder="Artikelnr."></td>
         <td><input type="number" class="form-control" name="part_quantity[]" min="1" placeholder="1" value="1"></td>
+        <td><input type="text" class="form-control" name="part_unit[]" placeholder="Stk" value="Stk"></td>
         <td><input type="text" class="form-control" name="part_storage_location[]" placeholder="Lagerort"></td>
+        <td><input type="text" class="form-control" name="part_notes[]" placeholder="Notizen"></td>
         <td>
             <button type="button" class="btn btn-sm btn-danger" onclick="removeWorkPart(this)">
                 <i class="fas fa-trash"></i>
@@ -440,82 +351,6 @@ function addWorkPart() {
 function removeWorkPart(button) {
     const row = button.closest('tr');
     row.remove();
-}
-
-// Foto-Vorschau Funktionen
-function previewPhotos(input) {
-    const previewContainer = document.getElementById('photo-preview');
-    previewContainer.innerHTML = '';
-    
-    if (input.files) {
-        Array.from(input.files).forEach(file => {
-            if (file.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const col = document.createElement('div');
-                    col.className = 'col-md-4 mb-3';
-                    col.innerHTML = `
-                        <div class="card">
-                            <img src="${e.target.result}" class="card-img-top" style="width: 100%; height: auto; max-height: 200px; object-fit: contain;">
-                            <div class="card-body p-2">
-                                <small class="text-muted">${file.name}</small>
-                            </div>
-                        </div>
-                    `;
-                    previewContainer.appendChild(col);
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-    }
-}
-
-// Plan-Vorschau Funktion
-function previewPlan(input) {
-    const previewContainer = document.getElementById('plan-preview');
-    previewContainer.innerHTML = '';
-    
-    if (input.files && input.files[0]) {
-        const file = input.files[0];
-        if (file.type === 'application/pdf') {
-            previewContainer.innerHTML = `
-                <div class="alert alert-info">
-                    <i class="fas fa-file-pdf text-danger me-2"></i>
-                    PDF ausgewählt: <strong>${file.name}</strong>
-                    <br><small>Größe: ${(file.size / 1024 / 1024).toFixed(2)} MB</small>
-                </div>
-            `;
-        }
-    }
-}
-
-// Bild-Modal Funktion
-function showImageModal(imageSrc) {
-    // Erstelle Modal falls es noch nicht existiert
-    let modal = document.getElementById('imageModal');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'imageModal';
-        modal.className = 'modal fade';
-        modal.innerHTML = `
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Foto-Ansicht</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body text-center">
-                        <img id="modalImage" src="" class="img-fluid">
-                    </div>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-    }
-    
-    // Bild setzen und Modal öffnen
-    document.getElementById('modalImage').src = imageSrc;
-    new bootstrap.Modal(modal).show();
 }
 
 // Drag & Drop für Arbeitsschritte

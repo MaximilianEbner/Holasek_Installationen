@@ -12,7 +12,10 @@ project_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_dir)
 
 from app import app
-from models import db, Customer, Quote, QuoteItem, QuoteSubItem, Supplier, CompanySettings, AcquisitionChannel, LoginAdmin
+from models import (db, Customer, Quote, QuoteItem, QuoteSubItem, Supplier, 
+                   CompanySettings, AcquisitionChannel, LoginAdmin, PositionTemplate, 
+                   PositionTemplateSubItem, Order, SupplierOrder, SupplierOrderItem, 
+                   QuoteRejection, WorkInstruction, Invoice)
 from datetime import date, timedelta
 
 def init_database():

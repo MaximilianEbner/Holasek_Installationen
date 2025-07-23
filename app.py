@@ -18,11 +18,21 @@ from pdf_export import PDFExporter
 from work_steps import get_work_steps
 
 # Upload-Konfiguration und Hilfsfunktionen
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf'}
+ALLOWED_PHOTO_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+ALLOWED_PLAN_EXTENSIONS = {'pdf'}
+ALLOWED_EXTENSIONS = ALLOWED_PHOTO_EXTENSIONS | ALLOWED_PLAN_EXTENSIONS
 
 def allowed_file(filename):
     """Prüft ob Dateiendung erlaubt ist"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def allowed_photo_file(filename):
+    """Prüft ob Dateiendung für Fotos erlaubt ist"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_PHOTO_EXTENSIONS
+
+def allowed_plan_file(filename):
+    """Prüft ob Dateiendung für Pläne erlaubt ist"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_PLAN_EXTENSIONS
 
 def safe_rollback():
     """Führt einen sicheren Rollback nur durch wenn eine aktive Transaktion existiert"""
@@ -203,6 +213,67 @@ def login_required(login_function):
     return login_decorated_function
 
 def register_routes(app):
+    # ===============================
+    # LOGIN-SYSTEM
+    # ===============================
+
+    @app.route('/login', methods=['GET', 'POST'])
+    def login():
+        """Admin Login"""
+        if request.method == 'POST':
+            login_username = request.form['login_username']
+            login_password = request.form['login_password']
+            
+            from models import LoginAdmin
+            login_admin = LoginAdmin.query.filter_by(
+                login_username=login_username, 
+                login_is_active=True
+            ).first()
+            
+            if login_admin and login_admin.check_login_password(login_password):
+                session['login_admin_id'] = login_admin.login_id
+                session['login_admin_username'] = login_admin.login_username
+                
+                # Last login aktualisieren
+                login_admin.login_last_login = datetime.utcnow()
+                db.session.commit()
+                
+                flash('Erfolgreich angemeldet!', 'success')
+                return redirect(url_for('index'))
+            else:
+                flash('Ungültiger Benutzername oder Passwort!', 'error')
+        
+        return render_template('login.html')
+
+    @app.route('/logout')
+    def logout():
+        """Admin Logout"""
+        session.clear()
+        flash('Sie wurden erfolgreich abgemeldet.', 'info')
+        return redirect(url_for('login'))
+
+    @app.route('/init-admin')
+    def init_admin():
+        """Erstellt den ersten Admin-Account (nur beim ersten Start)"""
+        from models import LoginAdmin
+        
+        # Prüfen ob bereits ein Admin existiert
+        if LoginAdmin.query.first():
+            return "Admin bereits vorhanden. Bitte /login verwenden."
+        
+        # Standard-Admin erstellen
+        login_admin = LoginAdmin.create_login_admin('admin', 'admin123')  # WICHTIG: Passwort später ändern!
+        db.session.add(login_admin)
+        db.session.commit()
+        
+        return """
+        <h2>Admin-Account erstellt!</h2>
+        <p><strong>Benutzername:</strong> admin</p>
+        <p><strong>Passwort:</strong> admin123</p>
+        <p><strong>WICHTIG:</strong> Bitte ändern Sie das Passwort nach dem ersten Login!</p>
+        <p><a href="/login">Zum Login</a></p>
+        """
+
     # Bestellung per E-Mail senden (nachträglich)
     @app.route('/supplier_order/<int:order_id>/send_email', methods=['POST'])
     @login_required
@@ -394,6 +465,7 @@ def register_routes(app):
         
         # Filter-Parameter aus URL lesen
         search_query = request.args.get('search', '').strip()
+        customer_manager_filter = request.args.get('customer_manager', '')
         sort_by = request.args.get('sort', 'last_name')
         sort_dir = request.args.get('dir', 'asc')
         
@@ -412,6 +484,13 @@ def register_routes(app):
                 )
             )
         
+        # Kundenbetreuer-Filter anwenden
+        if customer_manager_filter:
+            if customer_manager_filter == 'none':
+                query = query.filter(db.or_(Customer.customer_manager == None, Customer.customer_manager == ''))
+            else:
+                query = query.filter(Customer.customer_manager == customer_manager_filter)
+        
         # Sortierung anwenden
         sort_column = None
         if sort_by == 'first_name':
@@ -422,6 +501,8 @@ def register_routes(app):
             sort_column = Customer.email
         elif sort_by == 'city':
             sort_column = Customer.city
+        elif sort_by == 'customer_manager':
+            sort_column = Customer.customer_manager
         elif sort_by == 'created_at':
             sort_column = Customer.id  # Als Ersatz für created_at
         else:
@@ -438,9 +519,20 @@ def register_routes(app):
         
         customers = query.all()
         
+        # Verfügbare Kundenbetreuer für Dropdown sammeln
+        customer_managers = db.session.query(Customer.customer_manager)\
+                                     .filter(Customer.customer_manager != None)\
+                                     .filter(Customer.customer_manager != '')\
+                                     .distinct()\
+                                     .order_by(Customer.customer_manager)\
+                                     .all()
+        customer_managers = [manager[0] for manager in customer_managers]
+        
         return render_template('customers.html', 
                              customers=customers, 
                              search_query=search_query,
+                             customer_manager_filter=customer_manager_filter,
+                             customer_managers=customer_managers,
                              sort_by=sort_by,
                              sort_dir=sort_dir)
     
@@ -856,13 +948,33 @@ def register_routes(app):
             width = float(calculation_parameters.get('width', 0))
             height = float(calculation_parameters.get('height', 0))
             area = float(calculation_parameters.get('area', 0))
+            volume = float(calculation_parameters.get('volume', 0))
             calculated_price = float(calculation_parameters.get('calculatedPrice', 0))
+            
+            # Dynamische Beschreibung basierend auf aktivierten Feldern
+            dimension_parts = []
+            if template.enable_length and length > 0:
+                dimension_parts.append(f"L:{length}cm")
+            if template.enable_width and width > 0:
+                dimension_parts.append(f"B:{width}cm")
+            if template.enable_height and height > 0:
+                dimension_parts.append(f"H:{height}cm")
+            if template.enable_area and area > 0:
+                dimension_parts.append(f"Fläche:{area:.2f}m²")
+            if template.enable_volume and volume > 0:
+                dimension_parts.append(f"Vol.:{volume:.2f}m³")
+            
+            # Beschreibung erstellen
+            if dimension_parts:
+                description = f"{template.name} ({', '.join(dimension_parts)})"
+            else:
+                description = template.name
             
             # Hauptposition erstellen
             quote_item = QuoteItem(
                 quote_id=quote.id,
                 position_number=position_number,
-                description=f"{template.name} (L:{length}cm, B:{width}cm, H:{height}cm)",
+                description=description,
                 quantity=1,
                 unit_price=calculated_price,
                 total_price=calculated_price
@@ -1607,6 +1719,11 @@ def get_work_step_by_category_and_name(category, name):
             price_display_mode = request.form.get('price_display_mode', 'standard')  # Neues Feld
             markup_percentage = safe_float_conversion(request.form.get('markup_percentage'), 15.0)
             
+            # Neue PDF-Zusatzinformationen
+            leistungsumfang = request.form.get('leistungsumfang', '')
+            objektinformationen = request.form.get('objektinformationen', '')
+            installationsleistungen = request.form.get('installationsleistungen', '')
+            
             if project_description:
                 quote.project_description = project_description
                 
@@ -1618,6 +1735,11 @@ def get_work_step_by_category_and_name(category, name):
             quote.show_subitem_prices = show_subitem_prices  # Kompatibilität beibehalten
             quote.price_display_mode = price_display_mode  # Neues Feld speichern
             quote.markup_percentage = markup_percentage
+            
+            # PDF-Zusatzinformationen speichern - leere Felder als "<keine>" speichern
+            quote.leistungsumfang = leistungsumfang.strip() if leistungsumfang.strip() else '<keine>'
+            quote.objektinformationen = objektinformationen.strip() if objektinformationen.strip() else '<keine>'
+            quote.installationsleistungen = installationsleistungen.strip() if installationsleistungen.strip() else '<keine>'
             
             quote.update_total()
             flash('Angebot wurde erfolgreich gespeichert!', 'success')
@@ -2106,6 +2228,51 @@ def get_work_step_by_category_and_name(category, name):
             flash(f'Fehler beim Stornieren des Auftrags: {str(e)}', 'error')
             return redirect(url_for('view_order', order_id=order.id))
     
+    @app.route('/order/<int:order_id>/delete', methods=['POST'])
+    @login_required
+    def delete_order(order_id):
+        """Löscht einen stornierten Auftrag endgültig aus der Datenbank"""
+        from models import Order, Quote, WorkInstruction, SupplierOrder
+        
+        order = Order.query.get_or_404(order_id)
+        
+        # Sicherheitscheck: Nur stornierte Aufträge können gelöscht werden
+        if order.status != 'Storniert':
+            flash('Nur stornierte Aufträge können gelöscht werden!', 'error')
+            return redirect(url_for('view_order', order_id=order.id))
+        
+        quote = order.quote
+        order_number = order.order_number
+        
+        try:
+            # 1. Arbeitsanweisung löschen
+            if order.work_instruction:
+                work_instruction = order.work_instruction
+                # Lösche die Arbeitsanweisung selbst
+                db.session.delete(work_instruction)
+            
+            # 2. Lieferantenbestellungen vom Auftrag trennen (aber nicht löschen)
+            supplier_orders = SupplierOrder.query.filter_by(order_id=order.id).all()
+            for supplier_order in supplier_orders:
+                supplier_order.order_id = None  # Trennung vom Auftrag
+            
+            # 3. Angebotsstatus zurücksetzen
+            if quote.status == 'Angenommen, Auftrag storniert':
+                quote.status = 'Angenommen'  # Zurück zu normalem Angenommen-Status
+            
+            # 4. Auftrag selbst löschen
+            db.session.delete(order)
+            
+            db.session.commit()
+            
+            flash(f'Auftrag {order_number} wurde erfolgreich gelöscht.', 'success')
+            return redirect(url_for('orders'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Fehler beim Löschen des Auftrags: {str(e)}', 'error')
+            return redirect(url_for('view_order', order_id=order.id))
+    
     # Admin-Route zum Reparieren der Order-Tabelle
     @app.route('/admin/repair_order_table')
     @login_required
@@ -2350,7 +2517,7 @@ def get_work_step_by_category_and_name(category, name):
     @app.route('/order/<int:order_id>/work_instruction/create')
     @login_required
     def create_work_instruction(order_id):
-        """Erstellt eine neue Arbeitsanweisung für einen Auftrag"""
+        """Erstellt eine neue Arbeitsanweisung für einen Auftrag und leitet zum Bearbeiten weiter"""
         from models import Order, WorkInstruction
         from datetime import datetime
         
@@ -2359,23 +2526,18 @@ def get_work_step_by_category_and_name(category, name):
         # Prüfe ob bereits eine Arbeitsanweisung existiert
         if order.work_instruction:
             flash('Für diesen Auftrag existiert bereits eine Arbeitsanweisung!', 'warning')
-            return redirect(url_for('view_order', order_id=order.id))
+            return redirect(url_for('edit_work_instruction', order_id=order.id))
         
         # Prüfe ob Order eine Quote hat
         if not order.quote:
             flash('Fehler: Auftrag hat kein verknüpftes Angebot!', 'error')
             return redirect(url_for('view_order', order_id=order.id))
-        
+
         try:
             # Bestimme Installationsort
             installation_location = "Kunde vor Ort"
             if order.quote.customer and order.quote.customer.city:
                 installation_location = order.quote.customer.city
-            
-            # Bestimme Projektbeschreibung
-            work_description = "Montage und Installation"
-            if order.quote.project_description:
-                work_description = f"Montage und Installation für Projekt: {order.quote.project_description}"
             
             # Neue Arbeitsanweisung erstellen
             work_instruction = WorkInstruction(
@@ -2384,7 +2546,6 @@ def get_work_step_by_category_and_name(category, name):
                 status='Erstellt',
                 priority='Normal',
                 # Automatische Vorschläge basierend auf dem Auftrag
-                work_description=work_description,
                 installation_location=installation_location
             )
             
@@ -2394,10 +2555,10 @@ def get_work_step_by_category_and_name(category, name):
             db.session.add(work_instruction)
             db.session.commit()
             
-            flash(f'Arbeitsanweisung {work_instruction.instruction_number} wurde erstellt!', 'success')
-            return redirect(url_for('view_work_instruction', order_id=order.id))
+            flash(f'Arbeitsanweisung {work_instruction.instruction_number} wurde erstellt! Bitte vervollständigen Sie die Daten.', 'success')
+            # Leite direkt zum Bearbeiten weiter anstatt zur Ansicht
+            return redirect(url_for('edit_work_instruction', order_id=order.id))
             
-
         except Exception as e:
             db.session.rollback()
             flash(f'Fehler beim Erstellen der Arbeitsanweisung: {str(e)}', 'error')
@@ -2415,8 +2576,64 @@ def get_work_step_by_category_and_name(category, name):
             flash('Für diesen Auftrag existiert noch keine Arbeitsanweisung!', 'warning')
             return redirect(url_for('view_order', order_id=order.id))
         
-        return render_template('work_instruction_view.html', order=order, 
-                             work_instruction=order.work_instruction)
+        # Lade Arbeitsschritte - gespeicherte Daten haben Vorrang vor Quote-Daten
+        work_steps = []
+        if order.work_instruction.work_steps_data:
+            # Verwende gespeicherte Arbeitsschritte
+            try:
+                work_steps = json.loads(order.work_instruction.work_steps_data)
+                # Umstrukturierung für die View (anders als Edit)
+                for step in work_steps:
+                    step['is_completed'] = False  # Default für View
+            except:
+                work_steps = []
+        
+        # Falls keine gespeicherten Arbeitsschritte vorhanden, lade aus Quote
+        if not work_steps and order.quote:
+            step_number = 1
+            for item in order.quote.quote_items:
+                for sub_item in item.sub_items:
+                    if sub_item.item_type == 'arbeitsvorgang':
+                        work_steps.append({
+                            'step_number': step_number,
+                            'description': sub_item.description,
+                            'hours': sub_item.hours,
+                            'notes': f"Pos. {item.position_number} - {sub_item.hours}h à {sub_item.hourly_rate}€",
+                            'is_completed': False
+                        })
+                        step_number += 1
+        
+        # Lade Teile - gespeicherte Daten haben Vorrang vor Quote-Daten
+        work_parts = []
+        if order.work_instruction.work_parts_data:
+            # Verwende gespeicherte Teile
+            try:
+                work_parts = json.loads(order.work_instruction.work_parts_data)
+                # Zusätzliche Felder für die View
+                for part in work_parts:
+                    part['is_available'] = True  # Default für View
+            except:
+                work_parts = []
+        
+        # Falls keine gespeicherten Teile vorhanden, lade aus Quote
+        if not work_parts and order.quote:
+            for item in order.quote.quote_items:
+                for sub_item in item.sub_items:
+                    if sub_item.item_type == 'bestellteil':
+                        work_parts.append({
+                            'part_name': sub_item.description,
+                            'part_number': sub_item.part_number or '',
+                            'quantity': sub_item.part_quantity or '1',
+                            'supplier': sub_item.supplier or '',  # Lieferant aus den Daten laden
+                            'storage_location': '',
+                            'is_available': True
+                        })
+        
+        return render_template('work_instruction_view.html', 
+                             order=order, 
+                             work_instruction=order.work_instruction,
+                             work_steps=work_steps,
+                             work_parts=work_parts)
     
     @app.route('/order/<int:order_id>/work_instruction/pdf')
     @login_required
@@ -2450,34 +2667,97 @@ def get_work_step_by_category_and_name(category, name):
     @app.route('/order/<int:order_id>/work_instruction/edit', methods=['GET', 'POST'])
     @login_required
     def edit_work_instruction(order_id):
-        """Bearbeitet eine Arbeitsanweisung"""
-        from models import Order
+        """Bearbeitet eine Arbeitsanweisung (nur die WorkInstruction Daten, Steps und Parts werden aus Quote geladen)"""
+        from models import Order, WorkInstruction
         from flask import request
         import uuid
+        import json
         
         order = Order.query.get_or_404(order_id)
         work_instruction = order.work_instruction
         
+        # Wenn noch keine Arbeitsanweisung existiert, erstelle eine neue (aber speichere sie noch nicht)
         if not work_instruction:
-            flash('Für diesen Auftrag existiert noch keine Arbeitsanweisung!', 'warning')
-            return redirect(url_for('view_order', order_id=order.id))
+            # Prüfe ob Order eine Quote hat
+            if not order.quote:
+                flash('Fehler: Auftrag hat kein verknüpftes Angebot!', 'error')
+                return redirect(url_for('view_order', order_id=order.id))
+            
+            # Bestimme Installationsort
+            installation_location = "Kunde vor Ort"
+            if order.quote.customer and order.quote.customer.city:
+                installation_location = order.quote.customer.city
+            
+            # Neue Arbeitsanweisung erstellen (aber noch nicht speichern)
+            work_instruction = WorkInstruction(
+                order_id=order.id,
+                created_by='System',
+                status='Erstellt',
+                priority='Normal',
+                installation_location=installation_location
+            )
+            
+            # Eindeutige Nummer generieren
+            work_instruction.instruction_number = work_instruction.generate_instruction_number()
         
         if request.method == 'POST':
             try:
+                # Merke, ob das eine neue Arbeitsanweisung ist
+                is_new_instruction = not work_instruction.id
+                
+                # Wenn das eine neue Arbeitsanweisung ist, füge sie zur Session hinzu
+                if is_new_instruction:
+                    db.session.add(work_instruction)
+                    db.session.flush()  # Um ID zu bekommen
+                
                 # Aktualisiere die Arbeitsanweisung mit den neuen Daten
                 work_instruction.status = request.form.get('status', work_instruction.status)
                 work_instruction.priority = request.form.get('priority', work_instruction.priority)
-                work_instruction.work_description = request.form.get('work_description', '')
-                work_instruction.special_instructions = request.form.get('special_instructions', '')
-                work_instruction.safety_notes = request.form.get('safety_notes', '')
+                work_instruction.sonstiges = request.form.get('sonstiges', '')  # Updated field name
                 work_instruction.tools_required = request.form.get('tools_required', '')
-                work_instruction.estimated_duration = int(request.form.get('estimated_duration', 0)) if request.form.get('estimated_duration') else None
+                work_instruction.estimated_duration = float(request.form.get('estimated_duration', 0)) if request.form.get('estimated_duration') else None
                 work_instruction.installation_location = request.form.get('installation_location', '')
                 work_instruction.access_requirements = request.form.get('access_requirements', '')
-                work_instruction.preparation_work = request.form.get('preparation_work', '')
-                work_instruction.notes = request.form.get('notes', '')
                 
-                # Handle file uploads
+                # Arbeitsschritte und Teile WERDEN JETZT gespeichert
+                # Arbeitsschritte verarbeiten
+                step_descriptions = request.form.getlist('step_description[]')
+                step_notes = request.form.getlist('step_notes[]')
+                step_times = request.form.getlist('step_time[]')
+                
+                work_steps_data = []
+                for i, description in enumerate(step_descriptions):
+                    if description.strip():  # Nur nicht-leere Beschreibungen
+                        work_steps_data.append({
+                            'step_number': i + 1,
+                            'description': description.strip(),
+                            'notes': step_notes[i].strip() if i < len(step_notes) else '',
+                            'estimated_time': int(step_times[i]) if i < len(step_times) and step_times[i].strip() else 0
+                        })
+                
+                work_instruction.work_steps_data = json.dumps(work_steps_data) if work_steps_data else None
+                
+                # Teile/Materialien verarbeiten
+                part_suppliers = request.form.getlist('part_supplier[]')
+                part_numbers = request.form.getlist('part_number[]')
+                part_names = request.form.getlist('part_name[]')
+                part_quantities = request.form.getlist('part_quantity[]')
+                part_storage_locations = request.form.getlist('part_storage_location[]')
+                
+                work_parts_data = []
+                for i, name in enumerate(part_names):
+                    if name.strip():  # Nur nicht-leere Namen
+                        work_parts_data.append({
+                            'supplier': part_suppliers[i].strip() if i < len(part_suppliers) else '',
+                            'part_number': part_numbers[i].strip() if i < len(part_numbers) else '',
+                            'part_name': name.strip(),
+                            'quantity': int(part_quantities[i]) if i < len(part_quantities) and part_quantities[i].strip() else 1,
+                            'storage_location': part_storage_locations[i].strip() if i < len(part_storage_locations) else ''
+                        })
+                
+                work_instruction.work_parts_data = json.dumps(work_parts_data) if work_parts_data else None
+                
+                # Handle file uploads (keeping existing functionality)
                 upload_folder = app.config['UPLOAD_FOLDER']
                 
                 # Handle photo uploads
@@ -2494,7 +2774,7 @@ def get_work_step_by_category_and_name(category, name):
                             pass
                     
                     for photo in photo_files:
-                        if photo and photo.filename and allowed_file(photo.filename):
+                        if photo and photo.filename and allowed_photo_file(photo.filename):
                             # Generate unique filename
                             filename = secure_filename(photo.filename)
                             unique_filename = f"{uuid.uuid4()}_{filename}"
@@ -2503,25 +2783,23 @@ def get_work_step_by_category_and_name(category, name):
                             try:
                                 photo.save(file_path)
                                 photo_paths.append(unique_filename)
-                                print(f"Saved photo: {unique_filename}")  # Debug
                             except Exception as e:
-                                print(f"Error saving photo {filename}: {str(e)}")  # Debug
                                 flash(f'Fehler beim Speichern von {filename}: {str(e)}', 'warning')
+                        elif photo and photo.filename:
+                            flash(f'Datei {photo.filename} ist kein gültiges Foto-Format (nur JPEG/PNG erlaubt)', 'warning')
                     
                     work_instruction.photo_paths = json.dumps(photo_paths) if photo_paths else work_instruction.photo_paths
                     work_instruction.has_photos = bool(photo_paths)
-                    print(f"Final photo_paths: {work_instruction.photo_paths}")  # Debug
                 
                 # Handle plan upload
                 plan_file = request.files.get('plan')
-                if plan_file and plan_file.filename and allowed_file(plan_file.filename):
+                if plan_file and plan_file.filename and allowed_plan_file(plan_file.filename):
                     # Remove existing plan if it exists
                     if work_instruction.plan_path:
                         old_plan_path = os.path.join(upload_folder, work_instruction.plan_path.split('/')[-1])
                         if os.path.exists(old_plan_path):
                             try:
                                 os.remove(old_plan_path)
-                                print(f"Removed old plan: {old_plan_path}")  # Debug
                             except:
                                 pass
                     
@@ -2534,11 +2812,10 @@ def get_work_step_by_category_and_name(category, name):
                         plan_file.save(file_path)
                         work_instruction.plan_path = unique_filename
                         work_instruction.has_3d_plan = True
-                        print(f"Saved plan: {unique_filename}")  # Debug
                     except Exception as e:
-                        print(f"Error saving plan: {str(e)}")  # Debug
                         flash(f'Fehler beim Speichern des Plans: {str(e)}', 'warning')
-                
+                elif plan_file and plan_file.filename:
+                    flash(f'Datei {plan_file.filename} ist kein gültiges Plan-Format (nur PDF erlaubt)', 'warning')
                 
                 # Handle deletions
                 delete_photos = request.form.getlist('delete_photos[]')
@@ -2547,9 +2824,7 @@ def get_work_step_by_category_and_name(category, name):
                         current_photos = json.loads(work_instruction.photo_paths)
                         for delete_photo in delete_photos:
                             if delete_photo in current_photos:
-                                # Remove from list
                                 current_photos.remove(delete_photo)
-                                # Delete file
                                 file_path = os.path.join(upload_folder, delete_photo.split('/')[-1])
                                 if os.path.exists(file_path):
                                     try:
@@ -2564,7 +2839,6 @@ def get_work_step_by_category_and_name(category, name):
                 
                 if request.form.get('delete_plan') == 'true':
                     if work_instruction.plan_path:
-                        # Delete file
                         file_path = os.path.join(upload_folder, work_instruction.plan_path.split('/')[-1])
                         if os.path.exists(file_path):
                             try:
@@ -2575,21 +2849,70 @@ def get_work_step_by_category_and_name(category, name):
                         work_instruction.plan_path = None
                         work_instruction.has_3d_plan = False
                 
-                # Debug: Log what we're about to save
-                print(f"Before commit - photo_paths: {work_instruction.photo_paths}")
-                print(f"Before commit - plan_path: {work_instruction.plan_path}")
-                print(f"Before commit - has_photos: {work_instruction.has_photos}")
-                print(f"Before commit - has_3d_plan: {work_instruction.has_3d_plan}")
-                
                 db.session.commit()
-                flash('Arbeitsanweisung wurde erfolgreich aktualisiert!', 'success')
+                
+                # Bestimme die richtige Flash-Nachricht
+                if is_new_instruction:
+                    flash('Arbeitsanweisung wurde erfolgreich erstellt!', 'success')
+                else:
+                    flash('Arbeitsanweisung wurde erfolgreich aktualisiert!', 'success')
+                
                 return redirect(url_for('view_work_instruction', order_id=order.id))
                 
             except Exception as e:
                 db.session.rollback()
-                flash(f'Fehler beim Aktualisieren der Arbeitsanweisung: {str(e)}', 'error')
+                flash(f'Fehler beim Speichern der Arbeitsanweisung: {str(e)}', 'error')
         
-        return render_template('work_instruction_edit.html', order=order, work_instruction=work_instruction)
+        # Lade Arbeitsschritte - gespeicherte Daten haben Vorrang vor Quote-Daten
+        work_steps = []
+        if work_instruction and work_instruction.work_steps_data:
+            # Verwende gespeicherte Arbeitsschritte
+            try:
+                work_steps = json.loads(work_instruction.work_steps_data)
+            except:
+                work_steps = []
+        
+        # Falls keine gespeicherten Arbeitsschritte vorhanden, lade aus Quote
+        if not work_steps and order.quote:
+            step_number = 1
+            for item in order.quote.quote_items:
+                for sub_item in item.sub_items:
+                    if sub_item.item_type == 'arbeitsvorgang':
+                        work_steps.append({
+                            'step_number': step_number,
+                            'description': sub_item.description,
+                            'notes': '',  # Nicht vorbefüllen
+                            'estimated_time': int(sub_item.hours * 60) if sub_item.hours else 0  # Convert hours to minutes
+                        })
+                        step_number += 1
+        
+        # Lade Teile - gespeicherte Daten haben Vorrang vor Quote-Daten
+        work_parts = []
+        if work_instruction and work_instruction.work_parts_data:
+            # Verwende gespeicherte Teile
+            try:
+                work_parts = json.loads(work_instruction.work_parts_data)
+            except:
+                work_parts = []
+        
+        # Falls keine gespeicherten Teile vorhanden, lade aus Quote
+        if not work_parts and order.quote:
+            for item in order.quote.quote_items:
+                for sub_item in item.sub_items:
+                    if sub_item.item_type == 'bestellteil':
+                        work_parts.append({
+                            'part_name': sub_item.description,
+                            'part_number': sub_item.part_number or '',
+                            'quantity': sub_item.part_quantity or '1',
+                            'supplier': sub_item.supplier or '',  # Lieferant aus den Daten laden
+                            'storage_location': ''
+                        })
+        
+        return render_template('work_instruction_edit.html', 
+                             order=order, 
+                             work_instruction=work_instruction,
+                             work_steps=work_steps,
+                             work_parts=work_parts)
 
     # API-Routen für Autocomplete
     @app.route('/api/customers/search')
@@ -2637,6 +2960,12 @@ def get_work_step_by_category_and_name(category, name):
             return f"Template-Fehler: {str(e)}"
     
     # Akquisekanal-Verwaltung
+    @app.route('/stammdaten/akquise')
+    @login_required
+    def acquisition_channels():
+        channels = AcquisitionChannel.query.order_by(AcquisitionChannel.name).all()
+        return render_template('acquisition_channels.html', channels=channels)
+    
     @app.route('/stammdaten/akquise/new', methods=['GET', 'POST'])
     @login_required
     def new_acquisition_channel():
@@ -3029,74 +3358,8 @@ def update_quote_status(quote_id, new_status):
     
     return redirect(url_for('edit_quote', id=quote_id))
 
-# App für Deployment (nur wenn direkt ausgeführt)
-if __name__ == '__main__':
-    app = create_app()
-    app.run(debug=True)
-else:
-    # Für Gunicorn/Railway - App-Factory ohne sofortige Initialisierung
-    app = create_app()
-
-# ===============================
-# LOGIN-SYSTEM
-# ===============================
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    """Admin Login"""
-    if request.method == 'POST':
-        login_username = request.form['login_username']
-        login_password = request.form['login_password']
-        
-        from models import LoginAdmin
-        login_admin = LoginAdmin.query.filter_by(
-            login_username=login_username, 
-            login_is_active=True
-        ).first()
-        
-        if login_admin and login_admin.check_login_password(login_password):
-            session['login_admin_id'] = login_admin.login_id
-            session['login_admin_username'] = login_admin.login_username
-            
-            # Last login aktualisieren
-            login_admin.login_last_login = datetime.utcnow()
-            db.session.commit()
-            
-            flash('Erfolgreich angemeldet!', 'success')
-            return redirect(url_for('index'))
-        else:
-            flash('Ungültiger Benutzername oder Passwort!', 'error')
-    
-    return render_template('login.html')
-
-@app.route('/logout')
-def logout():
-    """Admin Logout"""
-    session.clear()
-    flash('Sie wurden erfolgreich abgemeldet.', 'info')
-    return redirect(url_for('login'))
-
-@app.route('/init-admin')
-def init_admin():
-    """Erstellt den ersten Admin-Account (nur beim ersten Start)"""
-    from models import LoginAdmin
-    
-    # Prüfen ob bereits ein Admin existiert
-    if LoginAdmin.query.first():
-        return "Admin bereits vorhanden. Bitte /login verwenden."
-    
-    # Standard-Admin erstellen
-    login_admin = LoginAdmin.create_login_admin('admin', 'admin123')  # WICHTIG: Passwort später ändern!
-    db.session.add(login_admin)
-    db.session.commit()
-    
-    return """
-    <h2>Admin-Account erstellt!</h2>
-    <p><strong>Benutzername:</strong> admin</p>
-    <p><strong>Passwort:</strong> admin123</p>
-    <p><strong>WICHTIG:</strong> Bitte ändern Sie das Passwort nach dem ersten Login!</p>
-    <p><a href="/login">Zum Login</a></p>
-    """
+# App-Instanz für Module-Level
+app = create_app()
 
 # ===============================
 # RECHNUNGS-ROUTEN 
@@ -3225,8 +3488,8 @@ def create_invoice():
         if existing:
             return jsonify({'success': False, 'message': f'{invoice_type.title()}rechnung existiert bereits'})
         
-        # Grundbetrag aus Angebot holen
-        base_amount = order.quote.calculate_net_total()
+        # Grundbetrag aus Angebot holen - MIT Aufschlag
+        base_amount = order.quote.total_amount  # Das ist die Auftragssumme mit Aufschlag
         if base_amount is None or base_amount <= 0:
             return jsonify({'success': False, 'message': 'Auftragswert konnte nicht ermittelt werden'})
         
@@ -3475,8 +3738,8 @@ def download_backup(format):
         return redirect(url_for('index'))
 
 if __name__ == '__main__':
-    # Cloud-Hosting-Erkennung
-    is_production = bool(os.environ.get('DATABASE_URL'))
+    # Cloud-Hosting-Erkennung - nur für Railway, nicht für lokale Entwicklung
+    is_production = bool(os.environ.get('DATABASE_URL')) and bool(os.environ.get('PORT'))
     
     if is_production:
         # Produktion: Einfacher Start ohne Browser-Öffnung
@@ -3549,7 +3812,7 @@ if __name__ == '__main__':
             app.run(
                 host='127.0.0.1',  # Nur lokaler Zugriff für Sicherheit
                 port=5000,
-                debug=True,  # Debug AN für Fehlerbehebung
+                debug=False,  # Debug AUS für Stabilität
                 use_reloader=False  # Reloader aus für Stabilität
             )
         except KeyboardInterrupt:

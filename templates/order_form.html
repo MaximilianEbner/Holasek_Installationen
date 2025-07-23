@@ -201,24 +201,9 @@
 </div>
 
 <script>
-// Datum-Validierung
+// Datum-Validierung entfernt - Start nach Ende ist jetzt erlaubt
 document.addEventListener('DOMContentLoaded', function() {
-    const startDateInput = document.querySelector('input[name="start_date"]');
-    const endDateInput = document.querySelector('input[name="end_date"]');
-    
-    startDateInput.addEventListener('change', function() {
-        if (endDateInput.value && this.value > endDateInput.value) {
-            alert('Das Startdatum kann nicht nach dem Enddatum liegen.');
-            this.focus();
-        }
-    });
-    
-    endDateInput.addEventListener('change', function() {
-        if (startDateInput.value && this.value < startDateInput.value) {
-            alert('Das Enddatum kann nicht vor dem Startdatum liegen.');
-            this.focus();
-        }
-    });
+    // Keine Datum-Validierung mehr
 });
 </script>
 {% endblock %}

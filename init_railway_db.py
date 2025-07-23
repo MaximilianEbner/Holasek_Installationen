@@ -28,11 +28,8 @@ def init_railway_database():
         try:
             print(f"📡 Verbindungsversuch {attempt + 1}/{max_retries}...")
             
-            # Importiere App-Factory
-            from app import create_app, db
-            
-            # Erstelle App-Instanz
-            app = create_app()
+            # Importiere App und DB
+            from app import app, db
             
             with app.app_context():
                 # Test der Datenbankverbindung

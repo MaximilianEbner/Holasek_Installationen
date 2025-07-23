@@ -735,7 +735,7 @@ function updateSubItemCalculation(templateId, subitemIndex) {
                     // Aktualisiere das Mengenfeld
                     const quantityInput = subitemRow.querySelector('.subitem-quantity');
                     if (quantityInput) {
-                        quantityInput.value = quantity.toFixed(4);
+                        quantityInput.value = quantity.toFixed(1);
                     }
                 } else {
                     // Fallback bei ungültiger Formel
@@ -782,7 +782,7 @@ function updateSubItemCalculation(templateId, subitemIndex) {
                     // Aktualisiere das Mengenfeld
                     const quantityInput = subitemRow.querySelector('.subitem-quantity');
                     if (quantityInput) {
-                        quantityInput.value = quantity.toFixed(4);
+                        quantityInput.value = quantity.toFixed(1);
                     }
                 } else {
                     // Fallback bei ungültiger Formel

@@ -177,6 +177,31 @@
                             <small class="form-text text-muted">Wird auf alle Positionen aufgeschlagen</small>
                         </div>
                     </div>
+                    
+                    <!-- Zusätzliche PDF-Informationen -->
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Leistungsumfang</label>
+                            <textarea name="leistungsumfang" class="form-control" rows="6" 
+                                      placeholder="• Demontage der bestehenden Produkte inklusive Entsorgung&#10;• Montage der im Angebot angeführten Produkte&#10;• ..."
+                                      {% if quote.status == 'Angenommen' %}readonly{% endif %}>{% if quote.leistungsumfang and quote.leistungsumfang != '<keine>' %}{{ quote.leistungsumfang }}{% elif quote.leistungsumfang == '<keine>' %}{% else %}{{ '• Demontage der bestehenden Produkte inklusive Entsorgung\n• Montage der im Angebot angeführten Produkte\n• Anschluss an bestehendes Gebäudeleitungssystem im unmittelbaren Umbaubereich ab Badezimmer oder in der Dusche\n• Diverse Ausgleichs- und Abdichtungsarbeiten' }}{% endif %}</textarea>
+                            <small class="form-text text-muted">Wird im PDF als Leistungsumfang angezeigt (leer lassen für keine Anzeige)</small>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Informationen zum Objekt</label>
+                            <textarea name="objektinformationen" class="form-control" rows="6" 
+                                      placeholder="• Einfamilienhaus&#10;• Zuschnitt vor dem Gebäude möglich&#10;• ..."
+                                      {% if quote.status == 'Angenommen' %}readonly{% endif %}>{% if quote.objektinformationen and quote.objektinformationen != '<keine>' %}{{ quote.objektinformationen }}{% elif quote.objektinformationen == '<keine>' %}{% else %}{{ '• Einfamilienhaus\n• Zuschnitt vor dem Gebäude möglich\n• Parken vor dem Gebäude möglich' }}{% endif %}</textarea>
+                            <small class="form-text text-muted">Wird im PDF als Objektinformationen angezeigt (leer lassen für keine Anzeige)</small>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Installationsleistungen</label>
+                            <textarea name="installationsleistungen" class="form-control" rows="6" 
+                                      placeholder="• Abfluss Dusche herrichten&#10;• Armatur Dusche versetzen&#10;• ..."
+                                      {% if quote.status == 'Angenommen' %}readonly{% endif %}>{% if quote.installationsleistungen and quote.installationsleistungen != '<keine>' %}{{ quote.installationsleistungen }}{% elif quote.installationsleistungen == '<keine>' %}{% else %}{{ '• Abfluss Dusche herrichten\n• Armatur Dusche versetzen\n\nNebenabsprache mit dem Kunden:\n• Demontage, Vorbereitung und Entsorgung erfolgt durch Innsan' }}{% endif %}</textarea>
+                            <small class="form-text text-muted">Wird im PDF als Installationsleistungen angezeigt (leer lassen für keine Anzeige)</small>
+                        </div>
+                    </div>
                     <div class="row">
                         <div class="col-md-12">
                             <div class="form-check">
@@ -408,7 +433,7 @@
                     </div>
                     
                     <!-- Positionsvorlagen -->
-                    <div class="tab-pane fade" id="templates" role="tabpanel">
+                    <div class="tab-pane fade show active" id="templates" role="tabpanel">
                         <div class="alert alert-info">
                             <i class="fas fa-info-circle"></i>
                             <strong>Positionsvorlagen verwenden:</strong> 
@@ -471,7 +496,7 @@
                     </div>
                     
                     <!-- Detaillierte Position -->
-                    <div class="tab-pane fade show active" id="detailed" role="tabpanel">
+                    <div class="tab-pane fade" id="detailed" role="tabpanel">
                         <form method="POST" action="{{ url_for('add_detailed_quote_item', id=quote.id) }}">
                             <div class="row mb-3">
                                 <div class="col-md-8">
@@ -541,13 +566,13 @@
                                         <div class="col-md-2">
                                             <label class="form-label">Anzahl</label>
                                             <input type="text" name="sub_part_quantity[]" class="form-control" 
-                                                   placeholder="z.B. 1, 2.5" value="1">
+                                                   placeholder="z.B. 1, 2.5" value="1" onchange="recalculatePartPrice(this)">
                                         </div>
                                         <div class="col-md-2">
                                             <label class="form-label">Preis für Kalkulation</label>
                                             <div class="input-group">
                                                 <input type="number" name="sub_part_price[]" class="form-control sub-price-input" 
-                                                       min="0" step="0.01" placeholder="0.00" onchange="calculateDetailedTotal()">
+                                                       min="0" step="0.01" placeholder="0.00" onchange="calculateDetailedTotal()" data-original-quantity="1">
                                                 <span class="input-group-text">€</span>
                                             </div>
                                         </div>
@@ -721,7 +746,10 @@
                                                                 {% elif sub_item.item_type == 'sonstiges' %}
                                                                 <small class="text-muted">{{ sub_item.quantity }} × {{ sub_item.unit_price }}€</small>
                                                                 {% else %}
-                                                                <small class="text-muted">{{ sub_item.supplier or '-' }}</small>
+                                                                <small class="text-muted">
+                                                                    {% if sub_item.part_quantity %}{{ sub_item.part_quantity }}x {% endif %}
+                                                                    {{ sub_item.supplier or '-' }}
+                                                                </small>
                                                                 {% endif %}
                                                             </td>
                                                             <td>
@@ -1046,6 +1074,36 @@ function calculateSimpleTotal() {
     }
 }
 
+// Bestellteil-Preis bei Anzahl-Änderung neu berechnen
+function recalculatePartPrice(quantityInput) {
+    // Finde das zugehörige Preis-Input-Feld
+    const row = quantityInput.closest('.bestellteil-fields') || quantityInput.closest('.sub-item-row');
+    if (!row) return;
+    
+    const priceInput = row.querySelector('input[name="sub_part_price[]"]');
+    if (!priceInput) return;
+    
+    const newQuantity = parseFloat(quantityInput.value) || 1;
+    const originalQuantity = parseFloat(priceInput.dataset.originalQuantity) || 1;
+    const currentPrice = parseFloat(priceInput.value) || 0;
+    
+    // Wenn noch kein Preis eingegeben wurde, nichts berechnen
+    if (currentPrice === 0) return;
+    
+    // Berechne Einzelpreis basierend auf aktuellem Preis und ursprünglicher Menge
+    const unitPrice = currentPrice / originalQuantity;
+    
+    // Berechne neuen Gesamtpreis
+    const newPrice = newQuantity * unitPrice;
+    
+    // Aktualisiere Preis und speichere neue Menge als "Original"
+    priceInput.value = newPrice.toFixed(2);
+    priceInput.dataset.originalQuantity = newQuantity;
+    
+    // Aktualisiere Gesamtsumme
+    calculateDetailedTotal();
+}
+
 // Detaillierte Position Berechnung
 function calculateDetailedTotal() {
     let total = 0;
@@ -1123,13 +1181,13 @@ function addSubItem() {
             <div class="col-md-2">
                 <label class="form-label">Anzahl</label>
                 <input type="text" name="sub_part_quantity[]" class="form-control" 
-                       placeholder="z.B. 1, 2.5" value="1">
+                       placeholder="z.B. 1, 2.5" value="1" onchange="recalculatePartPrice(this)">
             </div>
             <div class="col-md-2">
                 <label class="form-label">Preis für Kalkulation</label>
                 <div class="input-group">
                     <input type="number" name="sub_part_price[]" class="form-control sub-price-input" 
-                           min="0" step="0.01" placeholder="0.00" onchange="calculateDetailedTotal()">
+                           min="0" step="0.01" placeholder="0.00" onchange="calculateDetailedTotal()" data-original-quantity="1">
                     <span class="input-group-text">€</span>
                 </div>
             </div>

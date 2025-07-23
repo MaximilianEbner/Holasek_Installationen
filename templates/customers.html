@@ -27,12 +27,47 @@
                 </a>
                 {% endif %}
             </div>
+            <!-- Kundenbetreuer-Filter als Hidden Field -->
+            {% if customer_manager_filter %}
+            <input type="hidden" name="customer_manager" value="{{ customer_manager_filter }}">
+            {% endif %}
         </form>
     </div>
-    <div class="col-md-6 text-end">
-        <small class="text-muted">
+    <div class="col-md-3">
+        <form method="GET" action="{{ url_for('customers') }}">
+            <!-- Such-Query als Hidden Field erhalten -->
             {% if search_query %}
-                {{ customers|length }} Ergebnis(se) für "{{ search_query }}"
+            <input type="hidden" name="search" value="{{ search_query }}">
+            {% endif %}
+            <select name="customer_manager" class="form-select" onchange="this.form.submit()">
+                <option value="">Alle Kundenbetreuer</option>
+                <option value="none" {{ 'selected' if customer_manager_filter == 'none' else '' }}>Ohne Betreuer</option>
+                {% for manager in customer_managers %}
+                <option value="{{ manager }}" {{ 'selected' if customer_manager_filter == manager else '' }}>
+                    {{ manager }}
+                </option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+    <div class="col-md-3 text-end">
+        <small class="text-muted">
+            {% if search_query or customer_manager_filter %}
+                {{ customers|length }} Ergebnis(se) gefiltert
+                {% if customer_manager_filter %}
+                    <br><span class="badge bg-info">
+                        {% if customer_manager_filter == 'none' %}
+                            Ohne Betreuer
+                        {% else %}
+                            {{ customer_manager_filter }}
+                        {% endif %}
+                    </span>
+                {% endif %}
+                {% if search_query or customer_manager_filter %}
+                <br><a href="{{ url_for('customers') }}" class="btn btn-sm btn-outline-secondary mt-1">
+                    <i class="fas fa-times"></i> Alle Filter zurücksetzen
+                </a>
+                {% endif %}
             {% else %}
                 {{ customers|length }} Kunde(n) insgesamt
             {% endif %}
@@ -50,7 +85,7 @@
                         <thead>
                             <tr>
                                 <th>
-                                    <a href="{{ url_for('customers', search=search_query, sort='last_name', dir='asc' if sort_by != 'last_name' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                    <a href="{{ url_for('customers', search=search_query, customer_manager=customer_manager_filter, sort='last_name', dir='asc' if sort_by != 'last_name' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
                                         Name
                                         {% if sort_by == 'last_name' %}
                                             <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
@@ -60,7 +95,7 @@
                                     </a>
                                 </th>
                                 <th>
-                                    <a href="{{ url_for('customers', search=search_query, sort='email', dir='asc' if sort_by != 'email' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                    <a href="{{ url_for('customers', search=search_query, customer_manager=customer_manager_filter, sort='email', dir='asc' if sort_by != 'email' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
                                         E-Mail
                                         {% if sort_by == 'email' %}
                                             <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
@@ -71,7 +106,7 @@
                                 </th>
                                 <th>Telefon</th>
                                 <th>
-                                    <a href="{{ url_for('customers', search=search_query, sort='city', dir='asc' if sort_by != 'city' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                    <a href="{{ url_for('customers', search=search_query, customer_manager=customer_manager_filter, sort='city', dir='asc' if sort_by != 'city' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
                                         Stadt
                                         {% if sort_by == 'city' %}
                                             <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
@@ -80,7 +115,16 @@
                                         {% endif %}
                                     </a>
                                 </th>
-                                <th>Kundenbetreuer</th>
+                                <th>
+                                    <a href="{{ url_for('customers', search=search_query, customer_manager=customer_manager_filter, sort='customer_manager', dir='asc' if sort_by != 'customer_manager' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Kundenbetreuer
+                                        {% if sort_by == 'customer_manager' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
                                 <th>Akquisekanal</th>
                                 <th>Status</th>
                                 <th>Aktionen</th>

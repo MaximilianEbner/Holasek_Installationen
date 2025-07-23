@@ -36,11 +36,19 @@
             color: white;
         }
         .btn-primary {
-            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
-            border: none;
+            background-color: #28a745;
+            border-color: #28a745;
         }
         .btn-primary:hover {
-            background: linear-gradient(135deg, #229954 0%, #27ae60 100%);
+            background-color: #218838;
+            border-color: #1e7e34;
+        }
+        .btn-primary:focus, .btn-primary.focus {
+            box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.5);
+        }
+        .btn-primary:not(:disabled):not(.disabled):active, .btn-primary:not(:disabled):not(.disabled).active {
+            background-color: #1e7e34;
+            border-color: #1c7430;
         }
         .navbar-dark {
             background: linear-gradient(135deg, #1e8449 0%, #27ae60 100%) !important;
@@ -130,7 +138,7 @@
                 <i class="fas fa-file-invoice-dollar"></i> Rechnungen
             </a>
             <a href="{{ url_for('supplier_orders') }}" class="list-group-item list-group-item-action">
-                <i class="fas fa-shipping-fast"></i> Bestellungen
+                <i class="fas fa-shipping-fast"></i> Lieferanten-Bestellungen
             </a>
             <a href="{{ url_for('stammdaten') }}" class="list-group-item list-group-item-action">
                 <i class="fas fa-database"></i> Stammdaten
