@@ -183,6 +183,13 @@ def create_app():
         except (ValueError, TypeError):
             return "0,00 €"
     
+    @app.template_filter('nl2br')
+    def nl2br_filter(value):
+        """Konvertiert Zeilenumbrüche in HTML <br> Tags"""
+        if not value:
+            return value
+        return value.replace('\n', '<br>\n').replace('\r\n', '<br>\n')
+    
     # Template-Funktionen registrieren
     @app.context_processor
     def inject_global_vars():
@@ -3439,83 +3446,158 @@ def invoices():
         Order.status.in_(['Angenommen', 'Geplant', 'In Arbeit', 'Abgeschlossen'])
     ).all()
     
+    # Verfügbare Kunden für allgemeine Rechnungen
+    available_customers = Customer.query.order_by(Customer.last_name, Customer.first_name).all()
+    
+    # JSON-Daten für JavaScript vorbereiten
+    import json
+    available_orders_json = json.dumps([
+        {
+            "id": order.id,
+            "order_number": order.order_number,
+            "customer_name": order.quote.customer.full_name,
+            "total_amount": f"{order.quote.total_amount:.2f} €" if order.quote.total_amount else "0,00 €",
+            "display_text": f"{order.order_number} - {order.quote.customer.full_name} ({order.quote.total_amount:.2f} €)" if order.quote.total_amount else f"{order.order_number} - {order.quote.customer.full_name} (0,00 €)"
+        }
+        for order in available_orders
+    ])
+    
+    available_customers_json = json.dumps([
+        {
+            "id": customer.id,
+            "name": customer.full_name,
+            "email": customer.email,
+            "display_text": f"{customer.full_name} ({customer.email})"
+        }
+        for customer in available_customers
+    ])
+    
     return render_template('invoices.html',
                          invoices=invoices,
                          stats=stats,
                          available_orders=available_orders,
+                         available_customers=available_customers,
+                         available_orders_json=available_orders_json,
+                         available_customers_json=available_customers_json,
                          today=date.today)
 
 @app.route('/invoices/create', methods=['POST'])
 @login_required
 def create_invoice():
     """Erstellt eine neue Rechnung"""
-    from models import Invoice, Order
+    from models import Invoice, Order, Customer
     from datetime import datetime, date, timedelta
     
     try:
-        # Sichere Formular-Daten-Extraktion
+        # Formular-Daten-Extraktion
         order_id = request.form.get('order_id')
+        customer_id = request.form.get('customer_id')
         invoice_type = request.form.get('invoice_type')
         percentage_str = request.form.get('percentage')
+        base_amount_str = request.form.get('base_amount')
+        service_description = request.form.get('service_description')
         due_date_str = request.form.get('due_date')
         
         # Validierung der Eingabedaten
-        if not order_id:
-            return jsonify({'success': False, 'message': 'Auftrag ist erforderlich'})
         if not invoice_type:
             return jsonify({'success': False, 'message': 'Rechnungstyp ist erforderlich'})
-        if not percentage_str:
-            return jsonify({'success': False, 'message': 'Prozentsatz ist erforderlich'})
         if not due_date_str:
             return jsonify({'success': False, 'message': 'Fälligkeitsdatum ist erforderlich'})
         
-        # Sichere Konvertierung
+        # Sichere Konvertierung des Datums
         try:
-            order_id = int(order_id)
-            percentage = float(percentage_str)
             due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
         except (ValueError, TypeError) as e:
-            return jsonify({'success': False, 'message': f'Ungültige Eingabedaten: {str(e)}'})
+            return jsonify({'success': False, 'message': f'Ungültiges Fälligkeitsdatum: {str(e)}'})
         
-        # Prozentsatz-Validierung
-        if percentage <= 0 or percentage > 100:
-            return jsonify({'success': False, 'message': 'Prozentsatz muss zwischen 1 und 100 liegen'})
-        
-        order = Order.query.get_or_404(order_id)
-        
-        # Prüfen ob Rechnung bereits existiert
-        existing = Invoice.query.filter_by(order_id=order_id, invoice_type=invoice_type).first()
-        if existing:
-            return jsonify({'success': False, 'message': f'{invoice_type.title()}rechnung existiert bereits'})
-        
-        # Grundbetrag aus Angebot holen - MIT Aufschlag
-        base_amount = order.quote.total_amount  # Das ist die Auftragssumme mit Aufschlag
-        if base_amount is None or base_amount <= 0:
-            return jsonify({'success': False, 'message': 'Auftragswert konnte nicht ermittelt werden'})
-        
-        # Neue Rechnung erstellen
-        invoice = Invoice(
-            invoice_number=Invoice.generate_invoice_number(),
-            order_id=order_id,
-            invoice_type=invoice_type,
-            percentage=percentage,
-            base_amount=base_amount,
-            due_date=due_date,
-            payment_terms=14,
-            vat_rate=20.0,           # Explizit 20% MwSt setzen
-            invoice_amount=0.0,      # Wird in calculate_amounts gesetzt
-            final_amount=0.0,        # Wird in calculate_amounts gesetzt
-            vat_amount=0.0,          # Wird in calculate_amounts gesetzt
-            gross_amount=0.0         # Wird in calculate_amounts gesetzt
-        )
-        
-        # Für Schlussrechnung: Bereits erhaltene Anzahlungen berechnen
-        if invoice_type == 'schluss':
-            anzahlung_invoices = Invoice.query.filter_by(
-                order_id=order_id, 
-                invoice_type='anzahlung'
-            ).all()
-            invoice.previous_payments = sum(inv.final_amount for inv in anzahlung_invoices if inv.final_amount)
+        if invoice_type == 'allgemein':
+            # Allgemeine Rechnung: Kunde und Betrag erforderlich
+            if not customer_id:
+                return jsonify({'success': False, 'message': 'Kunde ist für allgemeine Rechnungen erforderlich'})
+            if not base_amount_str:
+                return jsonify({'success': False, 'message': 'Rechnungsbetrag ist erforderlich'})
+            if not service_description:
+                return jsonify({'success': False, 'message': 'Leistungsbeschreibung ist erforderlich'})
+            
+            try:
+                customer_id = int(customer_id)
+                base_amount = float(base_amount_str)
+            except (ValueError, TypeError) as e:
+                return jsonify({'success': False, 'message': f'Ungültige Eingabedaten: {str(e)}'})
+            
+            if base_amount <= 0:
+                return jsonify({'success': False, 'message': 'Rechnungsbetrag muss größer als 0 sein'})
+            
+            customer = Customer.query.get_or_404(customer_id)
+            
+            # Neue allgemeine Rechnung erstellen
+            invoice = Invoice(
+                invoice_number=Invoice.generate_invoice_number(),
+                customer_id=customer_id,
+                invoice_type=invoice_type,
+                base_amount=base_amount,
+                service_description=service_description,
+                due_date=due_date,
+                payment_terms=14,
+                vat_rate=20.0,
+                invoice_amount=0.0,
+                final_amount=0.0,
+                vat_amount=0.0,
+                gross_amount=0.0
+            )
+            
+        else:
+            # Auftragsbezogene Rechnung (anzahlung/schluss)
+            if not order_id:
+                return jsonify({'success': False, 'message': 'Auftrag ist erforderlich'})
+            if not percentage_str:
+                return jsonify({'success': False, 'message': 'Prozentsatz ist erforderlich'})
+            
+            try:
+                order_id = int(order_id)
+                percentage = float(percentage_str)
+            except (ValueError, TypeError) as e:
+                return jsonify({'success': False, 'message': f'Ungültige Eingabedaten: {str(e)}'})
+            
+            # Prozentsatz-Validierung
+            if percentage <= 0 or percentage > 100:
+                return jsonify({'success': False, 'message': 'Prozentsatz muss zwischen 1 und 100 liegen'})
+            
+            order = Order.query.get_or_404(order_id)
+            
+            # Prüfen ob Rechnung bereits existiert
+            existing = Invoice.query.filter_by(order_id=order_id, invoice_type=invoice_type).first()
+            if existing:
+                return jsonify({'success': False, 'message': f'{invoice_type.title()}rechnung existiert bereits'})
+            
+            # Grundbetrag aus Angebot holen
+            base_amount = order.quote.total_amount
+            if base_amount is None or base_amount <= 0:
+                return jsonify({'success': False, 'message': 'Auftragswert konnte nicht ermittelt werden'})
+            
+            # Neue Rechnung erstellen
+            invoice = Invoice(
+                invoice_number=Invoice.generate_invoice_number(),
+                order_id=order_id,
+                invoice_type=invoice_type,
+                percentage=percentage,
+                base_amount=base_amount,
+                due_date=due_date,
+                payment_terms=14,
+                vat_rate=20.0,
+                invoice_amount=0.0,
+                final_amount=0.0,
+                vat_amount=0.0,
+                gross_amount=0.0
+            )
+            
+            # Für Schlussrechnung: Bereits erhaltene Anzahlungen berechnen
+            if invoice_type == 'schluss':
+                anzahlung_invoices = Invoice.query.filter_by(
+                    order_id=order_id, 
+                    invoice_type='anzahlung'
+                ).all()
+                invoice.previous_payments = sum(inv.final_amount for inv in anzahlung_invoices if inv.final_amount)
         
         # Beträge berechnen
         invoice.calculate_amounts()

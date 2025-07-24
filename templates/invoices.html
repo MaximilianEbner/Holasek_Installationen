@@ -151,14 +151,16 @@
                             <small class="text-muted">{{ invoice.order.order_number }}</small>
                         </td>
                         <td>
-                            <strong>{{ invoice.order.quote.customer.full_name }}</strong><br>
-                            <small class="text-muted">{{ invoice.order.quote.customer.city or '' }}</small>
+                            <strong>{{ invoice.order.quote.customer.full_name if invoice.order else invoice.customer.full_name }}</strong><br>
+                            <small class="text-muted">{{ invoice.order.quote.customer.city if invoice.order else invoice.customer.city or '' }}</small>
                         </td>
                         <td>
                             <span class="badge bg-info">
                                 {{ invoice.invoice_type.title() }}
                             </span><br>
+                            {% if invoice.percentage %}
                             <small>{{ invoice.percentage }}%</small>
+                            {% endif %}
                         </td>
                         <td>
                             <strong>{{ invoice.gross_amount|currency }}</strong><br>
@@ -187,7 +189,7 @@
                                 
                                 <!-- Details anzeigen -->
                                 <button class="btn btn-outline-info btn-sm" 
-                                        onclick="showInvoiceDetails({{ invoice.id }})"
+                                        onclick="showInvoiceDetails('{{ invoice.id }}')"
                                         title="Details anzeigen">
                                     <i class="bi bi-eye"></i>
                                 </button>
@@ -202,23 +204,23 @@
                                     <ul class="dropdown-menu">
                                         <!-- Vorwärts-Status -->
                                         {% if invoice.status == 'erstellt' %}
-                                        <li><a class="dropdown-item" href="#" onclick="updateInvoiceStatus({{ invoice.id }}, 'versendet')">
+                                        <li><a class="dropdown-item" href="#" onclick="updateInvoiceStatus('{{ invoice.id }}', 'versendet')">
                                             <i class="bi bi-send"></i> Als versendet markieren</a></li>
                                         {% endif %}
                                         {% if invoice.status in ['erstellt', 'versendet'] %}
-                                        <li><a class="dropdown-item" href="#" onclick="markAsPaid({{ invoice.id }})">
+                                        <li><a class="dropdown-item" href="#" onclick="markAsPaid('{{ invoice.id }}')">
                                             <i class="bi bi-check-circle"></i> Als bezahlt markieren</a></li>
                                         {% endif %}
                                         
                                         <!-- Retour-Status -->
                                         {% if invoice.status == 'bezahlt' %}
                                         <li><hr class="dropdown-divider"></li>
-                                        <li><a class="dropdown-item text-warning" href="#" onclick="updateInvoiceStatus({{ invoice.id }}, 'versendet')">
+                                        <li><a class="dropdown-item text-warning" href="#" onclick="updateInvoiceStatus('{{ invoice.id }}', 'versendet')">
                                             <i class="bi bi-arrow-left"></i> Zurück zu "Versendet"</a></li>
                                         {% endif %}
                                         {% if invoice.status == 'versendet' %}
                                         <li><hr class="dropdown-divider"></li>
-                                        <li><a class="dropdown-item text-secondary" href="#" onclick="updateInvoiceStatus({{ invoice.id }}, 'erstellt')">
+                                        <li><a class="dropdown-item text-secondary" href="#" onclick="updateInvoiceStatus('{{ invoice.id }}', 'erstellt')">
                                             <i class="bi bi-arrow-left"></i> Zurück zu "Erstellt"</a></li>
                                         {% endif %}
                                     </ul>
@@ -227,7 +229,7 @@
                                 <!-- Löschen (nur wenn nicht bezahlt) -->
                                 {% if invoice.status != 'bezahlt' %}
                                 <button class="btn btn-outline-danger btn-sm" 
-                                        onclick="deleteInvoice({{ invoice.id }})"
+                                        onclick="deleteInvoice('{{ invoice.id }}')"
                                         title="Rechnung löschen">
                                     <i class="bi bi-trash"></i>
                                 </button>
@@ -298,12 +300,23 @@
             <form id="createInvoiceForm">
                 <div class="modal-body">
                     <div class="mb-3">
+                        <label for="invoice_type" class="form-label">Rechnungstyp *</label>
+                        <select name="invoice_type" id="invoice_type" class="form-select" required>
+                            <option value="">Typ auswählen...</option>
+                            <option value="anzahlung">Anzahlungsrechnung</option>
+                            <option value="schluss">Schlussrechnung</option>
+                            <option value="allgemein">Allgemeine Rechnung</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Auftragswahl (nur für anzahlung/schluss) -->
+                    <div class="mb-3" id="order_selection_section">
                         <label for="order_search" class="form-label">Auftrag *</label>
                         <div class="position-relative">
                             <input type="text" id="order_search" class="form-control" 
                                    placeholder="Auftragsnummer oder Kundenname eingeben..." 
-                                   autocomplete="off" required>
-                            <input type="hidden" name="order_id" id="order_id" required>
+                                   autocomplete="off">
+                            <input type="hidden" name="order_id" id="order_id">
                             <div id="order_dropdown" class="dropdown-menu position-absolute w-100" style="max-height: 200px; overflow-y: auto; z-index: 1050;">
                                 <!-- Dropdown-Optionen werden hier dynamisch eingefügt -->
                             </div>
@@ -311,22 +324,47 @@
                         <div class="form-text">Suchen Sie nach Auftragsnummer oder Kundenname</div>
                     </div>
                     
-                    <div class="mb-3">
-                        <label for="invoice_type" class="form-label">Rechnungstyp *</label>
-                        <select name="invoice_type" id="invoice_type" class="form-select" required>
-                            <option value="">Typ auswählen...</option>
-                            <option value="anzahlung">Anzahlungsrechnung</option>
-                            <option value="schluss">Schlussrechnung</option>
-                        </select>
+                    <!-- Kundenwahl (nur für allgemein) -->
+                    <div class="mb-3" id="customer_selection_section" style="display: none;">
+                        <label for="customer_search" class="form-label">Kunde *</label>
+                        <div class="position-relative">
+                            <input type="text" id="customer_search" class="form-control" 
+                                   placeholder="Kundenname oder E-Mail eingeben..." 
+                                   autocomplete="off">
+                            <input type="hidden" name="customer_id" id="customer_id">
+                            <div id="customer_dropdown" class="dropdown-menu position-absolute w-100" style="max-height: 200px; overflow-y: auto; z-index: 1050;">
+                                <!-- Dropdown-Optionen werden hier dynamisch eingefügt -->
+                            </div>
+                        </div>
+                        <div class="form-text">Suchen Sie nach Kundenname oder E-Mail</div>
                     </div>
                     
-                    <div class="mb-3">
+                    <!-- Prozentsatz (nur für anzahlung/schluss) -->
+                    <div class="mb-3" id="percentage_section">
                         <label for="percentage" class="form-label">Prozentsatz *</label>
                         <div class="input-group">
-                            <input type="number" name="percentage" id="percentage" class="form-control" min="1" max="100" step="1" required>
+                            <input type="number" name="percentage" id="percentage" class="form-control" min="1" max="100" step="1">
                             <span class="input-group-text">%</span>
                         </div>
                         <div class="form-text">Typisch: Anzahlung 30%, Schlussrechnung 70%</div>
+                    </div>
+                    
+                    <!-- Betrag (nur für allgemein) -->
+                    <div class="mb-3" id="amount_section" style="display: none;">
+                        <label for="base_amount" class="form-label">Rechnungsbetrag (netto) *</label>
+                        <div class="input-group">
+                            <input type="number" name="base_amount" id="base_amount" class="form-control" min="0.01" step="0.01">
+                            <span class="input-group-text">€</span>
+                        </div>
+                        <div class="form-text">Netto-Betrag ohne Mehrwertsteuer</div>
+                    </div>
+                    
+                    <!-- Leistungsbeschreibung (nur für allgemein) -->
+                    <div class="mb-3" id="service_description_section" style="display: none;">
+                        <label for="service_description" class="form-label">Leistungsbeschreibung *</label>
+                        <textarea name="service_description" id="service_description" class="form-control" rows="3" 
+                                  placeholder="Beschreibung der erbrachten Leistung..."></textarea>
+                        <div class="form-text">Beschreibung der Leistung für die Rechnung</div>
                     </div>
                     
                     <div class="mb-3">
@@ -491,22 +529,44 @@ function deleteInvoice(invoiceId) {
 // Rechnungsdetails anzeigen
 function showInvoiceDetails(invoiceId) {
     fetch(`/invoices/${invoiceId}`)
-    .then(response => response.text())
-    .then(html => {
-        // Erstelle Modal-Container falls nicht vorhanden
-        let modalContainer = document.getElementById('invoiceDetailsModal');
-        if (!modalContainer) {
-            modalContainer = document.createElement('div');
-            modalContainer.id = 'invoiceDetailsModal';
-            document.body.appendChild(modalContainer);
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-        modalContainer.innerHTML = html;
+        return response.text();
+    })
+    .then(html => {
+        // Entferne vorhandenes Modal falls vorhanden
+        const existingModal = document.getElementById('invoiceDetailsModalContainer');
+        if (existingModal) {
+            existingModal.remove();
+        }
         
-        // Modal anzeigen
-        new bootstrap.Modal(modalContainer.querySelector('.modal')).show();
+        // Erstelle neuen Modal-Container
+        const modalContainer = document.createElement('div');
+        modalContainer.id = 'invoiceDetailsModalContainer';
+        modalContainer.innerHTML = html;
+        document.body.appendChild(modalContainer);
+        
+        // Suche nach Modal-Element
+        const modalElement = modalContainer.querySelector('#invoiceDetailsModal');
+        if (modalElement) {
+            const modal = new bootstrap.Modal(modalElement);
+            modal.show();
+            
+            // Modal nach dem Schließen entfernen
+            modalElement.addEventListener('hidden.bs.modal', function () {
+                modalContainer.remove();
+            });
+        } else {
+            console.error('Modal element with ID invoiceDetailsModal not found');
+            console.log('Received HTML:', html.substring(0, 500) + '...');
+            alert('Fehler beim Laden der Details: Modal-Element nicht gefunden');
+        }
     })
     .catch(error => {
-        alert('Fehler beim Laden der Details: ' + error);
+        console.error('Error loading invoice details:', error);
+        alert('Fehler beim Laden der Details: ' + error.message);
     });
 }
 
@@ -517,22 +577,15 @@ document.getElementById('due_date').valueAsDate = new Date(Date.now() + 0 * 24 *
 document.getElementById('paid_date').valueAsDate = new Date();
 
 // Auftragssuche-Funktionalität
-let availableOrders = [
-    {% for order in available_orders %}
-    {
-        id: {{ order.id }},
-        order_number: "{{ order.order_number }}",
-        customer_name: "{{ order.quote.customer.full_name }}",
-        total_amount: "{{ order.quote.total_amount|currency }}",
-        display_text: "{{ order.order_number }} - {{ order.quote.customer.full_name }} ({{ order.quote.total_amount|currency }})"
-    }{% if not loop.last %},{% endif %}
-    {% endfor %}
-];
+let availableOrders = {{ available_orders_json|safe }};
+let availableCustomers = {{ available_customers_json|safe }};
 
 function initOrderSearch() {
     const searchInput = document.getElementById('order_search');
     const hiddenInput = document.getElementById('order_id');
     const dropdown = document.getElementById('order_dropdown');
+    
+    if (!searchInput) return; // Safety check
     
     // Initial alle Aufträge anzeigen
     showOrderOptions(availableOrders);
@@ -552,6 +605,45 @@ function initOrderSearch() {
         );
         
         showOrderOptions(filteredOrders);
+    });
+    
+    searchInput.addEventListener('focus', function() {
+        dropdown.style.display = 'block';
+    });
+    
+    // Dropdown ausblenden wenn außerhalb geklickt wird
+    document.addEventListener('click', function(e) {
+        if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.style.display = 'none';
+        }
+    });
+}
+
+function initCustomerSearch() {
+    const searchInput = document.getElementById('customer_search');
+    const hiddenInput = document.getElementById('customer_id');
+    const dropdown = document.getElementById('customer_dropdown');
+    
+    if (!searchInput) return; // Safety check
+    
+    // Initial alle Kunden anzeigen
+    showCustomerOptions(availableCustomers);
+    
+    searchInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase().trim();
+        hiddenInput.value = ''; // Reset hidden value
+        
+        if (searchTerm === '') {
+            showCustomerOptions(availableCustomers);
+            return;
+        }
+        
+        const filteredCustomers = availableCustomers.filter(customer => 
+            customer.name.toLowerCase().includes(searchTerm) ||
+            customer.email.toLowerCase().includes(searchTerm)
+        );
+        
+        showCustomerOptions(filteredCustomers);
     });
     
     searchInput.addEventListener('focus', function() {
