@@ -148,19 +148,28 @@
                     <tr>
                         <td>
                             <strong>{{ invoice.invoice_number }}</strong><br>
-                            <small class="text-muted">{{ invoice.order.order_number }}</small>
+                            {% if invoice.order %}
+                                <small class="text-muted">{{ invoice.order.order_number }}</small>
+                            {% else %}
+                                <small class="text-muted">Allgemeine Rechnung</small>
+                            {% endif %}
                         </td>
                         <td>
-                            <strong>{{ invoice.order.quote.customer.full_name if invoice.order else invoice.customer.full_name }}</strong><br>
-                            <small class="text-muted">{{ invoice.order.quote.customer.city if invoice.order else invoice.customer.city or '' }}</small>
+                            {% if invoice.order %}
+                                <strong>{{ invoice.order.quote.customer.full_name }}</strong><br>
+                                <small class="text-muted">{{ invoice.order.quote.customer.city or '' }}</small>
+                            {% elif invoice.customer %}
+                                <strong>{{ invoice.customer.full_name }}</strong><br>
+                                <small class="text-muted">{{ invoice.customer.city or '' }}</small>
+                            {% else %}
+                                <span class="text-muted">Unbekannter Kunde</span>
+                            {% endif %}
                         </td>
                         <td>
                             <span class="badge bg-info">
                                 {{ invoice.invoice_type.title() }}
                             </span><br>
-                            {% if invoice.percentage %}
                             <small>{{ invoice.percentage }}%</small>
-                            {% endif %}
                         </td>
                         <td>
                             <strong>{{ invoice.gross_amount|currency }}</strong><br>
@@ -186,13 +195,6 @@
                                    title="PDF herunterladen">
                                     <i class="bi bi-file-pdf"></i>
                                 </a>
-                                
-                                <!-- Details anzeigen -->
-                                <button class="btn btn-outline-info btn-sm" 
-                                        onclick="showInvoiceDetails('{{ invoice.id }}')"
-                                        title="Details anzeigen">
-                                    <i class="bi bi-eye"></i>
-                                </button>
                                 
                                 <!-- Status ändern -->
                                 <div class="btn-group" role="group">
@@ -299,18 +301,7 @@
             </div>
             <form id="createInvoiceForm">
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="invoice_type" class="form-label">Rechnungstyp *</label>
-                        <select name="invoice_type" id="invoice_type" class="form-select" required>
-                            <option value="">Typ auswählen...</option>
-                            <option value="anzahlung">Anzahlungsrechnung</option>
-                            <option value="schluss">Schlussrechnung</option>
-                            <option value="allgemein">Allgemeine Rechnung</option>
-                        </select>
-                    </div>
-                    
-                    <!-- Auftragswahl (nur für anzahlung/schluss) -->
-                    <div class="mb-3" id="order_selection_section">
+                    <div class="mb-3" id="order-selection">
                         <label for="order_search" class="form-label">Auftrag *</label>
                         <div class="position-relative">
                             <input type="text" id="order_search" class="form-control" 
@@ -324,23 +315,35 @@
                         <div class="form-text">Suchen Sie nach Auftragsnummer oder Kundenname</div>
                     </div>
                     
-                    <!-- Kundenwahl (nur für allgemein) -->
-                    <div class="mb-3" id="customer_selection_section" style="display: none;">
-                        <label for="customer_search" class="form-label">Kunde *</label>
-                        <div class="position-relative">
-                            <input type="text" id="customer_search" class="form-control" 
-                                   placeholder="Kundenname oder E-Mail eingeben..." 
-                                   autocomplete="off">
-                            <input type="hidden" name="customer_id" id="customer_id">
-                            <div id="customer_dropdown" class="dropdown-menu position-absolute w-100" style="max-height: 200px; overflow-y: auto; z-index: 1050;">
-                                <!-- Dropdown-Optionen werden hier dynamisch eingefügt -->
-                            </div>
-                        </div>
-                        <div class="form-text">Suchen Sie nach Kundenname oder E-Mail</div>
+                    <div class="mb-3" id="customer-selection" style="display: none;">
+                        <label for="customer_select" class="form-label">Kunde *</label>
+                        <input type="text" id="customer_search" class="form-control mb-2" placeholder="Kunde suchen..." style="display: none;">
+                        <select name="customer_id" id="customer_select" class="form-select">
+                            <option value="">Kunde auswählen...</option>
+                            {% for customer in customers %}
+                            <option value="{{ customer.id }}">{{ customer.full_name }} - {{ customer.email }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Wählen Sie den Kunden für die allgemeine Rechnung</div>
                     </div>
                     
-                    <!-- Prozentsatz (nur für anzahlung/schluss) -->
-                    <div class="mb-3" id="percentage_section">
+                    <div class="mb-3" id="service-description" style="display: none;">
+                        <label for="service_description" class="form-label">Leistungsbeschreibung *</label>
+                        <textarea name="service_description" id="service_description" class="form-control" rows="3" placeholder="Beschreibung der erbrachten Leistung..."></textarea>
+                        <div class="form-text">Geben Sie eine detaillierte Beschreibung der erbrachten Leistung ein</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="invoice_type" class="form-label">Rechnungstyp *</label>
+                        <select name="invoice_type" id="invoice_type" class="form-select" required>
+                            <option value="">Typ auswählen...</option>
+                            <option value="anzahlung">Anzahlungsrechnung</option>
+                            <option value="schluss">Schlussrechnung</option>
+                            <option value="allgemein">Allgemeine Rechnung</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3" id="percentage-group">
                         <label for="percentage" class="form-label">Prozentsatz *</label>
                         <div class="input-group">
                             <input type="number" name="percentage" id="percentage" class="form-control" min="1" max="100" step="1">
@@ -349,22 +352,13 @@
                         <div class="form-text">Typisch: Anzahlung 30%, Schlussrechnung 70%</div>
                     </div>
                     
-                    <!-- Betrag (nur für allgemein) -->
-                    <div class="mb-3" id="amount_section" style="display: none;">
+                    <div class="mb-3" id="base-amount-group" style="display: none;">
                         <label for="base_amount" class="form-label">Rechnungsbetrag (netto) *</label>
                         <div class="input-group">
-                            <input type="number" name="base_amount" id="base_amount" class="form-control" min="0.01" step="0.01">
+                            <input type="number" name="base_amount" id="base_amount" class="form-control" min="0" step="0.01" placeholder="0.00">
                             <span class="input-group-text">€</span>
                         </div>
-                        <div class="form-text">Netto-Betrag ohne Mehrwertsteuer</div>
-                    </div>
-                    
-                    <!-- Leistungsbeschreibung (nur für allgemein) -->
-                    <div class="mb-3" id="service_description_section" style="display: none;">
-                        <label for="service_description" class="form-label">Leistungsbeschreibung *</label>
-                        <textarea name="service_description" id="service_description" class="form-control" rows="3" 
-                                  placeholder="Beschreibung der erbrachten Leistung..."></textarea>
-                        <div class="form-text">Beschreibung der Leistung für die Rechnung</div>
+                        <div class="form-text">Geben Sie den Netto-Betrag für die allgemeine Rechnung ein</div>
                     </div>
                     
                     <div class="mb-3">
@@ -422,14 +416,32 @@
 document.getElementById('createInvoiceForm').addEventListener('submit', function(e) {
     e.preventDefault();
     
-    // Zusätzliche Validierung für verstecktes Feld
+    const invoiceType = document.getElementById('invoice_type').value;
     const orderIdField = document.getElementById('order_id');
     const orderSearchField = document.getElementById('order_search');
+    const customerSelectField = document.getElementById('customer_select');
+    const baseAmountField = document.getElementById('base_amount');
     
-    if (!orderIdField.value) {
-        alert('Bitte wählen Sie einen Auftrag aus.');
-        orderSearchField.focus();
-        return;
+    // Validierung basierend auf Rechnungstyp
+    if (invoiceType === 'allgemein') {
+        // Allgemeine Rechnung: Kunde und Betrag erforderlich
+        if (!customerSelectField.value) {
+            alert('Bitte wählen Sie einen Kunden aus.');
+            customerSelectField.focus();
+            return;
+        }
+        if (!baseAmountField.value || parseFloat(baseAmountField.value) <= 0) {
+            alert('Bitte geben Sie einen gültigen Rechnungsbetrag ein.');
+            baseAmountField.focus();
+            return;
+        }
+    } else {
+        // Anzahlung/Schluss: Auftrag erforderlich
+        if (!orderIdField.value) {
+            alert('Bitte wählen Sie einen Auftrag aus.');
+            orderSearchField.focus();
+            return;
+        }
     }
     
     const formData = new FormData(this);
@@ -526,50 +538,6 @@ function deleteInvoice(invoiceId) {
     }
 }
 
-// Rechnungsdetails anzeigen
-function showInvoiceDetails(invoiceId) {
-    fetch(`/invoices/${invoiceId}`)
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        return response.text();
-    })
-    .then(html => {
-        // Entferne vorhandenes Modal falls vorhanden
-        const existingModal = document.getElementById('invoiceDetailsModalContainer');
-        if (existingModal) {
-            existingModal.remove();
-        }
-        
-        // Erstelle neuen Modal-Container
-        const modalContainer = document.createElement('div');
-        modalContainer.id = 'invoiceDetailsModalContainer';
-        modalContainer.innerHTML = html;
-        document.body.appendChild(modalContainer);
-        
-        // Suche nach Modal-Element
-        const modalElement = modalContainer.querySelector('#invoiceDetailsModal');
-        if (modalElement) {
-            const modal = new bootstrap.Modal(modalElement);
-            modal.show();
-            
-            // Modal nach dem Schließen entfernen
-            modalElement.addEventListener('hidden.bs.modal', function () {
-                modalContainer.remove();
-            });
-        } else {
-            console.error('Modal element with ID invoiceDetailsModal not found');
-            console.log('Received HTML:', html.substring(0, 500) + '...');
-            alert('Fehler beim Laden der Details: Modal-Element nicht gefunden');
-        }
-    })
-    .catch(error => {
-        console.error('Error loading invoice details:', error);
-        alert('Fehler beim Laden der Details: ' + error.message);
-    });
-}
-
 // Fälligkeitsdatum automatisch setzen
 document.getElementById('due_date').valueAsDate = new Date(Date.now() + 0 * 24 * 60 * 60 * 1000);
 
@@ -578,14 +546,11 @@ document.getElementById('paid_date').valueAsDate = new Date();
 
 // Auftragssuche-Funktionalität
 let availableOrders = {{ available_orders_json|safe }};
-let availableCustomers = {{ available_customers_json|safe }};
 
 function initOrderSearch() {
     const searchInput = document.getElementById('order_search');
     const hiddenInput = document.getElementById('order_id');
     const dropdown = document.getElementById('order_dropdown');
-    
-    if (!searchInput) return; // Safety check
     
     // Initial alle Aufträge anzeigen
     showOrderOptions(availableOrders);
@@ -605,45 +570,6 @@ function initOrderSearch() {
         );
         
         showOrderOptions(filteredOrders);
-    });
-    
-    searchInput.addEventListener('focus', function() {
-        dropdown.style.display = 'block';
-    });
-    
-    // Dropdown ausblenden wenn außerhalb geklickt wird
-    document.addEventListener('click', function(e) {
-        if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
-            dropdown.style.display = 'none';
-        }
-    });
-}
-
-function initCustomerSearch() {
-    const searchInput = document.getElementById('customer_search');
-    const hiddenInput = document.getElementById('customer_id');
-    const dropdown = document.getElementById('customer_dropdown');
-    
-    if (!searchInput) return; // Safety check
-    
-    // Initial alle Kunden anzeigen
-    showCustomerOptions(availableCustomers);
-    
-    searchInput.addEventListener('input', function() {
-        const searchTerm = this.value.toLowerCase().trim();
-        hiddenInput.value = ''; // Reset hidden value
-        
-        if (searchTerm === '') {
-            showCustomerOptions(availableCustomers);
-            return;
-        }
-        
-        const filteredCustomers = availableCustomers.filter(customer => 
-            customer.name.toLowerCase().includes(searchTerm) ||
-            customer.email.toLowerCase().includes(searchTerm)
-        );
-        
-        showCustomerOptions(filteredCustomers);
     });
     
     searchInput.addEventListener('focus', function() {
@@ -707,11 +633,108 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Prozentsatz-Vorschläge basierend auf Rechnungstyp
 document.getElementById('invoice_type').addEventListener('change', function() {
+    const invoiceType = this.value;
+    const percentageGroup = document.getElementById('percentage-group');
     const percentageField = document.getElementById('percentage');
-    if (this.value === 'anzahlung') {
-        percentageField.value = 30;
-    } else if (this.value === 'schluss') {
-        percentageField.value = 70;
+    const baseAmountGroup = document.getElementById('base-amount-group');
+    const baseAmountField = document.getElementById('base_amount');
+    const orderSelection = document.getElementById('order-selection');
+    const customerSelection = document.getElementById('customer-selection');
+    const serviceDescription = document.getElementById('service-description');
+    const orderSearchField = document.getElementById('order_search');
+    const orderIdField = document.getElementById('order_id');
+    const customerSelectField = document.getElementById('customer_select');
+    const serviceDescriptionField = document.getElementById('service_description');
+    
+    if (invoiceType === 'allgemein') {
+        // Allgemeine Rechnung: Kundenauswahl statt Auftragsauswahl, Betrag statt Prozentsatz
+        orderSelection.style.display = 'none';
+        customerSelection.style.display = 'block';
+        serviceDescription.style.display = 'block';
+        percentageGroup.style.display = 'none';
+        baseAmountGroup.style.display = 'block';
+        
+        // Felder als required/nicht required setzen
+        orderSearchField.removeAttribute('required');
+        orderIdField.removeAttribute('required');
+        percentageField.removeAttribute('required');
+        customerSelectField.setAttribute('required', 'required');
+        serviceDescriptionField.setAttribute('required', 'required');
+        baseAmountField.setAttribute('required', 'required');
+        
+        // Werte zurücksetzen
+        orderSearchField.value = '';
+        orderIdField.value = '';
+        percentageField.value = '';
+    } else {
+        // Anzahlung/Schluss: Auftragsauswahl und Prozentsatz
+        orderSelection.style.display = 'block';
+        customerSelection.style.display = 'none';
+        serviceDescription.style.display = 'none';
+        percentageGroup.style.display = 'block';
+        baseAmountGroup.style.display = 'none';
+        
+        // Felder als required/nicht required setzen
+        orderSearchField.setAttribute('required', 'required');
+        orderIdField.setAttribute('required', 'required');
+        percentageField.setAttribute('required', 'required');
+        customerSelectField.removeAttribute('required');
+        serviceDescriptionField.removeAttribute('required');
+        baseAmountField.removeAttribute('required');
+        
+        // Werte zurücksetzen
+        customerSelectField.value = '';
+        serviceDescriptionField.value = '';
+        baseAmountField.value = '';
+        
+        // Prozentsatz-Vorschläge
+        if (invoiceType === 'anzahlung') {
+            percentageField.value = 30;
+        } else if (invoiceType === 'schluss') {
+            percentageField.value = 70;
+        }
+    }
+});
+
+// Kundensuchfunktion
+document.getElementById('customer_search').addEventListener('input', function() {
+    const searchTerm = this.value.toLowerCase();
+    const customerSelect = document.getElementById('customer_select');
+    const options = customerSelect.getElementsByTagName('option');
+    
+    for (let i = 1; i < options.length; i++) { // Skip first empty option
+        const option = options[i];
+        const customerName = option.textContent.toLowerCase();
+        
+        if (customerName.includes(searchTerm)) {
+            option.style.display = 'block';
+        } else {
+            option.style.display = 'none';
+        }
+    }
+    
+    // Automatisch ersten sichtbaren Kunden auswählen wenn nur einer gefunden
+    const visibleOptions = Array.from(options).filter(opt => opt.style.display !== 'none' && opt.value);
+    if (visibleOptions.length === 1) {
+        customerSelect.value = visibleOptions[0].value;
+    }
+});
+
+// Suchfeld anzeigen/verstecken basierend auf Rechnungstyp
+document.getElementById('invoice_type').addEventListener('change', function() {
+    const searchField = document.getElementById('customer_search');
+    const selectField = document.getElementById('customer_select');
+    
+    if (this.value === 'allgemein') {
+        searchField.style.display = 'block';
+        // Alle Optionen wieder anzeigen
+        const options = selectField.getElementsByTagName('option');
+        for (let option of options) {
+            option.style.display = 'block';
+        }
+    } else {
+        searchField.style.display = 'none';
+        searchField.value = '';
     }
 });
 </script>
