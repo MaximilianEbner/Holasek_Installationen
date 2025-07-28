@@ -3446,8 +3446,8 @@ def invoices():
         Order.status.in_(['Angenommen', 'Geplant', 'In Arbeit', 'Abgeschlossen'])
     ).all()
     
-    # Verfügbare Kunden für allgemeine Rechnungen
-    available_customers = Customer.query.order_by(Customer.last_name, Customer.first_name).all()
+    # Alle Kunden für allgemeine Rechnungen
+    customers = Customer.query.order_by(Customer.last_name, Customer.first_name).all()
     
     # JSON-Daten für JavaScript vorbereiten
     import json
@@ -3462,23 +3462,12 @@ def invoices():
         for order in available_orders
     ])
     
-    available_customers_json = json.dumps([
-        {
-            "id": customer.id,
-            "name": customer.full_name,
-            "email": customer.email,
-            "display_text": f"{customer.full_name} ({customer.email})"
-        }
-        for customer in available_customers
-    ])
-    
     return render_template('invoices.html',
                          invoices=invoices,
                          stats=stats,
                          available_orders=available_orders,
-                         available_customers=available_customers,
+                         customers=customers,
                          available_orders_json=available_orders_json,
-                         available_customers_json=available_customers_json,
                          today=date.today)
 
 @app.route('/invoices/create', methods=['POST'])
@@ -3489,7 +3478,7 @@ def create_invoice():
     from datetime import datetime, date, timedelta
     
     try:
-        # Formular-Daten-Extraktion
+        # Sichere Formular-Daten-Extraktion
         order_id = request.form.get('order_id')
         customer_id = request.form.get('customer_id')
         invoice_type = request.form.get('invoice_type')
@@ -3504,16 +3493,16 @@ def create_invoice():
         if not due_date_str:
             return jsonify({'success': False, 'message': 'Fälligkeitsdatum ist erforderlich'})
         
-        # Sichere Konvertierung des Datums
+        # Sichere Konvertierung des Fälligkeitsdatums
         try:
             due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
         except (ValueError, TypeError) as e:
             return jsonify({'success': False, 'message': f'Ungültiges Fälligkeitsdatum: {str(e)}'})
         
         if invoice_type == 'allgemein':
-            # Allgemeine Rechnung: Kunde und Betrag erforderlich
+            # Allgemeine Rechnung: Kunde, Betrag und Leistungsbeschreibung erforderlich
             if not customer_id:
-                return jsonify({'success': False, 'message': 'Kunde ist für allgemeine Rechnungen erforderlich'})
+                return jsonify({'success': False, 'message': 'Kunde ist erforderlich'})
             if not base_amount_str:
                 return jsonify({'success': False, 'message': 'Rechnungsbetrag ist erforderlich'})
             if not service_description:
@@ -3529,25 +3518,11 @@ def create_invoice():
                 return jsonify({'success': False, 'message': 'Rechnungsbetrag muss größer als 0 sein'})
             
             customer = Customer.query.get_or_404(customer_id)
-            
-            # Neue allgemeine Rechnung erstellen
-            invoice = Invoice(
-                invoice_number=Invoice.generate_invoice_number(),
-                customer_id=customer_id,
-                invoice_type=invoice_type,
-                base_amount=base_amount,
-                service_description=service_description,
-                due_date=due_date,
-                payment_terms=14,
-                vat_rate=20.0,
-                invoice_amount=0.0,
-                final_amount=0.0,
-                vat_amount=0.0,
-                gross_amount=0.0
-            )
+            order = None
+            percentage = 100.0  # Allgemeine Rechnungen sind immer 100%
             
         else:
-            # Auftragsbezogene Rechnung (anzahlung/schluss)
+            # Anzahlung/Schluss: Auftrag und Prozentsatz erforderlich
             if not order_id:
                 return jsonify({'success': False, 'message': 'Auftrag ist erforderlich'})
             if not percentage_str:
@@ -3564,18 +3539,38 @@ def create_invoice():
                 return jsonify({'success': False, 'message': 'Prozentsatz muss zwischen 1 und 100 liegen'})
             
             order = Order.query.get_or_404(order_id)
+            customer = order.quote.customer
             
             # Prüfen ob Rechnung bereits existiert
             existing = Invoice.query.filter_by(order_id=order_id, invoice_type=invoice_type).first()
             if existing:
                 return jsonify({'success': False, 'message': f'{invoice_type.title()}rechnung existiert bereits'})
             
-            # Grundbetrag aus Angebot holen
-            base_amount = order.quote.total_amount
+            # Grundbetrag aus Angebot holen - MIT Aufschlag
+            base_amount = order.quote.total_amount  # Das ist die Auftragssumme mit Aufschlag
             if base_amount is None or base_amount <= 0:
                 return jsonify({'success': False, 'message': 'Auftragswert konnte nicht ermittelt werden'})
-            
-            # Neue Rechnung erstellen
+        
+        # Neue Rechnung erstellen
+        if invoice_type == 'allgemein':
+            # Allgemeine Rechnung - nur mit Kunde verknüpft
+            invoice = Invoice(
+                invoice_number=Invoice.generate_invoice_number(),
+                customer_id=customer_id,
+                invoice_type=invoice_type,
+                percentage=percentage,
+                base_amount=base_amount,
+                due_date=due_date,
+                payment_terms=14,
+                vat_rate=20.0,           # Explizit 20% MwSt setzen
+                service_description=service_description,  # Leistungsbeschreibung speichern
+                invoice_amount=0.0,      # Wird in calculate_amounts gesetzt
+                final_amount=0.0,        # Wird in calculate_amounts gesetzt
+                vat_amount=0.0,          # Wird in calculate_amounts gesetzt
+                gross_amount=0.0         # Wird in calculate_amounts gesetzt
+            )
+        else:
+            # Auftrags-basierte Rechnung (anzahlung/schluss)
             invoice = Invoice(
                 invoice_number=Invoice.generate_invoice_number(),
                 order_id=order_id,
@@ -3584,11 +3579,11 @@ def create_invoice():
                 base_amount=base_amount,
                 due_date=due_date,
                 payment_terms=14,
-                vat_rate=20.0,
-                invoice_amount=0.0,
-                final_amount=0.0,
-                vat_amount=0.0,
-                gross_amount=0.0
+                vat_rate=20.0,           # Explizit 20% MwSt setzen
+                invoice_amount=0.0,      # Wird in calculate_amounts gesetzt
+                final_amount=0.0,        # Wird in calculate_amounts gesetzt
+                vat_amount=0.0,          # Wird in calculate_amounts gesetzt
+                gross_amount=0.0         # Wird in calculate_amounts gesetzt
             )
             
             # Für Schlussrechnung: Bereits erhaltene Anzahlungen berechnen
@@ -3635,17 +3630,6 @@ def mark_invoice_paid(id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': f'Fehler: {str(e)}'})
-
-@app.route('/invoices/<int:id>', methods=['GET'])
-@login_required
-def invoice_details(id):
-    """Liefert Rechnungsdetails als HTML Modal"""
-    from models import Invoice
-    
-    invoice = Invoice.query.get_or_404(id)
-    
-    # HTML für Modal zurückgeben
-    return render_template('invoice_details.html', invoice=invoice)
 
 @app.route('/invoices/<int:id>/delete', methods=['DELETE'])
 @login_required
@@ -3765,7 +3749,12 @@ def download_invoice_pdf(id):
         pdf_buffer = pdf_generator.generate_invoice_pdf(invoice)
         
         # Dateiname erstellen
-        filename = f"Rechnung_{invoice.invoice_number}_{invoice.order.quote.customer.last_name}.pdf"
+        if invoice.order:
+            customer_name = invoice.order.quote.customer.last_name
+        else:
+            customer_name = invoice.customer.last_name
+        
+        filename = f"Rechnung_{invoice.invoice_number}_{customer_name}.pdf"
         
         return send_file(
             pdf_buffer,

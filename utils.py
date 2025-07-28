@@ -6,6 +6,48 @@ import csv
 from datetime import date
 from models import db, PositionTemplate, Supplier, CompanySettings, Quote
 
+def format_currency_de(amount):
+    """Formatiert Beträge im deutschen Format: 1.234,56 €"""
+    if amount is None:
+        return "0,00 €"
+    
+    # Auf 2 Dezimalstellen runden
+    amount = round(float(amount), 2)
+    
+    # In String umwandeln und Teile trennen
+    amount_str = f"{amount:.2f}"
+    integer_part, decimal_part = amount_str.split('.')
+    
+    # Tausendertrennzeichen hinzufügen
+    integer_with_dots = ""
+    for i, digit in enumerate(reversed(integer_part)):
+        if i > 0 and i % 3 == 0:
+            integer_with_dots = "." + integer_with_dots
+        integer_with_dots = digit + integer_with_dots
+    
+    return f"{integer_with_dots},{decimal_part} €"
+
+def format_number_de(number):
+    """Formatiert Zahlen im deutschen Format: 1.234,56"""
+    if number is None:
+        return "0,00"
+    
+    # Auf 2 Dezimalstellen runden
+    number = round(float(number), 2)
+    
+    # In String umwandeln und Teile trennen
+    number_str = f"{number:.2f}"
+    integer_part, decimal_part = number_str.split('.')
+    
+    # Tausendertrennzeichen hinzufügen
+    integer_with_dots = ""
+    for i, digit in enumerate(reversed(integer_part)):
+        if i > 0 and i % 3 == 0:
+            integer_with_dots = "." + integer_with_dots
+        integer_with_dots = digit + integer_with_dots
+    
+    return f"{integer_with_dots},{decimal_part}"
+
 def get_default_hourly_rate():
     """Lädt den aktuellen Standard-Stundensatz"""
     return CompanySettings.get_setting('default_hourly_rate', 95.0)

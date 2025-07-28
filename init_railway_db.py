@@ -17,8 +17,14 @@ def init_railway_database():
         print("Dieses Skript muss auf Railway ausgeführt werden.")
         sys.exit(1)
     
+    # Prüfe und setze SECRET_KEY falls nicht vorhanden
+    if not os.environ.get('SECRET_KEY'):
+        print("⚠️  Warnung: SECRET_KEY nicht gefunden - setze Fallback-Wert")
+        os.environ['SECRET_KEY'] = 'railway-fallback-secret-key-' + str(int(time.time()))
+    
     print("🚀 Initialisiere Railway-Datenbank...")
     print(f"📊 Datenbank URL: {os.environ.get('DATABASE_URL', '').split('@')[0] if '@' in os.environ.get('DATABASE_URL', '') else 'local'}@***")
+    print(f"🔑 SECRET_KEY: {'✅ Gesetzt' if os.environ.get('SECRET_KEY') else '❌ Fehlt'}")
     
     # Retry-Mechanismus für Datenbankverbindung
     max_retries = 3
@@ -46,6 +52,9 @@ def init_railway_database():
                                   WorkInstruction, Invoice)
                 
                 print("📋 Erstelle alle Tabellen...")
+                # Lösche alle bestehenden Tabellen um Schema-Konflikte zu vermeiden
+                db.drop_all()
+                # Erstelle alle Tabellen neu
                 db.create_all()
                 
                 # Prüfe ob bereits Daten vorhanden sind

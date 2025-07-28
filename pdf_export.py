@@ -13,6 +13,7 @@ from models import Quote
 import os
 import json
 from pypdf import PdfWriter, PdfReader
+from utils import format_currency_de
 
 class PDFExporter:
     """Klasse für PDF-Export von Angeboten"""
@@ -295,7 +296,7 @@ class PDFExporter:
                 main_pos_data = [[Paragraph(pos_title, main_pos_style), ""]]
             else:
                 # Standard/Detailed Modus: Positionspreise mit Aufschlag anzeigen
-                pos_price = f"{item.calculate_price_with_markup():.2f} EUR"
+                pos_price = format_currency_de(item.calculate_price_with_markup())
                 main_pos_data = [[Paragraph(pos_title, main_pos_style), Paragraph(pos_price, price_style)]]
             main_pos_table = Table(main_pos_data, colWidths=[13*cm, 4*cm])
             main_pos_table.setStyle(TableStyle([
@@ -327,7 +328,7 @@ class PDFExporter:
                     if display_mode == 'detailed' and sub_item.price > 0:
                         # Detailliert: Zeige Unterpositionspreise mit Aufschlag
                         sub_price_with_markup = sub_item.calculate_price_with_markup()
-                        sub_text = f"{sub_item.sub_number} {sub_item.description} - {sub_price_with_markup:.2f} EUR"
+                        sub_text = f"{sub_item.sub_number} {sub_item.description} - {format_currency_de(sub_price_with_markup)}"
                     else:
                         # Standard und Total_only: Keine Preise für Unterpositionen
                         sub_text = f"{sub_item.sub_number} {sub_item.description}"
@@ -361,9 +362,9 @@ class PDFExporter:
         
         # Preisaufschlüsselung
         price_data = [
-            ['', 'Summe Netto:', f"{netto_summe:.2f} EUR"],
-            ['', 'USt 20%:', f"{ust_betrag:.2f} EUR"],
-            ['', 'Gesamtsumme (Brutto):', f"{brutto_summe:.2f} EUR"]
+            ['', 'Summe Netto:', format_currency_de(netto_summe)],
+            ['', 'USt 20%:', format_currency_de(ust_betrag)],
+            ['', 'Gesamtsumme (Brutto):', format_currency_de(brutto_summe)]
         ]
         
         price_table = Table(price_data, colWidths=[6*cm, 7*cm, 4*cm])

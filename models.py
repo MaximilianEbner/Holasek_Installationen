@@ -556,15 +556,15 @@ class AcquisitionChannel(db.Model):
         return f'<AcquisitionChannel {self.name}>'
 
 class Invoice(db.Model):
-    """Rechnungsmodell für Anzahlungs-, Schluss- und allgemeine Rechnungen"""
+    """Rechnungsmodell für Anzahlungs- und Schlussrechnungen"""
     id = db.Column(db.Integer, primary_key=True)
     invoice_number = db.Column(db.String(50), unique=True, nullable=False)  # z.B. "R-2025-001"
-    order_id = db.Column(db.Integer, db.ForeignKey('order.id'), nullable=True)  # Jetzt optional für allgemeine Rechnungen
-    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=True)  # Direkte Kundenverknüpfung für allgemeine Rechnungen
+    order_id = db.Column(db.Integer, db.ForeignKey('order.id'), nullable=True)  # Für allgemeine Rechnungen optional
+    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=True)  # Für allgemeine Rechnungen
     invoice_type = db.Column(db.String(20), nullable=False)  # 'anzahlung', 'schluss', 'allgemein'
-    percentage = db.Column(db.Float, nullable=True)  # Nur für anzahlung/schluss relevant
-    base_amount = db.Column(db.Float, nullable=False)  # Grundbetrag des Auftrags (netto) oder frei eingegebener Betrag
-    invoice_amount = db.Column(db.Float, nullable=False)  # Rechnungsbetrag (% vom Grundbetrag oder base_amount)
+    percentage = db.Column(db.Float, nullable=False)  # 30.0, 70.0
+    base_amount = db.Column(db.Float, nullable=False)  # Grundbetrag des Auftrags (netto)
+    invoice_amount = db.Column(db.Float, nullable=False)  # Rechnungsbetrag (% vom Grundbetrag)
     previous_payments = db.Column(db.Float, default=0.0)  # Bereits erhaltene Anzahlungen
     final_amount = db.Column(db.Float, nullable=False)  # Finaler Rechnungsbetrag
     vat_rate = db.Column(db.Float, default=20.0)  # MwSt.-Satz in Prozent
@@ -576,16 +576,13 @@ class Invoice(db.Model):
     paid_date = db.Column(db.Date, nullable=True)  # Bezahldatum
     payment_reference = db.Column(db.String(100), nullable=True)  # Zahlungsreferenz
     comments = db.Column(db.Text, nullable=True)  # Kommentare und Notizen
-    
-    # Für allgemeine Rechnungen: Freie Beschreibung der Leistung
-    service_description = db.Column(db.Text, nullable=True)  # Beschreibung der erbrachten Leistung
-    
+    service_description = db.Column(db.Text, nullable=True)  # Leistungsbeschreibung für allgemeine Rechnungen
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
     order = db.relationship('Order', backref=db.backref('invoices', lazy=True, cascade='all, delete-orphan'))
-    customer = db.relationship('Customer', backref=db.backref('direct_invoices', lazy=True))
+    customer = db.relationship('Customer', backref=db.backref('invoices', lazy=True))
     
     def __repr__(self):
         return f'<Invoice {self.invoice_number} - {self.invoice_type.title()} - {self.final_amount}€>'
@@ -614,7 +611,7 @@ class Invoice(db.Model):
         return f'R-{year}-{new_number:03d}'
     
     def calculate_amounts(self):
-        """Berechnet alle Beträge basierend auf Grundbetrag und Prozentsatz oder freiem Betrag"""
+        """Berechnet alle Beträge basierend auf Grundbetrag und Prozentsatz"""
         # Sichere Behandlung von None-Werten
         if self.base_amount is None:
             raise ValueError("Grundbetrag darf nicht None sein")
@@ -624,13 +621,14 @@ class Invoice(db.Model):
             self.previous_payments = 0.0
         
         if self.invoice_type == 'allgemein':
-            # Bei allgemeinen Rechnungen: base_amount ist der finale Rechnungsbetrag (netto)
+            # Bei allgemeinen Rechnungen: final_amount = base_amount
+            self.percentage = 100.0  # Immer 100% bei allgemeinen Rechnungen
             self.invoice_amount = self.base_amount
             self.final_amount = self.base_amount
         else:
-            # Bei Anzahlung/Schluss: Prozentsatz-basierte Berechnung
+            # Für Anzahlungs- und Schlussrechnungen
             if self.percentage is None:
-                raise ValueError("Prozentsatz darf bei Anzahlung/Schluss nicht None sein")
+                raise ValueError("Prozentsatz darf nicht None sein")
             
             self.invoice_amount = self.base_amount * (self.percentage / 100)
             
@@ -638,7 +636,7 @@ class Invoice(db.Model):
                 # Bei Schlussrechnung: Restbetrag = Auftragssumme - bereits erhaltene Anzahlungen
                 self.final_amount = self.base_amount - self.previous_payments
             else:
-                # Bei Anzahlung: final_amount ist der Prozentsatz-Betrag
+                # Bei Anzahlungsrechnungen: final_amount ist der Prozentsatz-Betrag
                 self.final_amount = self.invoice_amount
         
         # MwSt. berechnen auf final_amount
@@ -685,22 +683,12 @@ class Invoice(db.Model):
     
     def get_type_display(self):
         """Gibt den anzeigbaren Typ zurück"""
-        if self.invoice_type == 'anzahlung':
-            return 'Anzahlungsrechnung'
-        elif self.invoice_type == 'schluss':
-            return 'Schlussrechnung'
-        elif self.invoice_type == 'allgemein':
-            return 'Rechnung'
-        else:
-            return self.invoice_type.title()
-    
-    def get_customer(self):
-        """Gibt den zugehörigen Kunden zurück (über Auftrag oder direkt)"""
-        if self.customer:
-            return self.customer
-        elif self.order and self.order.quote:
-            return self.order.quote.customer
-        return None
+        type_map = {
+            'anzahlung': 'Anzahlungsrechnung',
+            'schluss': 'Schlussrechnung',
+            'allgemein': 'Rechnung'
+        }
+        return type_map.get(self.invoice_type, 'Rechnung')
 
 
 class LoginAdmin(db.Model):

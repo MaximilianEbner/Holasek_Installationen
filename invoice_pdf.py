@@ -13,6 +13,7 @@ from io import BytesIO
 from datetime import datetime
 import os
 from models import CompanySettings
+from utils import format_currency_de, format_number_de
 
 class InvoicePDFGenerator:
     def __init__(self):
@@ -53,9 +54,6 @@ class InvoicePDFGenerator:
             
             # Rechnungsbeträge (vereinfacht für Anzahlungen/Schlussrechnungen)
             self.draw_invoice_amounts(c, invoice)
-            
-            # Footer - einmalig
-            self._setup_footer(c)
             
             c.save()
             buffer.seek(0)
@@ -116,8 +114,11 @@ class InvoicePDFGenerator:
             f"Rechnungsnummer: {invoice.invoice_number}",
             f"Rechnungsdatum: {invoice.created_at.strftime('%d.%m.%Y')}",
             f"Fälligkeitsdatum: {invoice.due_date.strftime('%d.%m.%Y')}",
-            f"Auftragsnummer: {invoice.order.order_number}",
         ]
+        
+        # Auftragsnummer nur bei auftragsbasierten Rechnungen
+        if invoice.order:
+            details.append(f"Auftragsnummer: {invoice.order.order_number}")
         
         for detail in details:
             c.drawRightString(self.width - self.margin, y_pos, detail)
@@ -126,7 +127,12 @@ class InvoicePDFGenerator:
     def draw_customer_info(self, c, invoice):
         """Zeichnet die Kundeninformationen im Adressfeld"""
         y_start = self.height - 6*cm
-        customer = invoice.order.quote.customer
+        
+        # Kunde ermitteln - entweder über Auftrag oder direkt
+        if invoice.order:
+            customer = invoice.order.quote.customer
+        else:
+            customer = invoice.customer
         
         # Firmenzeile oberhalb der Kundendaten in Schriftgröße 8
         c.setFont("Helvetica", 8)
@@ -160,13 +166,23 @@ class InvoicePDFGenerator:
         """Zeichnet die Rechnungsbeträge mit verbessertem Layout"""
         y_start = self.height - 12*cm
         
-        # Dankestext mit Angebotsnummer
+        # Dankestext 
         c.setFont("Helvetica", 10)
-        quote_number = invoice.order.quote.quote_number
-        thanks_text = [
-            "Herzlichen Dank für Ihr Vertrauen in unsere Produkte. Wir erlauben uns folgende Beträge in Rechnung zu stellen",
-            "und freuen uns, wenn wir auch in Zukunft für Sie tätig werden dürfen.",  
-        ]
+        
+        if invoice.order:
+            # Für auftragsbasierte Rechnungen mit Angebotsnummer
+            quote_number = invoice.order.quote.quote_number
+            thanks_text = [
+                "Herzlichen Dank für Ihr Vertrauen in unsere Produkte. Wir erlauben uns folgende Beträge in",
+                "Rechnung zu stellen und freuen uns, wenn wir auch in Zukunft für Sie tätig werden dürfen.",  
+            ]
+        else:
+            # Für allgemeine Rechnungen
+            quote_number = None
+            thanks_text = [
+                "Herzlichen Dank für Ihr Vertrauen in unsere Dienstleistungen. Wir erlauben uns folgende Beträge in",
+                "Rechnung zu stellen und freuen uns, wenn wir auch in Zukunft für Sie tätig werden dürfen.",
+            ]
         
         y_pos = y_start
         for line in thanks_text:
@@ -183,7 +199,12 @@ class InvoicePDFGenerator:
         
         y_pos -= 0.7*cm
         c.setFont("Helvetica", 11)
-        project_desc = invoice.order.quote.project_description or "Installationsarbeiten"
+        
+        if invoice.order:
+            project_desc = invoice.order.quote.project_description or "Installationsarbeiten"
+        else:
+            # Für allgemeine Rechnungen: Verwende service_description
+            project_desc = invoice.service_description or "Allgemeine Dienstleistungen"
         
         # Projektbeschreibung anzeigen - Text umbrechen falls zu lang
         if len(project_desc) > 70:
@@ -206,11 +227,12 @@ class InvoicePDFGenerator:
             c.drawString(self.margin, y_pos, line)
             y_pos -= 0.5*cm
         
-        # Angebotsnummer unter der Projektbeschreibung hinzufügen
-        y_pos -= 0.3*cm
-        angebots_text = f'Verrechnung gemäß Angebot: "{quote_number}"'
-        c.drawString(self.margin, y_pos, angebots_text)
-        y_pos -= 0.5*cm
+        # Angebotsnummer nur bei auftragsbasierten Rechnungen
+        if quote_number:
+            y_pos -= 0.3*cm
+            angebots_text = f'Verrechnung gemäß Angebot: "{quote_number}"'
+            c.drawString(self.margin, y_pos, angebots_text)
+            y_pos -= 0.5*cm
         
         # Beträge-Tabelle
         y_pos -= 1*cm
@@ -232,12 +254,12 @@ class InvoicePDFGenerator:
         c.setFont("Helvetica", 11)
         
         rows = [
-            (f"Auftragssumme netto", f"{invoice.base_amount:.2f} €")
+            (f"Auftragssumme netto" if invoice.order else "Leistungssumme netto", format_currency_de(invoice.base_amount))
                     ]
         
         # Abzug bei Schlussrechnung
         if invoice.invoice_type == 'schluss' and invoice.previous_payments > 0:
-            rows.append(("Abzüglich bereits erhaltener Anzahlungen (netto)", f"- {invoice.previous_payments:.2f} €"))
+            rows.append(("Abzüglich bereits erhaltener Anzahlungen (netto)", f"- {format_currency_de(invoice.previous_payments)}"))
         
         for desc, amount in rows:
             c.drawString(self.margin, y_pos, desc)
@@ -254,16 +276,16 @@ class InvoicePDFGenerator:
         if invoice.invoice_type == 'anzahlung':
             # Bei Anzahlungen: Anzahlungssumme
             c.drawString(self.margin, y_pos, f"Anzahlungssumme netto ({invoice.percentage:.0f}%):")
-            c.drawRightString(self.width - self.margin, y_pos, f"{invoice.final_amount:.2f} €")
+            c.drawRightString(self.width - self.margin, y_pos, format_currency_de(invoice.final_amount))
         elif invoice.invoice_type == 'schluss':
             # Bei Schlussrechnungen: Restbetrag (Auftragssumme - Anzahlungen)
             restbetrag = invoice.base_amount - invoice.previous_payments
             c.drawString(self.margin, y_pos, "Restbetrag netto:")
-            c.drawRightString(self.width - self.margin, y_pos, f"{restbetrag:.2f} €")
+            c.drawRightString(self.width - self.margin, y_pos, format_currency_de(restbetrag))
         else:
-            # Standard für andere Rechnungstypen
+            # Standard für andere Rechnungstypen (allgemein)
             c.drawString(self.margin, y_pos, "Zwischensumme netto:")
-            c.drawRightString(self.width - self.margin, y_pos, f"{invoice.final_amount:.2f} €")
+            c.drawRightString(self.width - self.margin, y_pos, format_currency_de(invoice.final_amount))
         y_pos -= 0.5*cm
         
         # MwSt
@@ -273,9 +295,9 @@ class InvoicePDFGenerator:
             # Bei Schlussrechnungen: MwSt vom Restbetrag berechnen
             restbetrag = invoice.base_amount - invoice.previous_payments
             vat_amount = restbetrag * invoice.vat_rate / 100
-            c.drawRightString(self.width - self.margin, y_pos, f"{vat_amount:.2f} €")
+            c.drawRightString(self.width - self.margin, y_pos, format_currency_de(vat_amount))
         else:
-            c.drawRightString(self.width - self.margin, y_pos, f"{invoice.vat_amount:.2f} €")
+            c.drawRightString(self.width - self.margin, y_pos, format_currency_de(invoice.vat_amount))
         y_pos -= 0.5*cm
         
         # Gesamtsumme
@@ -286,16 +308,16 @@ class InvoicePDFGenerator:
         c.setFont("Helvetica-Bold", 14)
         if invoice.invoice_type == 'anzahlung':
             c.drawString(self.margin, y_pos, "Anzahlungssumme brutto:")
-            c.drawRightString(self.width - self.margin, y_pos, f"{invoice.gross_amount:.2f} €")
+            c.drawRightString(self.width - self.margin, y_pos, format_currency_de(invoice.gross_amount))
         elif invoice.invoice_type == 'schluss':
             # Bei Schlussrechnungen: Restbetrag + MwSt berechnen
             restbetrag = invoice.base_amount - invoice.previous_payments
             restbetrag_brutto = restbetrag + (restbetrag * invoice.vat_rate / 100)
             c.drawString(self.margin, y_pos, "Gesamtsumme brutto:")
-            c.drawRightString(self.width - self.margin, y_pos, f"{restbetrag_brutto:.2f} €")
+            c.drawRightString(self.width - self.margin, y_pos, format_currency_de(restbetrag_brutto))
         else:
             c.drawString(self.margin, y_pos, "Gesamtsumme brutto:")
-            c.drawRightString(self.width - self.margin, y_pos, f"{invoice.gross_amount:.2f} €")
+            c.drawRightString(self.width - self.margin, y_pos, format_currency_de(invoice.gross_amount))
         
         # Abschlusstext vor Zahlungsbedingungen
         y_pos -= 2*cm
@@ -309,6 +331,9 @@ class InvoicePDFGenerator:
         for line in closing_text:
             c.drawString(self.margin, y_pos, line)
             y_pos -= 0.5*cm
+        
+        # Footer auf der ersten Seite anzeigen BEVOR neue Seite erstellt wird
+        self._setup_footer(c)
         
         # Neue Seite für Zahlungsbedingungen und Datenschutz
         c.showPage()
@@ -364,9 +389,13 @@ class InvoicePDFGenerator:
             y_pos -= 0.35*cm
             # Prüfen ob noch Platz auf der Seite ist
             if y_pos < 3*cm:
+                self._setup_footer(c)  # Footer vor Seitenumbruch
                 c.showPage()
                 self._setup_header(c)
                 y_pos = self.height - 6*cm
+        
+        # Footer auch auf der zweiten Seite
+        self._setup_footer(c)
     
     def _setup_footer(self, c):
         """Dreispaltiger Footer mit Firmeninfos, Bankdaten und Rechtsinformationen"""
