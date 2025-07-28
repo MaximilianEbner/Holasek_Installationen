@@ -3810,12 +3810,22 @@ def download_backup(format):
 
 if __name__ == '__main__':
     # Cloud-Hosting-Erkennung - nur für Railway, nicht für lokale Entwicklung
+    # Update: Automatische Migrationen für Railway hinzugefügt (28.07.2025)
     is_production = bool(os.environ.get('DATABASE_URL')) and bool(os.environ.get('PORT'))
     
     if is_production:
         # Produktion: Einfacher Start ohne Browser-Öffnung
         with app.app_context():
-            db.create_all()
+            # Führe Migrationen automatisch aus in der Produktion
+            try:
+                from flask_migrate import upgrade
+                upgrade()
+                print("✓ Datenbank-Migrationen erfolgreich angewendet")
+            except Exception as e:
+                print(f"⚠ Fehler bei Migrationen: {e}")
+                # Fallback auf db.create_all()
+                db.create_all()
+                print("✓ Fallback: Datenbank initialisiert")
         
         port = int(os.environ.get('PORT', 5000))
         app.run(host='0.0.0.0', port=port, debug=False)
