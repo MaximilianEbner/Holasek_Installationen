@@ -103,6 +103,7 @@ class GitHubBackupManager:
     def restore_backup(self, backup_name):
         """
         Stellt ein Backup als aktuelle Datenbank wieder her
+        Automatische Erkennung von SQLite (lokal) vs PostgreSQL (Railway)
         
         Args:
             backup_name: Name der Backup-Datei
@@ -116,6 +117,25 @@ class GitHubBackupManager:
             if not backup_data:
                 return False
             
+            # Prüfen ob Railway PostgreSQL oder lokale SQLite
+            database_url = os.environ.get('DATABASE_URL')
+            
+            if database_url:
+                # Railway PostgreSQL - SQLite zu PostgreSQL Migration
+                print("Railway PostgreSQL erkannt - starte Migration...")
+                return self._restore_to_postgresql(backup_data, database_url)
+            else:
+                # Lokale SQLite - direkter Restore
+                print("Lokale SQLite erkannt - starte direkten Restore...")
+                return self._restore_to_sqlite(backup_data)
+            
+        except Exception as e:
+            print(f"Fehler beim Wiederherstellen des Backups: {e}")
+            return False
+    
+    def _restore_to_sqlite(self, backup_data):
+        """Restore für lokale SQLite Datenbank"""
+        try:
             # Aktuelle Datenbank-Pfade bestimmen
             current_db_paths = [
                 'instance/installation_business.db',
@@ -168,11 +188,173 @@ class GitHubBackupManager:
             # Neue Datenbank an die richtige Stelle kopieren
             shutil.move(temp_db_path, current_db)
             
-            print(f"Backup {backup_name} erfolgreich als aktuelle Datenbank wiederhergestellt!")
+            print(f"Backup erfolgreich als aktuelle SQLite-Datenbank wiederhergestellt!")
             return True
             
         except Exception as e:
-            print(f"Fehler beim Wiederherstellen des Backups: {e}")
+            print(f"Fehler beim SQLite-Restore: {e}")
+            return False
+    
+    def _restore_to_postgresql(self, backup_data, postgres_url):
+        """Restore für Railway PostgreSQL - migriert von SQLite"""
+        try:
+            import sqlite3
+            
+            # SQLite Backup in temporäre Datei speichern
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.db') as temp_file:
+                temp_file.write(backup_data.getvalue())
+                sqlite_path = temp_file.name
+            
+            try:
+                # SQLite zu PostgreSQL Migration
+                success = self._migrate_sqlite_to_postgresql(sqlite_path, postgres_url)
+                
+                if success:
+                    print("SQLite-Backup erfolgreich zu PostgreSQL migriert!")
+                    return True
+                else:
+                    print("Migration von SQLite zu PostgreSQL fehlgeschlagen!")
+                    return False
+                    
+            finally:
+                # Temporary SQLite file löschen
+                if os.path.exists(sqlite_path):
+                    os.unlink(sqlite_path)
+            
+        except Exception as e:
+            print(f"Fehler beim PostgreSQL-Restore: {e}")
+            return False
+    
+    def _migrate_sqlite_to_postgresql(self, sqlite_path, postgres_url):
+        """Migriert SQLite-Daten zu PostgreSQL"""
+        try:
+            import sqlite3
+            import psycopg2
+            from urllib.parse import urlparse
+            
+            # SQLite Verbindung
+            sqlite_conn = sqlite3.connect(sqlite_path)
+            sqlite_conn.row_factory = sqlite3.Row
+            sqlite_cursor = sqlite_conn.cursor()
+            
+            # PostgreSQL URL parsen
+            parsed = urlparse(postgres_url)
+            
+            # PostgreSQL Verbindung
+            pg_conn = psycopg2.connect(
+                host=parsed.hostname,
+                port=parsed.port or 5432,
+                database=parsed.path[1:],  # Remove leading /
+                user=parsed.username,
+                password=parsed.password,
+                sslmode='require'
+            )
+            pg_cursor = pg_conn.cursor()
+            
+            print("PostgreSQL Verbindung hergestellt")
+            
+            # Alle Tabellen aus SQLite lesen
+            sqlite_cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name != 'alembic_version'")
+            tables = [row[0] for row in sqlite_cursor.fetchall()]
+            
+            print(f"Gefundene Tabellen in SQLite: {tables}")
+            
+            # Existierende Daten in PostgreSQL löschen (in korrekter Reihenfolge wegen Foreign Keys)
+            delete_order = [
+                'invoice_reminder', 'quote_rejection', 'position_template_sub_item',
+                'supplier_order_item', 'supplier_order', 'quote_sub_item', 'quote_item',
+                'work_instruction', 'invoice', 'order', 'quote', 'customer',
+                'supplier', 'position_template', 'company_settings', 'acquisition_channel',
+                'login_admin'
+            ]
+            
+            print("Lösche existierende PostgreSQL-Daten...")
+            for table in delete_order:
+                if table in tables:
+                    try:
+                        pg_cursor.execute(f"DELETE FROM {table}")
+                        print(f"  ✓ {table} geleert")
+                    except Exception as e:
+                        print(f"  ⚠ Warnung beim Löschen von {table}: {e}")
+            
+            pg_conn.commit()
+            
+            # Daten von SQLite zu PostgreSQL migrieren
+            for table_name in tables:
+                print(f"Migriere Tabelle: {table_name}")
+                
+                # Alle Daten aus SQLite lesen
+                sqlite_cursor.execute(f"SELECT * FROM {table_name}")
+                rows = sqlite_cursor.fetchall()
+                
+                if not rows:
+                    print(f"  → {table_name} ist leer, überspringe")
+                    continue
+                
+                # Spalten ermitteln
+                columns = [description[0] for description in sqlite_cursor.description]
+                
+                # Insert-Statement für PostgreSQL vorbereiten
+                placeholders = ', '.join(['%s'] * len(columns))
+                insert_sql = f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES ({placeholders})"
+                
+                # Daten stapelweise einfügen
+                batch_size = 100
+                for i in range(0, len(rows), batch_size):
+                    batch = rows[i:i + batch_size]
+                    try:
+                        pg_cursor.executemany(insert_sql, batch)
+                        print(f"  → {len(batch)} Datensätze eingefügt")
+                    except Exception as e:
+                        print(f"  ✗ Fehler beim Einfügen in {table_name}: {e}")
+                        # Versuche einzeln einzufügen für bessere Fehleranalyse
+                        for row in batch:
+                            try:
+                                pg_cursor.execute(insert_sql, row)
+                            except Exception as row_error:
+                                print(f"    ✗ Einzelner Datensatz fehlgeschlagen: {row_error}")
+                
+                pg_conn.commit()
+                print(f"  ✓ {table_name} komplett migriert ({len(rows)} Datensätze)")
+            
+            # PostgreSQL Sequences aktualisieren (wichtig für Auto-Increment)
+            print("Aktualisiere PostgreSQL-Sequences...")
+            for table_name in tables:
+                try:
+                    # Finde Primary Key Spalte
+                    pg_cursor.execute(f"""
+                        SELECT column_name FROM information_schema.columns 
+                        WHERE table_name = '{table_name}' 
+                        AND column_default LIKE 'nextval%'
+                    """)
+                    pk_columns = pg_cursor.fetchall()
+                    
+                    for (pk_column,) in pk_columns:
+                        # Sequence auf höchsten Wert setzen
+                        pg_cursor.execute(f"SELECT MAX({pk_column}) FROM {table_name}")
+                        max_val = pg_cursor.fetchone()[0]
+                        if max_val:
+                            sequence_name = f"{table_name}_{pk_column}_seq"
+                            pg_cursor.execute(f"SELECT setval('{sequence_name}', {max_val})")
+                            print(f"  ✓ Sequence {sequence_name} auf {max_val} gesetzt")
+                            
+                except Exception as e:
+                    print(f"  ⚠ Sequence-Update für {table_name} fehlgeschlagen: {e}")
+            
+            pg_conn.commit()
+            
+            # Verbindungen schließen
+            sqlite_conn.close()
+            pg_cursor.close()
+            pg_conn.close()
+            
+            print("✓ Migration von SQLite zu PostgreSQL erfolgreich abgeschlossen!")
+            return True
+            
+        except Exception as e:
+            print(f"✗ Migration fehlgeschlagen: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def get_backup_info(self, backup_name):

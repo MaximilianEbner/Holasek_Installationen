@@ -4486,7 +4486,7 @@ def backup_manager():
 @app.route('/restore_backup/<backup_name>')
 @login_required
 def restore_backup(backup_name):
-    """Stellt ein GitHub-Backup wieder her"""
+    """Stellt ein GitHub-Backup wieder her - Railway PostgreSQL kompatibel"""
     from github_backup import GitHubBackupManager
     
     try:
@@ -4499,23 +4499,35 @@ def restore_backup(backup_name):
             flash(f'Backup {backup_name} konnte nicht gefunden oder analysiert werden!', 'error')
             return redirect(url_for('backup_manager'))
         
-        # Backup wiederherstellen
+        print(f"Starte Backup-Wiederherstellung: {backup_name}")
+        
+        # Backup wiederherstellen (automatische Railway PostgreSQL vs lokale SQLite Erkennung)
         success = github_manager.restore_backup(backup_name)
         
         if success:
-            flash(f'Backup {backup_name} erfolgreich wiederhergestellt! '
+            database_type = "PostgreSQL" if os.environ.get('DATABASE_URL') else "SQLite"
+            flash(f'✓ Backup "{backup_name}" erfolgreich in {database_type} wiederhergestellt! '
                   f'Tabellen: {backup_info["table_count"]}, '
                   f'Datensätze: {backup_info["total_records"]}', 'success')
             
-            # Nach erfolgreicher Wiederherstellung App neu starten (falls möglich)
-            flash('WICHTIG: Starten Sie die Anwendung neu, um alle Änderungen zu übernehmen!', 'warning')
+            # Railway-spezifische Hinweise
+            if os.environ.get('DATABASE_URL'):
+                flash('🚀 Railway PostgreSQL: Backup-Wiederherstellung abgeschlossen. '
+                      'Ein App-Neustart kann die Performance optimieren.', 'info')
+            else:
+                flash('💾 Lokale SQLite: Backup erfolgreich wiederhergestellt. '
+                      'Alle Daten sind sofort verfügbar.', 'info')
         else:
-            flash(f'Fehler beim Wiederherstellen des Backups {backup_name}!', 'error')
+            flash(f'✗ Fehler beim Wiederherstellen des Backups "{backup_name}"! '
+                  'Prüfen Sie die Logs für Details.', 'error')
             
         return redirect(url_for('backup_manager'))
         
     except Exception as e:
-        flash(f'Fehler beim Wiederherstellen des Backups: {str(e)}', 'error')
+        print(f"Exception in restore_backup: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        flash(f'Unerwarteter Fehler beim Wiederherstellen: {str(e)}', 'error')
         return redirect(url_for('backup_manager'))
 
 

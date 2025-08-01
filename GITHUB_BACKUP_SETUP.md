@@ -32,24 +32,36 @@ your-repo/
 ### 3. Workflow
 
 #### Backup erstellen:
-1. In der App: Backup → "Datenbank Download"
-2. `.db` Datei manuell in GitHub `/backups/` Ordner hochladen
+1. **Lokal:** App → Backup → "Datenbank Download" → `.db` Datei
+2. **GitHub Upload:** Manuell die `.db` Datei in `Holasek_Installationen/backups/` hochladen
 
 #### Backup wiederherstellen:
-1. In der App: Backup → "GitHub Backup-Manager" 
-2. Gewünschtes Backup auswählen und wiederherstellen
-3. Railway-App neu starten (empfohlen)
+1. **Railway App:** Backup → "GitHub Backup-Manager" 
+2. **Automatische Konvertierung:** SQLite-Backup → PostgreSQL Migration
+3. **Gewünschtes Backup auswählen:** "Wiederherstellen" klicken
+4. **Railway:** Automatische PostgreSQL-Integration (kein Neustart nötig)
 
-### 4. Automatischer Railway-Neustart
+### 4. Datenbank-Typen
 
-Nach Backup-Wiederherstellung sollte die Railway-App neu gestartet werden:
+Das System erkennt automatisch die Umgebung:
 
-```bash
-# Railway CLI (lokal)
-railway restart
+- **🏠 Lokale Entwicklung:** SQLite (`instance/installation_business.db`)
+- **🚀 Railway Production:** PostgreSQL (automatisch bereitgestellt)
 
-# Oder im Railway Dashboard: Deploy → Restart
-```
+#### SQLite zu PostgreSQL Migration:
+- **Automatisch:** SQLite-Backups werden zu PostgreSQL konvertiert
+- **Tabellen:** Alle Daten und Beziehungen bleiben erhalten  
+- **Sequences:** Auto-Increment IDs werden korrekt synchronisiert
+- **Fehlerbehandlung:** Detaillierte Logs bei Problemen
+
+### 5. Railway PostgreSQL Besonderheiten
+
+Railway stellt automatisch bereit:
+- `DATABASE_URL` Environment Variable
+- PostgreSQL-Instanz mit SSL
+- Automatische Verbindungsparameter
+
+**Keine manuelle Konfiguration nötig!**
 
 ### 5. Sicherheit
 
