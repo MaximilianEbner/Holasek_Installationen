@@ -16,8 +16,10 @@
             <!-- Info-Panel -->
             <div class="alert alert-info" role="alert">
                 <i class="bi bi-info-circle"></i>
-                <strong>GitHub Backup-System:</strong> Hier können Sie Datenbank-Backups von GitHub laden und als aktuelle Datenbank einsetzen.
-                Laden Sie Backup-Dateien (.db) manuell in den <code>/backups</code> Ordner Ihres GitHub-Repositories hoch.
+                <strong>GitHub Backup-System:</strong> Hier können Sie Datenbank-Backups von GitHub laden und wiederherstellen.
+                <br><strong>Railway PostgreSQL:</strong> SQLite-Backups werden automatisch zu PostgreSQL konvertiert.
+                <br><strong>Lokale Entwicklung:</strong> Direkter SQLite-Restore.
+                <br>Laden Sie Backup-Dateien (.db) manuell in den <code>/backups</code> Ordner Ihres GitHub-Repositories hoch.
             </div>
 
             {% if backups %}
