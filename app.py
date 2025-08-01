@@ -1085,6 +1085,14 @@ def register_routes(app):
         quote = Quote.query.get_or_404(id)
         quote_number = quote.quote_number
         
+        # Sicherheitsprüfung: Prüfe ob ein aktiver Auftrag existiert
+        if quote.order and quote.order.status != 'Storniert':
+            flash(f'Angebot {quote_number} kann nicht gelöscht werden, da ein aktiver Auftrag ({quote.order.order_number}) existiert!', 'error')
+            return redirect(url_for('quotes'))
+        
+        # Wenn Angebot "Angenommen" ist, aber kein aktiver Auftrag existiert, kann es gelöscht werden
+        # (Das passiert z.B. wenn der Auftrag gelöscht wurde)
+        
         try:
             db.session.delete(quote)
             db.session.commit()
@@ -1440,16 +1448,17 @@ def register_routes(app):
     @app.route('/stammdaten/templates/<int:template_id>/delete_subitem/<int:subitem_id>', methods=['POST'])
     @login_required
     def delete_template_subitem(template_id, subitem_id):
-        subitem = PositionTemplateSubItem.query.get_or_404(subitem_id)
-        db.session.delete(subitem)
-        db.session.commit()
-        
-        # Check if this is an AJAX request
-        if request.headers.get('Content-Type') == 'application/json' or request.is_json:
+        try:
+            subitem = PositionTemplateSubItem.query.get_or_404(subitem_id)
+            db.session.delete(subitem)
+            db.session.commit()
+            
+            # Always return JSON response for this endpoint
             return jsonify({'success': True})
-        
-        flash('Unterposition gelöscht!', 'success')
-        return redirect(url_for('edit_template', template_id=template_id))
+            
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/update_template_subitem_order/<int:template_id>', methods=['POST'])
     @login_required
@@ -1925,7 +1934,8 @@ def get_work_step_by_category_and_name(category, name):
                 db.session.rollback()
                 flash(f'Fehler beim Aktualisieren der Position: {str(e)}', 'error')
 
-            return redirect(url_for('edit_quote', id=id))
+            # Nach dem Speichern zur korrekten Position im Angebot zurückspringen
+            return redirect(url_for('edit_quote', id=id) + f'#position-{item_id}')
 
         # GET Request - Bearbeitungsformular anzeigen
         suppliers = Supplier.query.all()
@@ -2101,6 +2111,25 @@ def get_work_step_by_category_and_name(category, name):
                 flash(f'Fehler beim Aktualisieren: {str(e)}', 'error')
         
         return render_template('supplier_order_edit.html', order=order, form=form)
+    
+    # Einzelne Bestellung löschen
+    @app.route('/supplier_order/<int:order_id>/delete', methods=['GET', 'POST'])
+    @login_required
+    def delete_supplier_order(order_id):
+        from models import SupplierOrder
+        
+        order = SupplierOrder.query.get_or_404(order_id)
+        
+        try:
+            # Lösche die Bestellung mit allen zugehörigen Items (durch cascade)
+            db.session.delete(order)
+            db.session.commit()
+            flash(f'Lieferantenbestellung "{order.supplier_name}" wurde erfolgreich gelöscht!', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Fehler beim Löschen der Bestellung: {str(e)}', 'error')
+        
+        return redirect(url_for('supplier_orders'))
     
     # Aufträge
     @app.route('/orders')
@@ -2311,9 +2340,11 @@ def get_work_step_by_category_and_name(category, name):
             for supplier_order in supplier_orders:
                 supplier_order.order_id = None  # Trennung vom Auftrag
             
-            # 3. Angebotsstatus zurücksetzen
+            # 3. Angebotsstatus zurücksetzen - macht Angebot wieder löschbar
             if quote.status == 'Auftrag storniert':
-                quote.status = 'Angenommen'  # Zurück zu normalem Angenommen-Status
+                quote.status = 'Gesendet'  # Zurück zu einem löschbaren Status
+            elif quote.status == 'Angenommen':
+                quote.status = 'Gesendet'  # Zurück zu einem löschbaren Status
             
             # 4. Auftrag selbst löschen
             db.session.delete(order)

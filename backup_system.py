@@ -707,6 +707,58 @@ class DatabaseBackup:
             item_type VARCHAR(20) DEFAULT 'standard'
         );
         
+        CREATE TABLE quote_sub_item (
+            id INTEGER PRIMARY KEY,
+            quote_item_id INTEGER NOT NULL,
+            sub_number VARCHAR(10) NOT NULL,
+            description TEXT NOT NULL,
+            item_type VARCHAR(20) NOT NULL DEFAULT 'bestellteil',
+            requires_order BOOLEAN DEFAULT 0,
+            supplier VARCHAR(200),
+            part_number VARCHAR(100),
+            part_quantity VARCHAR(50) DEFAULT '1',
+            part_price FLOAT DEFAULT 0.0,
+            hours FLOAT DEFAULT 0.0,
+            hourly_rate FLOAT DEFAULT 95.0,
+            quantity VARCHAR(50) DEFAULT '',
+            unit_price FLOAT DEFAULT 0.0,
+            price FLOAT DEFAULT 0.0
+        );
+        
+        CREATE TABLE position_templates (
+            id INTEGER PRIMARY KEY,
+            name VARCHAR(128) NOT NULL,
+            description TEXT,
+            created_at DATETIME,
+            updated_at DATETIME,
+            enable_length BOOLEAN DEFAULT 0,
+            enable_width BOOLEAN DEFAULT 0,
+            enable_height BOOLEAN DEFAULT 0,
+            enable_area BOOLEAN DEFAULT 0,
+            enable_volume BOOLEAN DEFAULT 0
+        );
+        
+        CREATE TABLE position_template_subitems (
+            id INTEGER PRIMARY KEY,
+            template_id INTEGER NOT NULL,
+            description VARCHAR(256) NOT NULL,
+            item_type VARCHAR(32) NOT NULL,
+            unit VARCHAR(32),
+            price_per_unit FLOAT,
+            formula VARCHAR(128),
+            position INTEGER DEFAULT 0,
+            requires_order BOOLEAN DEFAULT 0,
+            supplier VARCHAR(200),
+            part_number VARCHAR(100),
+            part_quantity VARCHAR(50) DEFAULT '1',
+            part_price FLOAT DEFAULT 0.0,
+            hours FLOAT DEFAULT 0.0,
+            hourly_rate FLOAT DEFAULT 95.0,
+            quantity VARCHAR(50) DEFAULT '',
+            unit_price FLOAT DEFAULT 0.0,
+            price FLOAT DEFAULT 0.0
+        );
+        
         CREATE TABLE invoice (
             id INTEGER PRIMARY KEY,
             invoice_number VARCHAR(50) UNIQUE NOT NULL,
@@ -796,6 +848,54 @@ class DatabaseBackup:
                     item.supplier, item.item_type
                 ))
             
+            # Angebots-Unterpositionen exportieren
+            quote_sub_items = QuoteSubItem.query.all()
+            for sub_item in quote_sub_items:
+                cursor.execute('''
+                    INSERT INTO quote_sub_item (id, quote_item_id, sub_number, description, 
+                                              item_type, requires_order, supplier, part_number,
+                                              part_quantity, part_price, hours, hourly_rate,
+                                              quantity, unit_price, price)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    sub_item.id, sub_item.quote_item_id, sub_item.sub_number, sub_item.description,
+                    sub_item.item_type, sub_item.requires_order, sub_item.supplier, sub_item.part_number,
+                    sub_item.part_quantity, sub_item.part_price, sub_item.hours, sub_item.hourly_rate,
+                    sub_item.quantity, sub_item.unit_price, sub_item.price
+                ))
+            
+            # Positionsvorlagen exportieren
+            templates = PositionTemplate.query.all()
+            for template in templates:
+                cursor.execute('''
+                    INSERT INTO position_templates (id, name, description, created_at, updated_at,
+                                                  enable_length, enable_width, enable_height,
+                                                  enable_area, enable_volume)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    template.id, template.name, template.description, template.created_at, 
+                    template.updated_at, template.enable_length, template.enable_width,
+                    template.enable_height, template.enable_area, template.enable_volume
+                ))
+            
+            # Positionsvorlagen-Unterpositionen exportieren
+            template_subitems = PositionTemplateSubItem.query.all()
+            for subitem in template_subitems:
+                cursor.execute('''
+                    INSERT INTO position_template_subitems (id, template_id, description, item_type,
+                                                          unit, price_per_unit, formula, position, 
+                                                          requires_order, supplier, part_number,
+                                                          part_quantity, part_price, hours, hourly_rate,
+                                                          quantity, unit_price, price)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    subitem.id, subitem.template_id, subitem.description, subitem.item_type,
+                    subitem.unit, subitem.price_per_unit, subitem.formula, subitem.position,
+                    subitem.requires_order, subitem.supplier, subitem.part_number,
+                    subitem.part_quantity, subitem.part_price, subitem.hours, subitem.hourly_rate,
+                    subitem.quantity, subitem.unit_price, subitem.price
+                ))
+            
             # Rechnungen exportieren
             invoices = Invoice.query.all()
             for invoice in invoices:
@@ -818,7 +918,7 @@ class DatabaseBackup:
                     invoice.updated_at
                 ))
             
-            print(f"SQLite-Export erfolgreich: {len(customers)} Kunden, {len(quotes)} Angebote, {len(quote_items)} Positionen, {len(invoices)} Rechnungen")
+            print(f"SQLite-Export erfolgreich: {len(customers)} Kunden, {len(quotes)} Angebote, {len(quote_items)} Positionen, {len(quote_sub_items)} Unterpositionen, {len(templates)} Vorlagen, {len(template_subitems)} Vorlagen-Unterpositionen, {len(invoices)} Rechnungen")
             
         except Exception as e:
             print(f"Fehler beim Datenexport: {e}")
