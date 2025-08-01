@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Test Neue Rechnung{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2>Test - Neue Rechnung erstellen</h2>
+    
+    <div class="alert alert-info">
+        <h4>Debug Information:</h4>
+        <p><strong>Available Orders Count:</strong> {{ available_orders|length if available_orders else 0 }}</p>
+        <p><strong>Customers Count:</strong> {{ customers|length if customers else 0 }}</p>
+        <p><strong>Available Orders JSON:</strong> {{ available_orders_json|length if available_orders_json else 0 }} characters</p>
+    </div>
+    
+    <h3>Einfacher Test</h3>
+    <div class="row">
+        <div class="col-md-3 mb-3">
+            <div class="card" onclick="alert('Test clicked')">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Test Karte</h6>
+                    <p class="card-text">Klicken zum Test</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+console.log('Script starts');
+let testOrders = [];
+console.log('Test orders initialized:', testOrders);
+</script>
+{% endblock %}

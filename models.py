@@ -21,11 +21,14 @@ class Customer(db.Model):
     postal_code = db.Column(db.String(10))
     customer_manager = db.Column(db.String(100))  # Kundenbetreuer (optional)
     acquisition_channel_id = db.Column(db.Integer, db.ForeignKey('acquisition_channel.id'))  # Akquisekanal
+    detailed_acquisition_channel = db.Column(db.Text)  # Detaillierter Akquisekanal (Textfeld)
     
     # Workflow-Felder
     status = db.Column(db.String(50), default='1. Termin vereinbaren')  # Status im Workflow
-    appointment_date = db.Column(db.Date)  # Termindatum (nur Datum, ohne Uhrzeit)
-    appointment_notes = db.Column(db.Text)  # Notizen zum Termin
+    appointment_date = db.Column(db.Date)  # Datum des 1. Termins
+    appointment_notes = db.Column(db.Text)  # Notizen zum 1. Termin
+    second_appointment_date = db.Column(db.Date)  # Datum des 2. Termins
+    second_appointment_notes = db.Column(db.Text)  # Notizen zum 2. Termin
     comments = db.Column(db.Text)  # Allgemeine Kommentare zum Kunden
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -42,9 +45,10 @@ class Customer(db.Model):
         """Gibt die Bootstrap-Badge-Klasse für den aktuellen Status zurück"""
         status_classes = {
             '1. Termin vereinbaren': 'bg-warning',
-            '2. Termin vereinbart': 'bg-info',
-            '3. Angebot erstellen': 'bg-primary',
-            'Angebot wurde erstellt': 'bg-success',
+            '1. Termin vereinbart': 'bg-info',
+            'Angebot erstellen': 'bg-primary',
+            '2. Termin vereinbaren': 'bg-warning',
+            'Warten auf Rückmeldung': 'bg-success',
             'Kein Interesse': 'bg-secondary'
         }
         return status_classes.get(self.status, 'bg-light')
@@ -52,16 +56,31 @@ class Customer(db.Model):
     def get_next_action(self):
         """Gibt die nächste erforderliche Aktion zurück"""
         if self.status == '1. Termin vereinbaren':
-            return 'Termin im Kalender eintragen'
-        elif self.status == '2. Termin vereinbart':
-            return 'Angebot erstellen'
-        elif self.status == '3. Angebot erstellen':
-            return 'Angebot erstellen'
-        elif self.status == 'Angebot wurde erstellt':
-            return 'Workflow abgeschlossen'
+            return 'Ersten Termin im Kalender eintragen'
+        elif self.status == '1. Termin vereinbart':
+            return 'Kundentermin wahrnehmen'
+        elif self.status == 'Angebot erstellen':
+            return 'Angebot basierend auf 1. Termin erstellen'
+        elif self.status == '2. Termin vereinbaren':
+            return 'Zweiten Termin für Angebotsvorstellung vereinbaren'
+        elif self.status == 'Warten auf Rückmeldung':
+            return 'Auf Kundenentscheidung warten'
         elif self.status == 'Kein Interesse':
             return 'Kunde hat aktuell kein Interesse'
         return 'Unbekannter Status'
+    
+    def check_auto_status_update(self):
+        """Prüft und führt automatische Status-Updates durch"""
+        from datetime import date, timedelta
+        
+        # Automatisches Update: 1. Termin war gestern -> "Angebot erstellen"
+        if (self.status == '1. Termin vereinbart' and 
+            self.appointment_date and 
+            self.appointment_date < date.today()):
+            self.status = 'Angebot erstellen'
+            return True
+        
+        return False
 
 class Quote(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -570,12 +589,35 @@ class Invoice(db.Model):
     vat_rate = db.Column(db.Float, default=20.0)  # MwSt.-Satz in Prozent
     vat_amount = db.Column(db.Float, nullable=False)  # MwSt.-Betrag
     gross_amount = db.Column(db.Float, nullable=False)  # Bruttogesamtbetrag
+    
+    # Nur das project_name Feld für flexible Schlussrechnung-Struktur
+    # Alle anderen Werte werden aus bestehenden Models berechnet:
+    # - material_costs → Summe aus QuoteItem (item_type = bestellteil + sonstiges)
+    # - labor_costs → Summe aus QuoteItem (item_type = arbeitsvorgang)
+    # - labor_rate → Default aus Stammdaten
+    # - downpayment_deduction → previous_payments (bereits vorhanden)
+    # - net_total → invoice_amount (bereits vorhanden)
+    # - vat_total → vat_amount (bereits vorhanden)
+    project_name = db.Column(db.String(255))  # Wird aus Quote.project_description übernommen
+    
+    # Zusätzliche Felder für "Detaillierte Schlussrechnung"
+    material_costs_editable = db.Column(db.Float, nullable=True)  # Editierbare Materialkosten
+    labor_hours_editable = db.Column(db.Float, nullable=True)  # Editierbare Arbeitsstunden
+    labor_rate_editable = db.Column(db.Float, nullable=True)  # Editierbarer Stundensatz
+    labor_costs_editable = db.Column(db.Float, nullable=True)  # Berechnete Arbeitskosten (stunden * satz)
+    material_description = db.Column(db.String(255), default='Materialkosten')  # Materialbezeichnung
+    labor_description = db.Column(db.String(255), default='Arbeitsleistung')  # Arbeitsbezeichnung
+    
     due_date = db.Column(db.Date, nullable=False)  # Fälligkeitsdatum
     payment_terms = db.Column(db.Integer, default=14)  # Zahlungsziel in Tagen
-    status = db.Column(db.String(20), default='erstellt')  # 'erstellt', 'versendet', 'bezahlt', 'ueberfaellig'
+    status = db.Column(db.String(20), default='erstellt')  # 'erstellt', 'versendet', 'teilweise_bezahlt', 'bezahlt', 'ueberfaellig'
     paid_date = db.Column(db.Date, nullable=True)  # Bezahldatum
     payment_reference = db.Column(db.String(100), nullable=True)  # Zahlungsreferenz
     comments = db.Column(db.Text, nullable=True)  # Kommentare und Notizen
+    
+    # Neue Felder für Teilzahlungen
+    paid_amount = db.Column(db.Float, default=0.0)  # Bereits bezahlter Betrag
+    payment_comment = db.Column(db.Text, nullable=True)  # Kommentar zur Teilzahlung
     service_description = db.Column(db.Text, nullable=True)  # Leistungsbeschreibung für allgemeine Rechnungen
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -646,7 +688,7 @@ class Invoice(db.Model):
     def is_overdue(self):
         """Prüft, ob die Rechnung überfällig ist"""
         from datetime import date
-        return (self.status != 'bezahlt' and 
+        return (self.status not in ['bezahlt'] and 
                 self.due_date and 
                 self.due_date < date.today())
     
@@ -658,10 +700,11 @@ class Invoice(db.Model):
         return (date.today() - self.due_date).days
     
     def mark_as_paid(self, paid_date=None, payment_reference=None, comment=None):
-        """Markiert die Rechnung als bezahlt"""
+        """Markiert die Rechnung als vollständig bezahlt"""
         from datetime import date
         self.status = 'bezahlt'
         self.paid_date = paid_date or date.today()
+        self.paid_amount = self.gross_amount  # Vollständig bezahlt
         if payment_reference:
             self.payment_reference = payment_reference
         if comment:
@@ -671,11 +714,55 @@ class Invoice(db.Model):
                 self.comments = f"[{datetime.now().strftime('%d.%m.%Y %H:%M')}] {comment}"
         self.updated_at = datetime.utcnow()
     
+    def mark_as_partially_paid(self, paid_amount, paid_date=None, payment_reference=None, comment=None):
+        """Markiert die Rechnung als teilweise bezahlt"""
+        from datetime import date
+        
+        if paid_amount <= 0:
+            raise ValueError("Bezahlter Betrag muss größer als 0 sein")
+        if paid_amount > self.gross_amount:
+            raise ValueError("Bezahlter Betrag kann nicht größer als der Gesamtbetrag sein")
+        
+        self.paid_amount = paid_amount
+        self.paid_date = paid_date or date.today()
+        
+        # Status basierend auf bezahltem Betrag setzen
+        if paid_amount >= self.gross_amount:
+            self.status = 'bezahlt'
+        else:
+            self.status = 'teilweise_bezahlt'
+        
+        if payment_reference:
+            self.payment_reference = payment_reference
+        
+        # Kommentar hinzufügen
+        payment_info = f"Teilzahlung: {paid_amount:.2f}€ von {self.gross_amount:.2f}€"
+        if comment:
+            payment_info += f" - {comment}"
+        
+        if self.payment_comment:
+            self.payment_comment += f"\n\n[{datetime.now().strftime('%d.%m.%Y %H:%M')}] {payment_info}"
+        else:
+            self.payment_comment = f"[{datetime.now().strftime('%d.%m.%Y %H:%M')}] {payment_info}"
+        
+        self.updated_at = datetime.utcnow()
+    
+    def get_remaining_amount(self):
+        """Gibt den noch ausstehenden Betrag zurück"""
+        return max(0, self.gross_amount - (self.paid_amount or 0))
+    
+    def get_payment_percentage(self):
+        """Gibt den bezahlten Prozentsatz zurück"""
+        if self.gross_amount == 0:
+            return 0
+        return min(100, (self.paid_amount or 0) / self.gross_amount * 100)
+    
     def get_status_badge_class(self):
         """Gibt die Bootstrap-Klasse für den Status-Badge zurück"""
         status_classes = {
-            'erstellt': 'bg-secondary',
-            'versendet': 'bg-warning',
+            'erstellt': 'bg-light text-dark border',
+            'versendet': 'bg-primary',
+            'teilweise_bezahlt': 'bg-info',
             'bezahlt': 'bg-success',
             'ueberfaellig': 'bg-danger'
         }
@@ -689,6 +776,73 @@ class Invoice(db.Model):
             'allgemein': 'Rechnung'
         }
         return type_map.get(self.invoice_type, 'Rechnung')
+    
+    # Neue Berechnungsmethoden für flexible Schlussrechnung-Struktur
+    def get_material_costs(self):
+        """Berechnet Materialkosten aus QuoteItems (bestellteil + sonstiges)"""
+        if not self.order or not self.order.quote:
+            return 0.0
+        
+        material_cost = 0.0
+        for item in self.order.quote.quote_items:
+            for sub_item in item.sub_items:
+                if sub_item.item_type in ['bestellteil', 'sonstiges']:
+                    material_cost += sub_item.calculate_price()
+        return material_cost
+    
+    def get_labor_costs(self):
+        """Berechnet Arbeitskosten aus QuoteItems (arbeitsvorgang)"""
+        if not self.order or not self.order.quote:
+            return 0.0
+        
+        labor_cost = 0.0
+        for item in self.order.quote.quote_items:
+            for sub_item in item.sub_items:
+                if sub_item.item_type == 'arbeitsvorgang':
+                    labor_cost += sub_item.calculate_price()
+        return labor_cost
+    
+    def get_labor_hours(self):
+        """Berechnet Gesamtstunden aus QuoteItems (arbeitsvorgang)"""
+        if not self.order or not self.order.quote:
+            return 0.0
+        
+        total_hours = 0.0
+        for item in self.order.quote.quote_items:
+            for sub_item in item.sub_items:
+                if sub_item.item_type == 'arbeitsvorgang':
+                    total_hours += sub_item.hours or 0.0
+        return total_hours
+    
+    def get_default_labor_rate(self):
+        """Holt den Standard-Stundensatz aus den Stammdaten"""
+        return CompanySettings.get_setting('default_hourly_rate', 95.0)
+    
+    def get_project_name(self):
+        """Holt den Projektnamen aus dem verknüpften Angebot"""
+        if self.project_name:
+            return self.project_name
+        elif self.order and self.order.quote:
+            return self.order.quote.project_description or f"Auftrag {self.order.order_number}"
+        elif self.customer:
+            return f"Rechnung für {self.customer.full_name}"
+        return "Allgemeine Rechnung"
+    
+    def get_subtotal_net(self):
+        """Berechnet Zwischensumme netto (Material + Arbeitskosten)"""
+        return self.get_material_costs() + self.get_labor_costs()
+    
+    def get_downpayment_deduction(self):
+        """Anzahlungsabzug ist previous_payments"""
+        return self.previous_payments or 0.0
+    
+    def get_net_total(self):
+        """Netto-Gesamtsumme ist invoice_amount"""
+        return self.invoice_amount or 0.0
+    
+    def get_vat_total(self):
+        """MwSt.-Gesamtsumme ist vat_amount"""
+        return self.vat_amount or 0.0
 
 
 class LoginAdmin(db.Model):
@@ -721,3 +875,69 @@ class LoginAdmin(db.Model):
     
     def __repr__(self):
         return f'<LoginAdmin {self.login_username}>'
+
+class InvoiceReminder(db.Model):
+    """Reminder für fällige Rechnungserstellung"""
+    id = db.Column(db.Integer, primary_key=True)
+    order_id = db.Column(db.Integer, db.ForeignKey('order.id'), nullable=False)
+    reminder_type = db.Column(db.String(20), nullable=False)  # 'anzahlung' oder 'schluss'
+    due_date = db.Column(db.Date, nullable=False)  # Wann der Reminder fällig ist
+    is_dismissed = db.Column(db.Boolean, default=False)  # Wurde der Reminder ausgeblendet?
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Beziehung
+    order = db.relationship('Order', backref='invoice_reminders')
+    
+    @staticmethod
+    def create_reminders_for_order(order):
+        """Erstellt Reminder für einen neuen Auftrag"""
+        from datetime import timedelta
+        
+        reminders = []
+        
+        # Anzahlungsreminder: 8 Wochen vor Auftragsbeginn
+        if order.start_date:
+            anzahlung_date = order.start_date - timedelta(weeks=8)
+            # Nur erstellen wenn das Datum in der Zukunft liegt
+            if anzahlung_date >= datetime.now().date():
+                anzahlung_reminder = InvoiceReminder(
+                    order_id=order.id,
+                    reminder_type='anzahlung',
+                    due_date=anzahlung_date
+                )
+                reminders.append(anzahlung_reminder)
+        
+        # Endrechnung: Nach Auftragsabschluss (end_date + 1 Tag)
+        if order.end_date:
+            schluss_date = order.end_date + timedelta(days=1)
+            schluss_reminder = InvoiceReminder(
+                order_id=order.id,
+                reminder_type='schluss',
+                due_date=schluss_date
+            )
+            reminders.append(schluss_reminder)
+        
+        return reminders
+    
+    @staticmethod
+    def get_active_reminders():
+        """Holt alle aktiven Reminder die fällig sind"""
+        from datetime import date
+        return InvoiceReminder.query.filter(
+            InvoiceReminder.due_date <= date.today(),
+            InvoiceReminder.is_dismissed == False
+        ).join(Order).filter(Order.status.in_(['Geplant', 'In Arbeit', 'Abgeschlossen'])).all()
+    
+    def get_existing_invoice_count(self):
+        """Prüft ob bereits Rechnungen vom entsprechenden Typ existieren"""
+        return Invoice.query.filter_by(
+            order_id=self.order_id,
+            invoice_type=self.reminder_type
+        ).count()
+    
+    def is_invoice_needed(self):
+        """Prüft ob tatsächlich eine Rechnung erstellt werden muss"""
+        return self.get_existing_invoice_count() == 0
+    
+    def __repr__(self):
+        return f'<InvoiceReminder {self.reminder_type} for Order {self.order_id}>'

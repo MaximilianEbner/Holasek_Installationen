@@ -110,7 +110,8 @@ function saveWorkSteps() {
 }
 
 function addWorkStep(category) {
-    const categoryId = category.replace(/[^a-zA-Z0-9]/g, '');
+    // Verwende die gleiche Logik wie im Template für die ID-Generierung
+    const categoryId = category.replace(/ /g, '').replace(/&/g, '').replace(/\//g, '');
     const container = document.getElementById(`category-${categoryId}`);
     const stepCount = container.children.length + 1;
     
@@ -156,7 +157,7 @@ function removeWorkStep(button) {
 function removeCategory(categoryName) {
     if (confirm(`Kategorie "${categoryName}" mit allen Arbeitsschritten wirklich löschen?\n\nDiese Aktion kann nicht rückgängig gemacht werden!`)) {
         // Finde die entsprechende Karte und entferne sie
-        const categoryId = categoryName.replace(/[^a-zA-Z0-9]/g, '');
+        const categoryId = categoryName.replace(/ /g, '').replace(/&/g, '').replace(/\//g, '');
         const categoryContainer = document.getElementById(`category-${categoryId}`);
         if (categoryContainer) {
             // Entferne die gesamte Karte (parent von parent von categoryContainer)
@@ -175,7 +176,7 @@ function addNewCategory() {
         return;
     }
     
-    const categoryId = categoryName.replace(/[^a-zA-Z0-9]/g, '');
+    const categoryId = categoryName.replace(/ /g, '').replace(/&/g, '').replace(/\//g, '');
     
     // Prüfen ob Kategorie bereits existiert
     if (document.getElementById(`category-${categoryId}`)) {

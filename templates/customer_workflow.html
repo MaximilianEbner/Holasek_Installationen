@@ -49,7 +49,7 @@
                             </div>
                         {% endif %}
                         <small class="form-text text-muted">
-                            Optional: Setzen Sie das Datum für den Kundentermin.
+                            Optional: Setzen Sie das Datum für den ersten Kundentermin.
                         </small>
                     </div>
                     
@@ -59,6 +59,33 @@
                         {% if form.appointment_notes.errors %}
                             <div class="text-danger">
                                 {% for error in form.appointment_notes.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.second_appointment_date.label(class="form-label") }}
+                        {{ form.second_appointment_date(class="form-control") }}
+                        {% if form.second_appointment_date.errors %}
+                            <div class="text-danger">
+                                {% for error in form.second_appointment_date.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <small class="form-text text-muted">
+                            Optional: Setzen Sie das Datum für den zweiten Termin (Angebotsvorstellung).
+                        </small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.second_appointment_notes.label(class="form-label") }}
+                        {{ form.second_appointment_notes(class="form-control", rows="3") }}
+                        {% if form.second_appointment_notes.errors %}
+                            <div class="text-danger">
+                                {% for error in form.second_appointment_notes.errors %}
                                     <small>{{ error }}</small>
                                 {% endfor %}
                             </div>
@@ -105,35 +132,51 @@
                     <ul class="list-unstyled">
                         <li class="mb-2">
                             <span class="badge bg-warning me-2">1</span>
-                            <strong>Termin vereinbaren</strong><br>
-                            <small class="text-muted">Kunde kontaktieren und Termin vereinbaren</small>
+                            <strong>1. Termin vereinbaren</strong><br>
+                            <small class="text-muted">Ersten Termin mit Kunde vereinbaren</small>
                         </li>
                         <li class="mb-2">
                             <span class="badge bg-info me-2">2</span>
-                            <strong>Termin vereinbart</strong><br>
+                            <strong>1. Termin vereinbart</strong><br>
                             <small class="text-muted">Termin steht fest, Vorbereitung auf Kundenbesuch</small>
                         </li>
                         <li class="mb-2">
                             <span class="badge bg-primary me-2">3</span>
                             <strong>Angebot erstellen</strong><br>
-                            <small class="text-muted">Nach Kundentermin Angebot ausarbeiten</small>
+                            <small class="text-muted">Nach 1. Termin Angebot basierend auf Kundenwünschen erstellen</small>
                         </li>
                         <li class="mb-2">
-                            <span class="badge bg-success me-2">4</span>
-                            <strong>Angebot wurde erstellt</strong><br>
-                            <small class="text-muted">Workflow abgeschlossen</small>
+                            <span class="badge bg-warning me-2">4</span>
+                            <strong>2. Termin vereinbaren</strong><br>
+                            <small class="text-muted">Zweiten Termin für Angebotsvorstellung vereinbaren</small>
+                        </li>
+                        <li class="mb-2">
+                            <span class="badge bg-success me-2">5</span>
+                            <strong>Warten auf Rückmeldung</strong><br>
+                            <small class="text-muted">Auf Kundenentscheidung warten</small>
                         </li>
                     </ul>
                 </div>
                 
-                {% if customer.appointment_date %}
+                {% if customer.appointment_date or customer.second_appointment_date %}
                 <div class="mb-3">
                     <h6>Termininformationen:</h6>
-                    <p><strong>Datum:</strong> {{ customer.appointment_date.strftime('%d.%m.%Y') }}</p>
+                    {% if customer.appointment_date %}
+                    <p><strong>1. Termin:</strong> {{ customer.appointment_date.strftime('%d.%m.%Y') }}</p>
                     {% if customer.appointment_notes %}
-                    <p><strong>Notizen:</strong><br>
+                    <p><strong>Notizen 1. Termin:</strong><br>
                     <span class="text-muted">{{ customer.appointment_notes }}</span>
                     </p>
+                    {% endif %}
+                    {% endif %}
+                    
+                    {% if customer.second_appointment_date %}
+                    <p><strong>2. Termin:</strong> {{ customer.second_appointment_date.strftime('%d.%m.%Y') }}</p>
+                    {% if customer.second_appointment_notes %}
+                    <p><strong>Notizen 2. Termin:</strong><br>
+                    <span class="text-muted">{{ customer.second_appointment_notes }}</span>
+                    </p>
+                    {% endif %}
                     {% endif %}
                 </div>
                 {% endif %}
@@ -155,7 +198,15 @@
                 </p>
                 <p class="card-text">
                     <i class="fas fa-calendar text-primary"></i> 
-                    Ein Termindatum setzt den Status automatisch auf "Termin vereinbart".
+                    Ein 1. Termindatum setzt den Status automatisch auf "1. Termin vereinbart".
+                </p>
+                <p class="card-text">
+                    <i class="fas fa-robot text-success"></i> 
+                    Am Tag nach dem 1. Termin wird der Status automatisch auf "Angebot erstellen" gesetzt.
+                </p>
+                <p class="card-text">
+                    <i class="fas fa-file-alt text-info"></i> 
+                    Nach Angebotserstellung wird der Status automatisch auf "2. Termin vereinbaren" gesetzt.
                 </p>
             </div>
         </div>

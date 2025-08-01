@@ -550,8 +550,8 @@
                                     <!-- Bestellteil Felder -->
                                     <div class="row mt-3 bestellteil-fields" id="bestellteil-1">
                                         <div class="col-md-3">
-                                            <label class="form-label">Lieferant</label>
-                                            <select name="sub_supplier[]" class="form-control">
+                                            <label class="form-label">Lieferant <span class="text-danger">*</span></label>
+                                            <select name="sub_supplier[]" class="form-control supplier-required" required>
                                                 <option value="">Lieferant wählen</option>
                                                 {% for supplier in suppliers %}
                                                 <option value="{{ supplier.name }}">{{ supplier.name }}</option>
@@ -569,15 +569,23 @@
                                                    placeholder="z.B. 1, 2.5" value="1" onchange="recalculatePartPrice(this)">
                                         </div>
                                         <div class="col-md-2">
-                                            <label class="form-label">Preis für Kalkulation</label>
+                                            <label class="form-label">Stückpreis</label>
                                             <div class="input-group">
-                                                <input type="number" name="sub_part_price[]" class="form-control sub-price-input" 
-                                                       min="0" step="0.01" placeholder="0.00" onchange="calculateDetailedTotal()" data-original-quantity="1">
+                                                <input type="number" name="sub_part_price[]" class="form-control" 
+                                                       min="0" step="0.01" placeholder="0.00" onchange="calculateBestellteilPrice(this, 1)">
                                                 <span class="input-group-text">€</span>
                                             </div>
                                         </div>
                                         <div class="col-md-2">
-                                            <div class="form-check mt-4">
+                                            <label class="form-label">Berechneter Preis</label>
+                                            <div class="input-group">
+                                                <input type="text" id="calculated-price-1" class="form-control sub-price-input" 
+                                                       readonly style="background-color: #e9ecef;">
+                                                <span class="input-group-text">€</span>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-12 mt-2">
+                                            <div class="form-check">
                                                 <input class="form-check-input" type="checkbox" name="sub_requires_order[]" value="1" checked>
                                                 <label class="form-check-label">
                                                     Bestellung nötig
@@ -647,7 +655,7 @@
                             
                             <div class="row">
                                 <div class="col-12">
-                                    <button type="submit" class="btn btn-success">
+                                    <button type="submit" class="btn btn-success" onclick="return validateDetailedForm(event)">
                                         <i class="fas fa-save"></i> Detaillierte Position speichern
                                     </button>
                                 </div>
@@ -1074,43 +1082,49 @@ function calculateSimpleTotal() {
     }
 }
 
-// Bestellteil-Preis bei Anzahl-Änderung neu berechnen
-function recalculatePartPrice(quantityInput) {
-    // Finde das zugehörige Preis-Input-Feld
-    const row = quantityInput.closest('.bestellteil-fields') || quantityInput.closest('.sub-item-row');
+// Bestellteil-Preis berechnen (Anzahl × Stückpreis = Berechneter Preis)
+function calculateBestellteilPrice(input, index) {
+    const row = input.closest('.bestellteil-fields') || input.closest('.sub-item-row');
     if (!row) return;
     
-    const priceInput = row.querySelector('input[name="sub_part_price[]"]');
-    if (!priceInput) return;
+    const quantityInput = row.querySelector('input[name="sub_part_quantity[]"]');
+    const unitPriceInput = row.querySelector('input[name="sub_part_price[]"]');
+    const calculatedPriceDisplay = document.getElementById(`calculated-price-${index}`);
     
-    const newQuantity = parseFloat(quantityInput.value) || 1;
-    const originalQuantity = parseFloat(priceInput.dataset.originalQuantity) || 1;
-    const currentPrice = parseFloat(priceInput.value) || 0;
+    if (!quantityInput || !unitPriceInput || !calculatedPriceDisplay) return;
     
-    // Wenn noch kein Preis eingegeben wurde, nichts berechnen
-    if (currentPrice === 0) return;
+    const quantity = parseFloat(quantityInput.value) || 1;
+    const unitPrice = parseFloat(unitPriceInput.value) || 0;
     
-    // Berechne Einzelpreis basierend auf aktuellem Preis und ursprünglicher Menge
-    const unitPrice = currentPrice / originalQuantity;
-    
-    // Berechne neuen Gesamtpreis
-    const newPrice = newQuantity * unitPrice;
-    
-    // Aktualisiere Preis und speichere neue Menge als "Original"
-    priceInput.value = newPrice.toFixed(2);
-    priceInput.dataset.originalQuantity = newQuantity;
+    const calculatedPrice = quantity * unitPrice;
+    calculatedPriceDisplay.value = calculatedPrice.toFixed(2);
     
     // Aktualisiere Gesamtsumme
     calculateDetailedTotal();
+}
+
+// Funktion für Anzahl-Änderung bei Bestellteilen
+function recalculatePartPrice(quantityInput) {
+    const row = quantityInput.closest('.bestellteil-fields') || quantityInput.closest('.sub-item-row');
+    if (!row) return;
+    
+    // Finde den Index basierend auf dem calculated-price ID
+    const calculatedPriceInput = row.querySelector('[id^="calculated-price-"]');
+    if (!calculatedPriceInput) return;
+    
+    const index = calculatedPriceInput.id.replace('calculated-price-', '');
+    
+    // Berechne den neuen Preis
+    calculateBestellteilPrice(quantityInput, index);
 }
 
 // Detaillierte Position Berechnung
 function calculateDetailedTotal() {
     let total = 0;
     
-    // Bestellteil-Preise
-    const partPriceInputs = document.querySelectorAll('input[name="sub_part_price[]"]');
-    partPriceInputs.forEach(input => {
+    // Bestellteil-Preise (berechnete Preise verwenden)
+    const calculatedPriceInputs = document.querySelectorAll('[id^="calculated-price-"]');
+    calculatedPriceInputs.forEach(input => {
         const value = parseFloat(input.value) || 0;
         total += value;
     });
@@ -1168,8 +1182,8 @@ function addSubItem() {
         <!-- Bestellteil Felder -->
         <div class="row mt-3 bestellteil-fields" id="bestellteil-${index}">
             <div class="col-md-3">
-                <label class="form-label">Lieferant</label>
-                <select name="sub_supplier[]" class="form-control">
+                <label class="form-label">Lieferant <span class="text-danger">*</span></label>
+                <select name="sub_supplier[]" class="form-control supplier-required" required>
                     ${createSupplierOptions()}
                 </select>
             </div>
@@ -1184,15 +1198,23 @@ function addSubItem() {
                        placeholder="z.B. 1, 2.5" value="1" onchange="recalculatePartPrice(this)">
             </div>
             <div class="col-md-2">
-                <label class="form-label">Preis für Kalkulation</label>
+                <label class="form-label">Stückpreis</label>
                 <div class="input-group">
-                    <input type="number" name="sub_part_price[]" class="form-control sub-price-input" 
-                           min="0" step="0.01" placeholder="0.00" onchange="calculateDetailedTotal()" data-original-quantity="1">
+                    <input type="number" name="sub_part_price[]" class="form-control" 
+                           min="0" step="0.01" placeholder="0.00" onchange="calculateBestellteilPrice(this, ${index})">
                     <span class="input-group-text">€</span>
                 </div>
             </div>
             <div class="col-md-2">
-                <div class="form-check mt-4">
+                <label class="form-label">Berechneter Preis</label>
+                <div class="input-group">
+                    <input type="text" id="calculated-price-${index}" class="form-control sub-price-input" 
+                           readonly style="background-color: #e9ecef;">
+                    <span class="input-group-text">€</span>
+                </div>
+            </div>
+            <div class="col-md-12 mt-2">
+                <div class="form-check">
                     <input class="form-check-input" type="checkbox" name="sub_requires_order[]" value="${index}" checked>
                     <label class="form-check-label">
                         Bestellung nötig
@@ -1266,6 +1288,16 @@ function toggleSubItemFields(select, index) {
     if (bestellteilFields) bestellteilFields.style.display = 'none';
     if (arbeitsvorgangFields) arbeitsvorgangFields.style.display = 'none';
     if (sonstigesFields) sonstigesFields.style.display = 'none';
+    
+    // Lieferant-Dropdown Required-Status basierend auf Typ setzen
+    const supplierSelect = document.querySelector(`#bestellteil-${index} .supplier-required`);
+    if (supplierSelect) {
+        if (select.value === 'bestellteil') {
+            supplierSelect.required = true;
+        } else {
+            supplierSelect.required = false;
+        }
+    }
     
     // Entsprechende Felder einblenden
     if (select.value === 'arbeitsvorgang' && arbeitsvorgangFields) {
@@ -1475,6 +1507,29 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+// Validierung für detailliertes Formular
+function validateDetailedForm(event) {
+    const form = event.target.closest('form');
+    const subItems = form.querySelectorAll('.sub-item-row:not([style*="display: none"])');
+    
+    for (let i = 0; i < subItems.length; i++) {
+        const subItem = subItems[i];
+        const typeSelect = subItem.querySelector('select[name="sub_item_type[]"]');
+        
+        if (typeSelect && typeSelect.value === 'bestellteil') {
+            const supplierSelect = subItem.querySelector('select[name="sub_supplier[]"]');
+            if (supplierSelect && !supplierSelect.value.trim()) {
+                event.preventDefault();
+                alert('Für Bestellteile muss ein Lieferant ausgewählt werden. Bitte überprüfen Sie Unterposition ' + (i + 1) + '.');
+                supplierSelect.focus();
+                return false;
+            }
+        }
+    }
+    
+    return true;
+}
 </script>
 
 {% endblock %}

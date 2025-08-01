@@ -1,13 +1,10 @@
 """
 Standalone Backup-System für die Installation Business App
-Erstellt Backups in verschiedenen Formaten: CSV, Excel, SQLite
+Erstellt Backups in Excel und SQLite Formaten
 """
 
 import os
-import csv
 import sqlite3
-import zipfile
-import tempfile
 import shutil
 from datetime import datetime
 from io import BytesIO
@@ -15,327 +12,17 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill
 
 # Importiere Models für Datenbankzugriff
-from models import db, Customer, Quote, QuoteItem, QuoteSubItem, Order, Invoice, Supplier, SupplierOrder, SupplierOrderItem, PositionTemplate, AcquisitionChannel, CompanySettings, WorkInstruction
+from models import (db, Customer, Quote, QuoteItem, QuoteSubItem, Order, Invoice, 
+                   Supplier, SupplierOrder, SupplierOrderItem, PositionTemplate, 
+                   AcquisitionChannel, CompanySettings, WorkInstruction, 
+                   InvoiceReminder, QuoteRejection, PositionTemplateSubItem, LoginAdmin)
 
 class DatabaseBackup:
     def __init__(self):
         self.backup_dir = os.path.join(os.path.dirname(__file__), 'backups')
         os.makedirs(self.backup_dir, exist_ok=True)
     
-    def create_csv_backup(self):
-        """Erstellt CSV-Backup aller Tabellen als ZIP-Datei"""
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        
-        # Temporary directory für CSV-Dateien
-        with tempfile.TemporaryDirectory() as temp_dir:
-            csv_files = {}
-            
-            try:
-                # 1. Kunden-Backup
-                customers = Customer.query.all()
-                if customers:
-                    csv_path = os.path.join(temp_dir, 'customers.csv')
-                    with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-                        writer = csv.writer(csvfile)
-                        writer.writerow([
-                            'ID', 'Vorname', 'Nachname', 'Email', 'Telefon', 'Adresse', 
-                            'PLZ', 'Stadt', 'Status', 'Akquisekanal', 'Termin', 'Kommentare', 'Erstellt'
-                        ])
-                        for customer in customers:
-                            writer.writerow([
-                                customer.id,
-                                customer.first_name or '',
-                                customer.last_name or '',
-                                customer.email or '',
-                                customer.phone or '',
-                                customer.address or '',
-                                customer.postal_code or '',
-                                customer.city or '',
-                                customer.status or '',
-                                customer.acquisition_channel.name if customer.acquisition_channel else '',
-                                customer.appointment_date.strftime('%d.%m.%Y') if customer.appointment_date else '',
-                                customer.comments or '',
-                                customer.created_at.strftime('%d.%m.%Y %H:%M') if customer.created_at else ''
-                            ])
-                    csv_files['customers.csv'] = csv_path
-                
-                # 2. Angebote-Backup
-                quotes = Quote.query.all()
-                if quotes:
-                    csv_path = os.path.join(temp_dir, 'quotes.csv')
-                    with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-                        writer = csv.writer(csvfile)
-                        writer.writerow([
-                            'ID', 'Angebotsnummer', 'Kunde', 'Projekt', 'Status', 
-                            'Netto-Betrag', 'MwSt-Betrag', 'Brutto-Betrag', 'Erstellt', 'Gültig bis'
-                        ])
-                        for quote in quotes:
-                            net_total = quote.calculate_net_total() if quote.calculate_net_total() else 0
-                            # MwSt berechnen: 20% vom Netto-Betrag
-                            vat_amount = net_total * 0.20
-                            writer.writerow([
-                                quote.id,
-                                quote.quote_number or '',
-                                quote.customer.full_name if quote.customer else '',
-                                quote.project_description or '',
-                                quote.status or '',
-                                f"{net_total:.2f}",
-                                f"{vat_amount:.2f}",
-                                f"{quote.total_amount:.2f}" if quote.total_amount else '0.00',
-                                quote.created_at.strftime('%d.%m.%Y %H:%M') if quote.created_at else '',
-                                quote.valid_until.strftime('%d.%m.%Y') if quote.valid_until else ''
-                            ])
-                    csv_files['quotes.csv'] = csv_path
-                
-                # 3. Aufträge-Backup
-                orders = Order.query.all()
-                if orders:
-                    csv_path = os.path.join(temp_dir, 'orders.csv')
-                    with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-                        writer = csv.writer(csvfile)
-                        writer.writerow([
-                            'ID', 'Auftragsnummer', 'Angebotsnummer', 'Kunde', 'Status', 
-                            'Projektmanager', 'Startdatum', 'Enddatum', 'Erstellt'
-                        ])
-                        for order in orders:
-                            writer.writerow([
-                                order.id,
-                                order.order_number or '',
-                                order.quote.quote_number if order.quote else '',
-                                order.quote.customer.full_name if order.quote and order.quote.customer else '',
-                                order.status or '',
-                                order.project_manager or '',
-                                order.start_date.strftime('%d.%m.%Y') if order.start_date else '',
-                                order.end_date.strftime('%d.%m.%Y') if order.end_date else '',
-                                order.created_at.strftime('%d.%m.%Y %H:%M') if order.created_at else ''
-                            ])
-                    csv_files['orders.csv'] = csv_path
-                
-                # 4. Rechnungen-Backup
-                invoices = Invoice.query.all()
-                if invoices:
-                    csv_path = os.path.join(temp_dir, 'invoices.csv')
-                    with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-                        writer = csv.writer(csvfile)
-                        writer.writerow([
-                            'ID', 'Rechnungsnummer', 'Auftragsnummer', 'Kunde', 'Typ', 
-                            'Prozentsatz', 'Basis-Betrag', 'Netto-Betrag', 'MwSt-Betrag', 'Brutto-Betrag', 
-                            'Status', 'Fällig am', 'Bezahlt am', 'Zahlungsreferenz', 'Erstellt', 'Kommentare'
-                        ])
-                        for invoice in invoices:
-                            writer.writerow([
-                                invoice.id,
-                                invoice.invoice_number or '',
-                                invoice.order.order_number if invoice.order else '',
-                                invoice.order.quote.customer.full_name if invoice.order and invoice.order.quote and invoice.order.quote.customer else '',
-                                invoice.invoice_type or '',
-                                f"{invoice.percentage:.1f}%" if invoice.percentage else '',
-                                f"{invoice.base_amount:.2f}" if invoice.base_amount else '0.00',
-                                f"{invoice.final_amount:.2f}" if invoice.final_amount else '0.00',
-                                f"{invoice.vat_amount:.2f}" if invoice.vat_amount else '0.00',
-                                f"{invoice.gross_amount:.2f}" if invoice.gross_amount else '0.00',
-                                invoice.status or '',
-                                invoice.due_date.strftime('%d.%m.%Y') if invoice.due_date else '',
-                                invoice.paid_date.strftime('%d.%m.%Y') if invoice.paid_date else '',
-                                invoice.payment_reference or '',
-                                invoice.created_at.strftime('%d.%m.%Y %H:%M') if invoice.created_at else '',
-                                invoice.comments or ''
-                            ])
-                    csv_files['invoices.csv'] = csv_path
-                
-                # 5. Lieferanten-Backup
-                suppliers = Supplier.query.all()
-                if suppliers:
-                    csv_path = os.path.join(temp_dir, 'suppliers.csv')
-                    with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-                        writer = csv.writer(csvfile)
-                        writer.writerow([
-                            'ID', 'Name', 'Kategorie', 'Kontaktperson', 'Email', 'Telefon', 'Adresse', 'Notizen'
-                        ])
-                        for supplier in suppliers:
-                            writer.writerow([
-                                supplier.id,
-                                supplier.name or '',
-                                supplier.category or '',
-                                supplier.contact_person or '',
-                                supplier.email or '',
-                                supplier.phone or '',
-                                supplier.address or '',
-                                supplier.notes or ''
-                            ])
-                    csv_files['suppliers.csv'] = csv_path
-                
-                # 6. Positionsvorlagen-Backup
-                templates = PositionTemplate.query.all()
-                if templates:
-                    csv_path = os.path.join(temp_dir, 'position_templates.csv')
-                    with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-                        writer = csv.writer(csvfile)
-                        writer.writerow([
-                            'ID', 'Name', 'Beschreibung', 'Erstellt'
-                        ])
-                        for template in templates:
-                            writer.writerow([
-                                template.id,
-                                template.name or '',
-                                template.description or '',
-                                template.created_at.strftime('%d.%m.%Y %H:%M') if template.created_at else ''
-                            ])
-                    csv_files['position_templates.csv'] = csv_path
-                
-                # 7. Firmeneinstellungen-Backup
-                settings = CompanySettings.query.all()
-                if settings:
-                    csv_path = os.path.join(temp_dir, 'company_settings.csv')
-                    with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-                        writer = csv.writer(csvfile)
-                        writer.writerow([
-                            'ID', 'Einstellungsname', 'Wert', 'Beschreibung', 'Erstellt', 'Aktualisiert'
-                        ])
-                        for setting in settings:
-                            writer.writerow([
-                                setting.id,
-                                setting.setting_name or '',
-                                setting.setting_value or '',
-                                setting.description or '',
-                                setting.created_at.strftime('%d.%m.%Y %H:%M') if setting.created_at else '',
-                                setting.updated_at.strftime('%d.%m.%Y %H:%M') if setting.updated_at else ''
-                            ])
-                    csv_files['company_settings.csv'] = csv_path
-                
-                # 8. Akquisekanäle-Backup
-                channels = AcquisitionChannel.query.all()
-                if channels:
-                    csv_path = os.path.join(temp_dir, 'acquisition_channels.csv')
-                    with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-                        writer = csv.writer(csvfile)
-                        writer.writerow([
-                            'ID', 'Name', 'Beschreibung', 'Aktiv', 'Erstellt'
-                        ])
-                        for channel in channels:
-                            writer.writerow([
-                                channel.id,
-                                channel.name or '',
-                                channel.description or '',
-                                'Ja' if channel.is_active else 'Nein',
-                                channel.created_at.strftime('%d.%m.%Y %H:%M') if channel.created_at else ''
-                            ])
-                    csv_files['acquisition_channels.csv'] = csv_path
-                
-                # 9. Lieferantenbestellungen-Backup
-                supplier_orders = SupplierOrder.query.all()
-                if supplier_orders:
-                    csv_path = os.path.join(temp_dir, 'supplier_orders.csv')
-                    with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-                        writer = csv.writer(csvfile)
-                        writer.writerow([
-                            'ID', 'Angebotsnummer', 'Auftragsnummer', 'Lieferant', 'Bestelldatum', 
-                            'Status', 'Bestätigungsdatum', 'Lieferdatum', 'Notizen'
-                        ])
-                        for supplier_order in supplier_orders:
-                            writer.writerow([
-                                supplier_order.id,
-                                supplier_order.quote.quote_number if supplier_order.quote else '',
-                                supplier_order.order.order_number if supplier_order.order else '',
-                                supplier_order.supplier_name or '',
-                                supplier_order.order_date.strftime('%d.%m.%Y %H:%M') if supplier_order.order_date else '',
-                                supplier_order.status or '',
-                                supplier_order.confirmation_date.strftime('%d.%m.%Y %H:%M') if supplier_order.confirmation_date else '',
-                                supplier_order.delivery_date.strftime('%d.%m.%Y') if supplier_order.delivery_date else '',
-                                supplier_order.notes or ''
-                            ])
-                    csv_files['supplier_orders.csv'] = csv_path
-                
-                # 10. Lieferantenbestellungspositionen-Backup
-                supplier_order_items = SupplierOrderItem.query.all()
-                if supplier_order_items:
-                    csv_path = os.path.join(temp_dir, 'supplier_order_items.csv')
-                    with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-                        writer = csv.writer(csvfile)
-                        writer.writerow([
-                            'ID', 'Bestellungs-ID', 'Unternummer', 'Beschreibung', 'Teilenummer', 'Menge'
-                        ])
-                        for item in supplier_order_items:
-                            writer.writerow([
-                                item.id,
-                                item.supplier_order_id,
-                                item.sub_number or '',
-                                item.description or '',
-                                item.part_number or '',
-                                item.quantity or ''
-                            ])
-                    csv_files['supplier_order_items.csv'] = csv_path
-                
-                # 11. Arbeitsanweisungen-Backup (falls vorhanden)
-                try:
-                    work_instructions = WorkInstruction.query.all()
-                    if work_instructions:
-                        csv_path = os.path.join(temp_dir, 'work_instructions.csv')
-                        with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-                            writer = csv.writer(csvfile)
-                            writer.writerow([
-                                'ID', 'Auftragsnummer', 'Anweisungsnummer', 'Status', 'Erstellt von', 
-                                'Arbeitsbeschreibung', 'Besondere Hinweise', 'Geschätzte Dauer', 'Priorität'
-                            ])
-                            for instruction in work_instructions:
-                                writer.writerow([
-                                    instruction.id,
-                                    instruction.order.order_number if instruction.order else '',
-                                    instruction.instruction_number or '',
-                                    instruction.status or '',
-                                    instruction.created_by or '',
-                                    instruction.work_description or '',
-                                    instruction.special_instructions or '',
-                                    f"{instruction.estimated_duration} Std." if instruction.estimated_duration else '',
-                                    instruction.priority or ''
-                                ])
-                        csv_files['work_instructions.csv'] = csv_path
-                except Exception as e:
-                    # WorkInstruction Model existiert möglicherweise nicht in allen Versionen
-                    print(f"Work Instructions nicht verfügbar: {e}")
-                
-                # Info-Datei hinzufügen
-                info_path = os.path.join(temp_dir, 'BACKUP_INFO.txt')
-                with open(info_path, 'w', encoding='utf-8') as info_file:
-                    info_content = f"""InnSAN Installation Business App - Datenbank Backup
-Erstellt am: {datetime.now().strftime('%d.%m.%Y um %H:%M Uhr')}
-Format: CSV (Comma Separated Values)
-Encoding: UTF-8
-Anzahl Tabellen: {len(csv_files)}
 
-Enthaltene Dateien:
-"""
-                    for filename in csv_files.keys():
-                        info_content += f"- {filename}\n"
-                    
-                    info_content += """
-Hinweise:
-- Alle Dateien sind UTF-8 codiert
-- Dezimaltrennzeichen: Punkt (.)
-- Datumsformat: TT.MM.JJJJ
-- Import in Excel: Daten → Aus Text/CSV → UTF-8 auswählen
-"""
-                    info_file.write(info_content)
-                csv_files['BACKUP_INFO.txt'] = info_path
-                
-            except Exception as e:
-                print(f"Fehler beim CSV-Backup: {e}")
-                # Leeres ZIP mit Fehlermeldung erstellen
-                zip_buffer = BytesIO()
-                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                    zip_file.writestr('ERROR.txt', f'Fehler beim Backup: {str(e)}')
-                zip_buffer.seek(0)
-                return zip_buffer, f'backup_error_{timestamp}.zip'
-            
-            # ZIP-Datei erstellen
-            zip_buffer = BytesIO()
-            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                # Alle Dateien hinzufügen
-                for filename, filepath in csv_files.items():
-                    zip_file.write(filepath, filename)
-            
-            zip_buffer.seek(0)
-            return zip_buffer, f'InnSAN_Backup_CSV_{timestamp}.zip'
     
     def create_excel_backup(self):
         """Erstellt Excel-Backup aller Tabellen in separaten Sheets"""
@@ -354,8 +41,9 @@ Hinweise:
             customers = Customer.query.all()
             if customers:
                 ws = wb.create_sheet("Kunden")
-                headers = ['ID', 'Vorname', 'Nachname', 'Email', 'Telefon', 'Adresse', 
-                          'PLZ', 'Stadt', 'Status', 'Akquisekanal', 'Termin', 'Kommentare', 'Erstellt']
+                headers = ['ID', 'Anrede', 'Vorname', 'Nachname', 'Email', 'Telefon', 'Adresse', 
+                          'PLZ', 'Stadt', 'Kundenbetreuer', 'Status', 'Akquisekanal', 'Detaillierter Akquisekanal', 
+                          '1. Termin', '1. Termin Notizen', '2. Termin', '2. Termin Notizen', 'Kommentare', 'Erstellt']
                 ws.append(headers)
                 
                 # Header formatieren
@@ -367,6 +55,7 @@ Hinweise:
                 for customer in customers:
                     ws.append([
                         customer.id,
+                        customer.salutation or '',
                         customer.first_name or '',
                         customer.last_name or '',
                         customer.email or '',
@@ -374,9 +63,14 @@ Hinweise:
                         customer.address or '',
                         customer.postal_code or '',
                         customer.city or '',
+                        customer.customer_manager or '',
                         customer.status or '',
                         customer.acquisition_channel.name if customer.acquisition_channel else '',
+                        customer.detailed_acquisition_channel or '',
                         customer.appointment_date if customer.appointment_date else '',
+                        customer.appointment_notes or '',
+                        customer.second_appointment_date if customer.second_appointment_date else '',
+                        customer.second_appointment_notes or '',
                         customer.comments or '',
                         customer.created_at if customer.created_at else ''
                     ])
@@ -386,7 +80,9 @@ Hinweise:
             if quotes:
                 ws = wb.create_sheet("Angebote")
                 headers = ['ID', 'Angebotsnummer', 'Kunde', 'Projekt', 'Status', 
-                          'Netto-Betrag', 'MwSt-Betrag', 'Brutto-Betrag', 'Erstellt', 'Gültig bis']
+                          'Netto-Betrag', 'MwSt-Betrag', 'Brutto-Betrag', 'Erstellt', 'Gültig bis',
+                          'Zusatzinfo_anzeigen', 'Preisanzeige_Modus', 'Aufschlag_Prozent',
+                          'Leistungsumfang', 'Objektinformationen', 'Installationsleistungen']
                 ws.append(headers)
                 
                 # Header formatieren
@@ -408,15 +104,83 @@ Hinweise:
                         vat_amount,
                         quote.total_amount if quote.total_amount else 0,
                         quote.created_at if quote.created_at else '',
-                        quote.valid_until if quote.valid_until else ''
+                        quote.valid_until if quote.valid_until else '',
+                        quote.include_additional_info,
+                        quote.price_display_mode or 'standard',
+                        quote.markup_percentage if quote.markup_percentage else 15.0,
+                        quote.leistungsumfang or '',
+                        quote.objektinformationen or '',
+                        quote.installationsleistungen or ''
                     ])
             
-            # 3. Aufträge-Sheet
+            # 3. Angebotspositionen-Sheet
+            quote_items = QuoteItem.query.all()
+            if quote_items:
+                ws = wb.create_sheet("Angebotspositionen")
+                headers = ['ID', 'Angebots_ID', 'Angebotsnummer', 'Positionsnummer', 'Beschreibung', 
+                          'Menge', 'Einzelpreis', 'Gesamtpreis', 'Artikeltyp', 'Benötigt_Bestellung', 'Lieferant']
+                ws.append(headers)
+                
+                for cell in ws[1]:
+                    cell.font = header_font
+                    cell.fill = header_fill
+                
+                for item in quote_items:
+                    ws.append([
+                        item.id,
+                        item.quote_id,
+                        item.quote.quote_number if item.quote else '',
+                        item.position_number,
+                        item.description or '',
+                        item.quantity,
+                        item.unit_price,
+                        item.total_price,
+                        item.item_type or 'standard',
+                        item.requires_order,
+                        item.supplier or ''
+                    ])
+            
+            # 4. Angebots-Unterartikel-Sheet
+            quote_sub_items = QuoteSubItem.query.all()
+            if quote_sub_items:
+                ws = wb.create_sheet("Angebots_Unterartikel")
+                headers = ['ID', 'Position_ID', 'Angebotsnummer', 'Positionsnummer', 'Unternummer', 
+                          'Beschreibung', 'Artikeltyp', 'Benötigt_Bestellung', 'Lieferant', 'Teilenummer',
+                          'Teil_Menge', 'Teil_Preis', 'Arbeitsstunden', 'Stundensatz', 
+                          'Sonstige_Menge', 'Sonstiger_Einheitspreis', 'Berechneter_Preis']
+                ws.append(headers)
+                
+                for cell in ws[1]:
+                    cell.font = header_font
+                    cell.fill = header_fill
+                
+                for sub_item in quote_sub_items:
+                    ws.append([
+                        sub_item.id,
+                        sub_item.quote_item_id,
+                        sub_item.quote_item.quote.quote_number if sub_item.quote_item and sub_item.quote_item.quote else '',
+                        sub_item.quote_item.position_number if sub_item.quote_item else '',
+                        sub_item.sub_number or '',
+                        sub_item.description or '',
+                        sub_item.item_type or 'bestellteil',
+                        sub_item.requires_order,
+                        sub_item.supplier or '',
+                        sub_item.part_number or '',
+                        sub_item.part_quantity or '',
+                        sub_item.part_price if sub_item.part_price else 0,
+                        sub_item.hours if sub_item.hours else 0,
+                        sub_item.hourly_rate if sub_item.hourly_rate else 0,
+                        sub_item.quantity or '',
+                        sub_item.unit_price if sub_item.unit_price else 0,
+                        sub_item.price if sub_item.price else 0
+                    ])
+            
+            # 5. Aufträge-Sheet
             orders = Order.query.all()
             if orders:
                 ws = wb.create_sheet("Aufträge")
                 headers = ['ID', 'Auftragsnummer', 'Angebotsnummer', 'Kunde', 'Status', 
-                          'Projektmanager', 'Startdatum', 'Enddatum', 'Erstellt']
+                          'Projektmanager', 'Startdatum', 'Enddatum', 'Notizen', 'Erstellt']
                 ws.append(headers)
                 
                 for cell in ws[1]:
@@ -433,16 +197,21 @@ Hinweise:
                         order.project_manager or '',
                         order.start_date if order.start_date else '',
                         order.end_date if order.end_date else '',
+                        order.notes or '',
                         order.created_at if order.created_at else ''
                     ])
             
-            # 4. Rechnungen-Sheet
+            # 6. Rechnungen-Sheet
             invoices = Invoice.query.all()
             if invoices:
                 ws = wb.create_sheet("Rechnungen")
-                headers = ['ID', 'Rechnungsnummer', 'Auftragsnummer', 'Kunde', 'Typ', 
-                          'Prozentsatz', 'Basis-Betrag', 'Netto-Betrag', 'MwSt-Betrag', 'Brutto-Betrag', 
-                          'Status', 'Fällig am', 'Bezahlt am', 'Zahlungsreferenz', 'Erstellt', 'Kommentare']
+                headers = ['ID', 'Rechnungsnummer', 'Auftragsnummer', 'Kunde_ID', 'Kunde_Name', 'Typ', 
+                          'Prozentsatz', 'Basis-Betrag', 'Rechnungsbetrag', 'Vorherige_Zahlungen', 'Finaler_Betrag', 
+                          'MwSt_Satz', 'MwSt-Betrag', 'Brutto-Betrag', 'Projektname',
+                          'Material_Kosten_Edit', 'Arbeitsstunden_Edit', 'Stundensatz_Edit', 'Arbeitskosten_Edit',
+                          'Material_Beschreibung', 'Arbeits_Beschreibung', 'Leistungsbeschreibung',
+                          'Status', 'Fällig_am', 'Zahlungsziel_Tage', 'Bezahlt_am', 'Zahlungsreferenz',
+                          'Bezahlter_Betrag', 'Zahlungskommentar', 'Kommentare', 'Erstellt', 'Aktualisiert']
                 ws.append(headers)
                 
                 for cell in ws[1]:
@@ -454,22 +223,39 @@ Hinweise:
                         invoice.id,
                         invoice.invoice_number or '',
                         invoice.order.order_number if invoice.order else '',
-                        invoice.order.quote.customer.full_name if invoice.order and invoice.order.quote and invoice.order.quote.customer else '',
+                        invoice.customer_id or '',
+                        (invoice.order.quote.customer.full_name if invoice.order and invoice.order.quote and invoice.order.quote.customer 
+                         else invoice.customer.full_name if invoice.customer else ''),
                         invoice.invoice_type or '',
                         invoice.percentage if invoice.percentage else 0,
                         invoice.base_amount if invoice.base_amount else 0,
+                        invoice.invoice_amount if invoice.invoice_amount else 0,
+                        invoice.previous_payments if invoice.previous_payments else 0,
                         invoice.final_amount if invoice.final_amount else 0,
+                        invoice.vat_rate if invoice.vat_rate else 20.0,
                         invoice.vat_amount if invoice.vat_amount else 0,
                         invoice.gross_amount if invoice.gross_amount else 0,
+                        invoice.project_name or '',
+                        invoice.material_costs_editable if invoice.material_costs_editable else '',
+                        invoice.labor_hours_editable if invoice.labor_hours_editable else '',
+                        invoice.labor_rate_editable if invoice.labor_rate_editable else '',
+                        invoice.labor_costs_editable if invoice.labor_costs_editable else '',
+                        invoice.material_description or '',
+                        invoice.labor_description or '',
+                        invoice.service_description or '',
                         invoice.status or '',
                         invoice.due_date if invoice.due_date else '',
+                        invoice.payment_terms if invoice.payment_terms else 14,
                         invoice.paid_date if invoice.paid_date else '',
                         invoice.payment_reference or '',
+                        invoice.paid_amount if invoice.paid_amount else 0,
+                        invoice.payment_comment or '',
+                        invoice.comments or '',
                         invoice.created_at if invoice.created_at else '',
-                        invoice.comments or ''
+                        invoice.updated_at if invoice.updated_at else ''
                     ])
             
-            # 5. Lieferanten-Sheet
+            # 7. Lieferanten-Sheet
             suppliers = Supplier.query.all()
             if suppliers:
                 ws = wb.create_sheet("Lieferanten")
@@ -492,7 +278,33 @@ Hinweise:
                         supplier.notes or ''
                     ])
             
-            # 6. Firmeneinstellungen-Sheet
+            # 8. Positionsvorlagen-Sheet
+            templates = PositionTemplate.query.all()
+            if templates:
+                ws = wb.create_sheet("Positionsvorlagen")
+                headers = ['ID', 'Name', 'Beschreibung', 'Länge_aktiv', 'Breite_aktiv', 'Höhe_aktiv', 
+                          'Fläche_aktiv', 'Volumen_aktiv', 'Erstellt', 'Aktualisiert']
+                ws.append(headers)
+                
+                for cell in ws[1]:
+                    cell.font = header_font
+                    cell.fill = header_fill
+                
+                for template in templates:
+                    ws.append([
+                        template.id,
+                        template.name or '',
+                        template.description or '',
+                        template.enable_length,
+                        template.enable_width,
+                        template.enable_height,
+                        template.enable_area,
+                        template.enable_volume,
+                        template.created_at if template.created_at else '',
+                        template.updated_at if template.updated_at else ''
+                    ])
+            
+            # 9. Firmeneinstellungen-Sheet
             settings = CompanySettings.query.all()
             if settings:
                 ws = wb.create_sheet("Firmeneinstellungen")
@@ -513,7 +325,7 @@ Hinweise:
                         setting.updated_at if setting.updated_at else ''
                     ])
             
-            # 7. Akquisekanäle-Sheet
+            # 10. Akquisekanäle-Sheet
             channels = AcquisitionChannel.query.all()
             if channels:
                 ws = wb.create_sheet("Akquisekanäle")
@@ -533,7 +345,7 @@ Hinweise:
                         channel.created_at if channel.created_at else ''
                     ])
             
-            # 8. Lieferantenbestellungen-Sheet
+            # 11. Lieferantenbestellungen-Sheet
             supplier_orders = SupplierOrder.query.all()
             if supplier_orders:
                 ws = wb.create_sheet("Lieferantenbestellungen")
@@ -558,11 +370,11 @@ Hinweise:
                         supplier_order.notes or ''
                     ])
             
-            # 9. Lieferantenbestellungspositionen-Sheet
+            # 12. Lieferantenbestellungspositionen-Sheet
             supplier_order_items = SupplierOrderItem.query.all()
             if supplier_order_items:
                 ws = wb.create_sheet("Bestellpositionen")
-                headers = ['ID', 'Bestellungs-ID', 'Unternummer', 'Beschreibung', 'Teilenummer', 'Menge']
+                headers = ['ID', 'Bestellungs-ID', 'Unternummer', 'Beschreibung', 'Teilenummer', 'Menge', 'Angebots-Unterposition-ID']
                 ws.append(headers)
                 
                 for cell in ws[1]:
@@ -576,16 +388,20 @@ Hinweise:
                         item.sub_number or '',
                         item.description or '',
                         item.part_number or '',
-                        item.quantity or ''
+                        item.quantity or '',
+                        item.quote_sub_item_id or ''
                     ])
             
-            # 10. Arbeitsanweisungen-Sheet (falls vorhanden)
+            # 13. Arbeitsanweisungen-Sheet (falls vorhanden)
             try:
                 work_instructions = WorkInstruction.query.all()
                 if work_instructions:
                     ws = wb.create_sheet("Arbeitsanweisungen")
                     headers = ['ID', 'Auftragsnummer', 'Anweisungsnummer', 'Status', 'Erstellt von', 
-                              'Arbeitsbeschreibung', 'Besondere Hinweise', 'Geschätzte Dauer', 'Priorität']
+                              'Sonstiges', 'Benötigte_Werkzeuge', 'Geschätzte_Dauer', 'Priorität',
+                              'Montageort', 'Zugangserfordernisse', 'PDF_Pfad', 'Hat_Fotos', 'Hat_3D_Plan',
+                              'Foto_Pfade', 'Plan_Pfad', 'Tatsächlicher_Start', 'Tatsächliches_Ende',
+                              'Tatsächliche_Dauer', 'Abschluss_Notizen', 'Qualitätskontrolle', 'Erstellt', 'Aktualisiert']
                     ws.append(headers)
                     
                     for cell in ws[1]:
@@ -599,14 +415,130 @@ Hinweise:
                             instruction.instruction_number or '',
                             instruction.status or '',
                             instruction.created_by or '',
-                            instruction.work_description or '',
-                            instruction.special_instructions or '',
+                            instruction.sonstiges or '',
+                            instruction.tools_required or '',
                             instruction.estimated_duration if instruction.estimated_duration else '',
-                            instruction.priority or ''
+                            instruction.priority or '',
+                            instruction.installation_location or '',
+                            instruction.access_requirements or '',
+                            instruction.pdf_path or '',
+                            instruction.has_photos,
+                            instruction.has_3d_plan,
+                            instruction.photo_paths or '',
+                            instruction.plan_path or '',
+                            instruction.actual_start_time if instruction.actual_start_time else '',
+                            instruction.actual_end_time if instruction.actual_end_time else '',
+                            instruction.actual_duration if instruction.actual_duration else '',
+                            instruction.completion_notes or '',
+                            instruction.quality_check,
+                            instruction.created_at if instruction.created_at else '',
+                            instruction.updated_at if instruction.updated_at else ''
                         ])
             except Exception as e:
                 # WorkInstruction Model existiert möglicherweise nicht in allen Versionen
                 print(f"Work Instructions nicht verfügbar: {e}")
+            
+            # 14. Rechnungs-Reminder-Sheet
+            reminders = InvoiceReminder.query.all()
+            if reminders:
+                ws = wb.create_sheet("Rechnungs_Reminder")
+                headers = ['ID', 'Auftrag_ID', 'Auftragsnummer', 'Kunde', 'Reminder_Typ', 
+                          'Fällig_am', 'Ist_Ausgeblendet', 'Erstellt']
+                ws.append(headers)
+                
+                for cell in ws[1]:
+                    cell.font = header_font
+                    cell.fill = header_fill
+                
+                for reminder in reminders:
+                    ws.append([
+                        reminder.id,
+                        reminder.order_id,
+                        reminder.order.order_number if reminder.order else '',
+                        reminder.order.quote.customer.full_name if reminder.order and reminder.order.quote and reminder.order.quote.customer else '',
+                        reminder.reminder_type or '',
+                        reminder.due_date if reminder.due_date else '',
+                        reminder.is_dismissed,
+                        reminder.created_at if reminder.created_at else ''
+                    ])
+            
+            # 15. Angebots-Ablehnungen-Sheet
+            quote_rejections = QuoteRejection.query.all()
+            if quote_rejections:
+                ws = wb.create_sheet("Angebots_Ablehnungen")
+                headers = ['ID', 'Angebots_ID', 'Angebotsnummer', 'Kunde', 'Ablehnungsgrund', 'Erstellt']
+                ws.append(headers)
+                
+                for cell in ws[1]:
+                    cell.font = header_font
+                    cell.fill = header_fill
+                
+                for rejection in quote_rejections:
+                    ws.append([
+                        rejection.id,
+                        rejection.quote_id,
+                        rejection.quote.quote_number if rejection.quote else '',
+                        rejection.quote.customer.full_name if rejection.quote and rejection.quote.customer else '',
+                        rejection.reason or '',
+                        rejection.created_at if rejection.created_at else ''
+                    ])
+            
+            # 16. Positionsvorlagen-Unterartikel-Sheet
+            template_subitems = PositionTemplateSubItem.query.all()
+            if template_subitems:
+                ws = wb.create_sheet("Vorlagen_Unterartikel")
+                headers = ['ID', 'Positionsvorlage_ID', 'Vorlage_Name', 'Beschreibung', 'Artikeltyp', 
+                          'Einheit', 'Preis_pro_Einheit', 'Formel', 'Position', 
+                          'Benötigt_Bestellung', 'Lieferant', 'Teilenummer', 'Teil_Menge', 'Teil_Preis',
+                          'Arbeitsstunden', 'Stundensatz', 'Menge', 'Einheitspreis', 'Berechneter_Preis']
+                ws.append(headers)
+                
+                for cell in ws[1]:
+                    cell.font = header_font
+                    cell.fill = header_fill
+                
+                for subitem in template_subitems:
+                    ws.append([
+                        subitem.id,
+                        subitem.template_id,
+                        subitem.template.name if subitem.template else '',
+                        subitem.description or '',
+                        subitem.item_type or '',
+                        subitem.unit or '',
+                        subitem.price_per_unit if subitem.price_per_unit else 0,
+                        subitem.formula or '',
+                        subitem.position if subitem.position else 0,
+                        subitem.requires_order,
+                        subitem.supplier or '',
+                        subitem.part_number or '',
+                        subitem.part_quantity or '',
+                        subitem.part_price if subitem.part_price else 0,
+                        subitem.hours if subitem.hours else 0,
+                        subitem.hourly_rate if subitem.hourly_rate else 0,
+                        subitem.quantity or '',
+                        subitem.unit_price if subitem.unit_price else 0,
+                        subitem.price if subitem.price else 0
+                    ])
+            
+            # 17. Admin-Benutzer-Sheet (ohne Passwörter aus Sicherheitsgründen)
+            admin_users = LoginAdmin.query.all()
+            if admin_users:
+                ws = wb.create_sheet("Admin_Benutzer")
+                headers = ['ID', 'Benutzername', 'Ist_Aktiv', 'Erstellt', 'Letzter_Login']
+                ws.append(headers)
+                
+                for cell in ws[1]:
+                    cell.font = header_font
+                    cell.fill = header_fill
+                
+                for user in admin_users:
+                    ws.append([
+                        user.login_id,
+                        user.login_username or '',
+                        user.login_is_active,
+                        user.login_created_at if user.login_created_at else '',
+                        user.login_last_login if user.login_last_login else ''
+                    ])
             
             # Info-Sheet
             ws = wb.create_sheet("Backup-Info")

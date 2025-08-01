@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}Backup Details - {{ backup.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1><i class="bi bi-info-circle"></i> Backup Details</h1>
+                <a href="{{ url_for('backup_manager') }}" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-left"></i> Zurück zur Übersicht
+                </a>
+            </div>
+
+            <!-- Backup-Informationen -->
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="bi bi-file-earmark-binary"></i> Datei-Informationen</h5>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <td><strong>Dateiname:</strong></td>
+                                    <td>{{ backup.name }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Dateigröße:</strong></td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ backup.file_size_mb }} MB</span>
+                                        <small class="text-muted">({{ backup.file_size }} Bytes)</small>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Tabellen:</strong></td>
+                                    <td><span class="badge bg-info">{{ backup.table_count }}</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Gesamt Datensätze:</strong></td>
+                                    <td><span class="badge bg-success">{{ backup.total_records }}</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Repository:</strong></td>
+                                    <td><code>{{ github_repo }}</code></td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="bi bi-table"></i> Tabellen-Übersicht</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                <table class="table table-sm table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Tabellenname</th>
+                                            <th class="text-end">Datensätze</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for table_name in backup.tables|sort %}
+                                        <tr>
+                                            <td>{{ table_name }}</td>
+                                            <td class="text-end">
+                                                {% set count = backup.record_counts[table_name] %}
+                                                {% if count == "N/A" %}
+                                                    <span class="badge bg-secondary">N/A</span>
+                                                {% else %}
+                                                    <span class="badge bg-light text-dark">{{ count }}</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Aktionen -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5><i class="bi bi-gear"></i> Aktionen</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle"></i>
+                                <strong>Wichtiger Hinweis:</strong>
+                                Das Wiederherstellen überschreibt die aktuelle Datenbank vollständig.
+                                Eine automatische Sicherung der aktuellen Datenbank wird erstellt.
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-grid gap-2">
+                                <button type="button" 
+                                        class="btn btn-warning btn-lg" 
+                                        onclick="confirmRestore('{{ backup.name }}')">
+                                    <i class="bi bi-arrow-clockwise"></i> Backup wiederherstellen
+                                </button>
+                                <a href="{{ url_for('backup_manager') }}" class="btn btn-outline-secondary">
+                                    <i class="bi bi-arrow-left"></i> Zurück zur Übersicht
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Backup-Analyse -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5><i class="bi bi-graph-up"></i> Datenbank-Analyse</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% set important_tables = ['customers', 'quotes', 'orders', 'invoices', 'quote_items', 'quote_sub_items'] %}
+                        
+                        {% for table_name in important_tables %}
+                            {% if table_name in backup.record_counts %}
+                            <div class="col-md-4 mb-3">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h6 class="card-title">
+                                            {% if table_name == 'customers' %}
+                                                <i class="bi bi-people"></i> Kunden
+                                            {% elif table_name == 'quotes' %}
+                                                <i class="bi bi-file-text"></i> Angebote
+                                            {% elif table_name == 'orders' %}
+                                                <i class="bi bi-hammer"></i> Aufträge
+                                            {% elif table_name == 'invoices' %}
+                                                <i class="bi bi-receipt"></i> Rechnungen
+                                            {% elif table_name == 'quote_items' %}
+                                                <i class="bi bi-list"></i> Angebotspositionen
+                                            {% elif table_name == 'quote_sub_items' %}
+                                                <i class="bi bi-list-ul"></i> Unterartikel
+                                            {% endif %}
+                                        </h6>
+                                        <h3 class="text-primary">{{ backup.record_counts[table_name] }}</h3>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bestätigungs-Modal -->
+<div class="modal fade" id="confirmRestoreModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Backup wiederherstellen?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>ACHTUNG:</strong> Diese Aktion kann nicht rückgängig gemacht werden!
+                </div>
+                <p>Möchten Sie das Backup <strong id="backupNameConfirm"></strong> wirklich wiederherstellen?</p>
+                <ul class="text-muted">
+                    <li>Die aktuelle Datenbank wird vollständig überschrieben</li>
+                    <li>Eine automatische Sicherung wird erstellt</li>
+                    <li>{{ backup.total_records }} Datensätze werden wiederhergestellt</li>
+                    <li>Die Anwendung sollte nach der Wiederherstellung neu gestartet werden</li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <a href="#" id="confirmRestoreBtn" class="btn btn-danger">
+                    <i class="bi bi-arrow-clockwise"></i> Jetzt wiederherstellen
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function confirmRestore(backupName) {
+    document.getElementById('backupNameConfirm').textContent = backupName;
+    document.getElementById('confirmRestoreBtn').href = "{{ url_for('restore_backup', backup_name='BACKUP_NAME') }}".replace('BACKUP_NAME', backupName);
+    
+    var modal = new bootstrap.Modal(document.getElementById('confirmRestoreModal'));
+    modal.show();
+}
+</script>
+{% endblock %}

@@ -158,6 +158,55 @@
         </div>
     </div>
     
+    <!-- Rechnungs-Reminder -->
+    {% if invoice_reminders %}
+    <div class="col-lg-4 mb-4">
+        <div class="card border-0 shadow-sm h-100 border-warning">
+            <div class="card-header bg-warning bg-opacity-10 border-0 pb-0">
+                <h5 class="card-title mb-0 text-warning">
+                    <i class="fas fa-bell me-2"></i>Rechnungs-Reminder
+                </h5>
+            </div>
+            <div class="card-body pt-3">
+                {% for reminder in invoice_reminders %}
+                <div class="alert alert-warning alert-dismissible fade show mb-3" role="alert">
+                    <div class="d-flex align-items-start">
+                        <div class="flex-grow-1">
+                            <h6 class="alert-heading mb-1">
+                                {% if reminder.reminder_type == 'anzahlung' %}
+                                    <i class="fas fa-coins me-1"></i>Anzahlung fällig
+                                {% else %}
+                                    <i class="fas fa-receipt me-1"></i>Schlussrechnung fällig
+                                {% endif %}
+                            </h6>
+                            <p class="mb-2">
+                                <strong>Auftrag:</strong> {{ reminder.order.order_number }}<br>
+                                <strong>Kunde:</strong> {{ reminder.order.quote.customer.full_name }}<br>
+                                <strong>Fällig seit:</strong> {{ reminder.due_date.strftime('%d.%m.%Y') }}
+                            </p>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <a href="{{ url_for('create_invoice_from_reminder', reminder_id=reminder.id) }}" 
+                                   class="btn btn-warning btn-sm">
+                                    <i class="fas fa-plus"></i> Rechnung erstellen
+                                </a>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" 
+                                        onclick="postponeReminder({{ reminder.id }})">
+                                    <i class="fas fa-clock"></i> Verschieben
+                                </button>
+                                <button type="button" class="btn btn-outline-danger btn-sm" 
+                                        onclick="dismissReminder({{ reminder.id }})">
+                                    <i class="fas fa-times"></i> Ausblenden
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
     <!-- Letzte Aktivitäten -->
     <div class="col-lg-4 mb-4">
         <div class="card border-0 shadow-sm h-100">
@@ -337,6 +386,52 @@ document.addEventListener('DOMContentLoaded', function() {
         el.textContent = dateStr;
     });
 });
+
+// Reminder-Verwaltung
+function postponeReminder(reminderId) {
+    const days = prompt('Um wie viele Tage verschieben? (Standard: 7):', '7');
+    if (days) {
+        const formData = new FormData();
+        formData.append('days', days);
+        
+        fetch(`/invoice_reminders/postpone/${reminderId}`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`Reminder wurde um ${days} Tage verschoben`);
+                location.reload();
+            } else {
+                alert('Fehler beim Verschieben des Reminders: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Fehler beim Verschieben des Reminders');
+        });
+    }
+}
+
+function dismissReminder(reminderId) {
+    if (confirm('Möchten Sie diesen Reminder wirklich ausblenden?')) {
+        fetch(`/invoice_reminders/dismiss/${reminderId}`, {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Reminder wurde ausgeblendet');
+                location.reload();
+            } else {
+                alert('Fehler beim Ausblenden des Reminders: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Fehler beim Ausblenden des Reminders');
+        });
+    }
+}
 </script>
 
 {% endblock %}

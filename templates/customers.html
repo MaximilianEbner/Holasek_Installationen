@@ -31,13 +31,21 @@
             {% if customer_manager_filter %}
             <input type="hidden" name="customer_manager" value="{{ customer_manager_filter }}">
             {% endif %}
+            <!-- Status-Filter als Hidden Field -->
+            {% if status_filter %}
+            <input type="hidden" name="status" value="{{ status_filter }}">
+            {% endif %}
         </form>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
         <form method="GET" action="{{ url_for('customers') }}">
             <!-- Such-Query als Hidden Field erhalten -->
             {% if search_query %}
             <input type="hidden" name="search" value="{{ search_query }}">
+            {% endif %}
+            <!-- Status-Filter als Hidden Field erhalten -->
+            {% if status_filter %}
+            <input type="hidden" name="status" value="{{ status_filter }}">
             {% endif %}
             <select name="customer_manager" class="form-select" onchange="this.form.submit()">
                 <option value="">Alle Kundenbetreuer</option>
@@ -50,9 +58,30 @@
             </select>
         </form>
     </div>
-    <div class="col-md-3 text-end">
+    <div class="col-md-2">
+        <form method="GET" action="{{ url_for('customers') }}">
+            <!-- Such-Query als Hidden Field erhalten -->
+            {% if search_query %}
+            <input type="hidden" name="search" value="{{ search_query }}">
+            {% endif %}
+            <!-- Kundenbetreuer-Filter als Hidden Field erhalten -->
+            {% if customer_manager_filter %}
+            <input type="hidden" name="customer_manager" value="{{ customer_manager_filter }}">
+            {% endif %}
+            <select name="status" class="form-select" onchange="this.form.submit()">
+                <option value="">Alle Status</option>
+                <option value="1. Termin vereinbaren" {{ 'selected' if status_filter == '1. Termin vereinbaren' else '' }}>1. Termin vereinbaren</option>
+                <option value="1. Termin vereinbart" {{ 'selected' if status_filter == '1. Termin vereinbart' else '' }}>1. Termin vereinbart</option>
+                <option value="Angebot erstellen" {{ 'selected' if status_filter == 'Angebot erstellen' else '' }}>Angebot erstellen</option>
+                <option value="2. Termin vereinbaren" {{ 'selected' if status_filter == '2. Termin vereinbaren' else '' }}>2. Termin vereinbaren</option>
+                <option value="Warten auf Rückmeldung" {{ 'selected' if status_filter == 'Warten auf Rückmeldung' else '' }}>Warten auf Rückmeldung</option>
+                <option value="Kein Interesse" {{ 'selected' if status_filter == 'Kein Interesse' else '' }}>Kein Interesse</option>
+            </select>
+        </form>
+    </div>
+    <div class="col-md-2 text-end">
         <small class="text-muted">
-            {% if search_query or customer_manager_filter %}
+            {% if search_query or customer_manager_filter or status_filter %}
                 {{ customers|length }} Ergebnis(se) gefiltert
                 {% if customer_manager_filter %}
                     <br><span class="badge bg-info">
@@ -63,7 +92,10 @@
                         {% endif %}
                     </span>
                 {% endif %}
-                {% if search_query or customer_manager_filter %}
+                {% if status_filter %}
+                    <br><span class="badge bg-warning">{{ status_filter }}</span>
+                {% endif %}
+                {% if search_query or customer_manager_filter or status_filter %}
                 <br><a href="{{ url_for('customers') }}" class="btn btn-sm btn-outline-secondary mt-1">
                     <i class="fas fa-times"></i> Alle Filter zurücksetzen
                 </a>
@@ -85,7 +117,7 @@
                         <thead>
                             <tr>
                                 <th>
-                                    <a href="{{ url_for('customers', search=search_query, customer_manager=customer_manager_filter, sort='last_name', dir='asc' if sort_by != 'last_name' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                    <a href="{{ url_for('customers', search=search_query, customer_manager=customer_manager_filter, status=status_filter, sort='last_name', dir='asc' if sort_by != 'last_name' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
                                         Name
                                         {% if sort_by == 'last_name' %}
                                             <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
@@ -95,7 +127,7 @@
                                     </a>
                                 </th>
                                 <th>
-                                    <a href="{{ url_for('customers', search=search_query, customer_manager=customer_manager_filter, sort='email', dir='asc' if sort_by != 'email' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                    <a href="{{ url_for('customers', search=search_query, customer_manager=customer_manager_filter, status=status_filter, sort='email', dir='asc' if sort_by != 'email' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
                                         E-Mail
                                         {% if sort_by == 'email' %}
                                             <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
@@ -106,7 +138,7 @@
                                 </th>
                                 <th>Telefon</th>
                                 <th>
-                                    <a href="{{ url_for('customers', search=search_query, customer_manager=customer_manager_filter, sort='city', dir='asc' if sort_by != 'city' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                    <a href="{{ url_for('customers', search=search_query, customer_manager=customer_manager_filter, status=status_filter, sort='city', dir='asc' if sort_by != 'city' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
                                         Stadt
                                         {% if sort_by == 'city' %}
                                             <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
@@ -116,7 +148,7 @@
                                     </a>
                                 </th>
                                 <th>
-                                    <a href="{{ url_for('customers', search=search_query, customer_manager=customer_manager_filter, sort='customer_manager', dir='asc' if sort_by != 'customer_manager' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                    <a href="{{ url_for('customers', search=search_query, customer_manager=customer_manager_filter, status=status_filter, sort='customer_manager', dir='asc' if sort_by != 'customer_manager' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
                                         Kundenbetreuer
                                         {% if sort_by == 'customer_manager' %}
                                             <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>

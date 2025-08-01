@@ -245,7 +245,7 @@
                                         <i class="fas fa-edit"></i> Bearbeiten
                                     </a>
                                     {% if order.status == 'Noch nicht bestellt' %}
-                                    <form method="post" action="{{ url_for('send_supplier_order_email', order_id=order.id) }}" style="display:inline;">
+                                    <form method="get" action="{{ url_for('preview_supplier_order_email', order_id=order.id) }}" style="display:inline;">
                                         <button type="submit" class="btn btn-sm btn-success ms-1" title="Jetzt bestellen">
                                             <i class="fas fa-paper-plane"></i> Jetzt bestellen
                                         </button>

@@ -138,11 +138,9 @@
             </div>
             <div class="card-body">
                 {% if order.status == 'Noch nicht bestellt' %}
-                    <form method="post" action="{{ url_for('send_supplier_order_email', order_id=order.id) }}">
-                        <button type="submit" class="btn btn-success">
-                            <i class="fas fa-envelope"></i> Bestellung jetzt per E-Mail senden
-                        </button>
-                    </form>
+                    <a href="{{ url_for('preview_supplier_order_email', order_id=order.id) }}" class="btn btn-success">
+                        <i class="fas fa-envelope"></i> Bestellung jetzt per E-Mail senden
+                    </a>
                 {% else %}
                     <span class="text-muted">Diese Bestellung wurde bereits per E-Mail versendet.</span>
                 {% endif %}

@@ -155,8 +155,10 @@ class PDFExporter:
         
         if os.path.exists(logo_path):
             try:
-                # Logo mit angemessener Größe laden
-                logo_element = Image(logo_path, width=5*cm, height=2.5*cm)
+                # Logo mit korrektem Seitenverhältnis (624x222 Pixel = 2.81:1)
+                logo_width = 6*cm
+                logo_height = logo_width / 2.81  # Berechne Höhe basierend auf Original-Seitenverhältnis
+                logo_element = Image(logo_path, width=logo_width, height=logo_height)
             except Exception as e:
                 print(f"Fehler beim Laden des Logos: {e}")
                 logo_element = None
@@ -318,6 +320,13 @@ class PDFExporter:
                     spaceAfter=2
                 )
                 
+                sub_price_style = ParagraphStyle(
+                    'SubPrice',
+                    parent=self.styles['Normal'],
+                    fontSize=9,
+                    alignment=TA_RIGHT
+                )
+                
                 for sub_item in item.sub_items:
                     # Bestimme Preisanzeigemodus (Rückwärtskompatibilität mit show_subitem_prices)
                     display_mode = getattr(quote, 'price_display_mode', 'standard')
@@ -326,14 +335,24 @@ class PDFExporter:
                         display_mode = 'detailed'
                     
                     if display_mode == 'detailed' and sub_item.price > 0:
-                        # Detailliert: Zeige Unterpositionspreise mit Aufschlag
+                        # Detailliert: Zeige Unterpositionspreise mit Aufschlag - rechtsbündig
                         sub_price_with_markup = sub_item.calculate_price_with_markup()
-                        sub_text = f"{sub_item.sub_number} {sub_item.description} - {format_currency_de(sub_price_with_markup)}"
+                        sub_text = f"{sub_item.sub_number} {sub_item.description}"
+                        sub_price_text = format_currency_de(sub_price_with_markup)
+                        
+                        # Tabelle für rechtsbündige Preisanzeige
+                        sub_data = [[Paragraph(sub_text, sub_style), Paragraph(sub_price_text, sub_price_style)]]
+                        sub_table = Table(sub_data, colWidths=[13*cm, 4*cm])
+                        sub_table.setStyle(TableStyle([
+                            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+                            ('TOPPADDING', (0, 0), (-1, -1), 2),
+                        ]))
+                        elements.append(sub_table)
                     else:
                         # Standard und Total_only: Keine Preise für Unterpositionen
                         sub_text = f"{sub_item.sub_number} {sub_item.description}"
-                    
-                    elements.append(Paragraph(sub_text, sub_style))
+                        elements.append(Paragraph(sub_text, sub_style))
             
             elements.append(Spacer(1, 0.4*cm))
         

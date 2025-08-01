@@ -115,11 +115,28 @@
                 </div>
                 {% endfor %}
                 
-                <!-- Bestätigungs-Button für alle Bestellungen -->
+                <!-- Bestätigungs-Button für Bestellung -->
                 <div class="row mt-4">
                     <div class="col-12">
                         <div class="card bg-light">
                             <div class="card-body text-center">
+                                {% if order %}
+                                <!-- Einzelne Bestellung bestätigen -->
+                                <h6><i class="fas fa-check-circle"></i> Bestellung bestätigen</h6>
+                                <p class="text-muted mb-3">
+                                    Klicken Sie hier, um diese Bestellung als "bestellt" zu markieren.
+                                </p>
+                                <form method="POST" action="{{ url_for('send_supplier_order_email', order_id=order.id) }}" style="display: inline;">
+                                    <button type="submit" class="btn btn-primary btn-lg" 
+                                            onclick="return confirm('Bestellung an {{ email_info[0].supplier }} als bestellt markieren?')">
+                                        <i class="fas fa-check"></i> Bestellung bestätigen
+                                    </button>
+                                </form>
+                                <a href="{{ url_for('supplier_orders') }}" class="btn btn-secondary btn-lg ms-2">
+                                    <i class="fas fa-arrow-left"></i> Zurück zur Übersicht
+                                </a>
+                                {% else %}
+                                <!-- Alle Bestellungen bestätigen (original) -->
                                 <h6><i class="fas fa-check-circle"></i> Bestellungen bestätigen</h6>
                                 <p class="text-muted mb-3">
                                     Klicken Sie hier, um alle Bestellungen als "bestellt" zu markieren und zur Bestellübersicht hinzuzufügen.
@@ -130,6 +147,7 @@
                                         <i class="fas fa-shopping-cart"></i> Alle Bestellungen bestätigen
                                     </button>
                                 </form>
+                                {% endif %}
                             </div>
                         </div>
                     </div>

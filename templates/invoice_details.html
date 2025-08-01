@@ -1,0 +1,545 @@
+{% extends "base.html" %}
+
+{% block title %}{{ invoice.invoice_number }} - Details{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2>Rechnung {{ invoice.invoice_number }}</h2>
+        <p class="text-muted mb-0">
+            {% if invoice.order %}
+                Auftrag: {{ invoice.order.order_number }}
+            {% else %}
+                Allgemeine Rechnung
+            {% endif %}
+        </p>
+    </div>
+    <div>
+        <a href="{{ url_for('invoices') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Zurück zur Übersicht
+        </a>
+        <a href="{{ url_for('download_invoice_pdf', id=invoice.id) }}" class="btn btn-danger">
+            <i class="bi bi-file-pdf"></i> PDF herunterladen
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Rechnungsdetails -->
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Rechnungsdetails</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Kunde</h6>
+                        <p>
+                            {% if invoice.order %}
+                                <strong>{{ invoice.order.quote.customer.full_name }}</strong><br>
+                                {% if invoice.order.quote.customer.email %}
+                                    <small class="text-muted">{{ invoice.order.quote.customer.email }}</small><br>
+                                {% endif %}
+                                {% if invoice.order.quote.customer.city %}
+                                    <small class="text-muted">{{ invoice.order.quote.customer.city }}</small>
+                                {% endif %}
+                            {% elif invoice.customer %}
+                                <strong>{{ invoice.customer.full_name }}</strong><br>
+                                {% if invoice.customer.email %}
+                                    <small class="text-muted">{{ invoice.customer.email }}</small><br>
+                                {% endif %}
+                                {% if invoice.customer.city %}
+                                    <small class="text-muted">{{ invoice.customer.city }}</small>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">Unbekannter Kunde</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Rechnungstyp</h6>
+                        <p>
+                            <span class="badge bg-info">{{ invoice.get_type_display() }}</span>
+                            {% if invoice.invoice_type != 'allgemein' %}
+                                <br><small class="text-muted">{{ invoice.percentage }}% vom Auftragswert</small>
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Erstellt am</h6>
+                        <p>{{ invoice.created_at.strftime('%d.%m.%Y um %H:%M') }} Uhr</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Fällig am</h6>
+                        <p>
+                            {{ invoice.due_date.strftime('%d.%m.%Y') }}
+                            {% if invoice.is_overdue() %}
+                                <br><small class="text-danger">
+                                    <i class="bi bi-exclamation-triangle"></i>
+                                    {{ invoice.days_overdue() }} Tage überfällig
+                                </small>
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+
+                {% if invoice.service_description %}
+                <div class="row">
+                    <div class="col-12">
+                        <h6>Leistungsbeschreibung</h6>
+                        <p>{{ invoice.service_description }}</p>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if invoice.comments %}
+                <div class="row">
+                    <div class="col-12">
+                        <h6>Kommentare</h6>
+                        <div class="border rounded p-3 bg-light">
+                            {{ invoice.comments|nl2br }}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Beträge -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Rechnungsbeträge</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <table class="table table-sm">
+                            <tr>
+                                <td>Nettobetrag:</td>
+                                <td class="text-end"><strong>{{ invoice.final_amount|currency }}</strong></td>
+                            </tr>
+                            <tr>
+                                <td>MwSt. ({{ invoice.vat_rate }}%):</td>
+                                <td class="text-end">{{ invoice.vat_amount|currency }}</td>
+                            </tr>
+                            <tr class="table-primary">
+                                <td><strong>Gesamtbetrag (brutto):</strong></td>
+                                <td class="text-end"><strong>{{ invoice.gross_amount|currency }}</strong></td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        {% if invoice.invoice_type in ['schluss', 'detailed_final'] and invoice.previous_payments > 0 %}
+                        <h6>Anzahlungsabzug</h6>
+                        <p class="text-muted">Bereits erhaltene Anzahlungen: {{ invoice.previous_payments|currency }}</p>
+                        {% endif %}
+                        
+                        {% if invoice.invoice_type == 'detailed_final' %}
+                        <table class="table table-sm">
+                            <tr>
+                                <td>Materialkosten:</td>
+                                <td class="text-end">{{ (invoice.material_costs_editable or 0)|currency }}</td>
+                            </tr>
+                            <tr>
+                                <td>Arbeitskosten:</td>
+                                <td class="text-end">{{ (invoice.labor_costs_editable or 0)|currency }}</td>
+                            </tr>
+                            {% if invoice.labor_hours_editable %}
+                            <tr>
+                                <td><small>Arbeitsstunden:</small></td>
+                                <td class="text-end"><small>{{ invoice.labor_hours_editable }} h à {{ (invoice.labor_rate_editable or 0)|currency }}/h</small></td>
+                            </tr>
+                            {% endif %}
+                        </table>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status und Zahlungen -->
+    <div class="col-md-4">
+        <!-- Aktueller Status -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Status</h5>
+            </div>
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <span class="badge {{ invoice.get_status_badge_class() }} p-3" style="font-size: 1.1em;">
+                        {{ invoice.status.replace('_', ' ').title() }}
+                    </span>
+                </div>
+                
+                {% if invoice.status == 'teilweise_bezahlt' %}
+                <div class="progress mb-3">
+                    <div class="progress-bar bg-info" role="progressbar" 
+                         style="width: {{ invoice.get_payment_percentage() }}%"
+                         aria-valuenow="{{ invoice.get_payment_percentage() }}" 
+                         aria-valuemin="0" aria-valuemax="100">
+                        {{ "%.0f"|format(invoice.get_payment_percentage()) }}%
+                    </div>
+                </div>
+                <p class="mb-1">
+                    <strong>Bezahlt:</strong> {{ invoice.paid_amount|currency }}<br>
+                    <strong>Offen:</strong> {{ invoice.get_remaining_amount()|currency }}
+                </p>
+                {% elif invoice.status == 'bezahlt' %}
+                <div class="text-success">
+                    <i class="bi bi-check-circle-fill" style="font-size: 2rem;"></i>
+                    <p class="mt-2 mb-0">Vollständig bezahlt</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Zahlungsdetails -->
+        {% if invoice.status in ['teilweise_bezahlt', 'bezahlt'] %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Zahlungsdetails</h5>
+            </div>
+            <div class="card-body">
+                {% if invoice.paid_date %}
+                <div class="mb-3">
+                    <h6>Bezahldatum</h6>
+                    <p class="mb-1">{{ invoice.paid_date.strftime('%d.%m.%Y') }}</p>
+                </div>
+                {% endif %}
+
+                {% if invoice.payment_reference %}
+                <div class="mb-3">
+                    <h6>Zahlungsreferenz</h6>
+                    <p class="mb-1 font-monospace">{{ invoice.payment_reference }}</p>
+                </div>
+                {% endif %}
+
+                {% if invoice.payment_comment %}
+                <div class="mb-3">
+                    <h6>Zahlungskommentare</h6>
+                    <div class="border rounded p-2 bg-light" style="font-size: 0.9em;">
+                        {{ invoice.payment_comment|nl2br }}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Aktionen -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Aktionen</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <!-- Status-Aktionen -->
+                    {% if invoice.status == 'erstellt' %}
+                    <button class="btn btn-outline-primary" onclick="updateInvoiceStatus('{{ invoice.id }}', 'versendet')">
+                        <i class="bi bi-send"></i> Als versendet markieren
+                    </button>
+                    {% endif %}
+
+                    {% if invoice.status in ['erstellt', 'versendet', 'teilweise_bezahlt'] %}
+                    <button class="btn btn-outline-info" onclick="markAsPartiallyPaid('{{ invoice.id }}')">
+                        <i class="bi bi-cash-coin"></i> Teilzahlung erfassen
+                    </button>
+                    <button class="btn btn-outline-success" onclick="markAsPaid('{{ invoice.id }}')">
+                        <i class="bi bi-check-circle"></i> Als vollständig bezahlt markieren
+                    </button>
+                    {% endif %}
+
+                    <!-- Retour-Aktionen -->
+                    {% if invoice.status == 'bezahlt' %}
+                    <hr>
+                    <small class="text-muted">Status zurücksetzen:</small>
+                    <button class="btn btn-outline-warning btn-sm" onclick="updateInvoiceStatus('{{ invoice.id }}', 'teilweise_bezahlt')">
+                        <i class="bi bi-arrow-left"></i> Zu "Teilweise bezahlt"
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="updateInvoiceStatus('{{ invoice.id }}', 'versendet')">
+                        <i class="bi bi-arrow-left"></i> Zu "Versendet"
+                    </button>
+                    {% endif %}
+
+                    {% if invoice.status == 'teilweise_bezahlt' %}
+                    <hr>
+                    <small class="text-muted">Status zurücksetzen:</small>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="updateInvoiceStatus('{{ invoice.id }}', 'versendet')">
+                        <i class="bi bi-arrow-left"></i> Zu "Versendet"
+                    </button>
+                    {% endif %}
+
+                    {% if invoice.status == 'versendet' %}
+                    <hr>
+                    <small class="text-muted">Status zurücksetzen:</small>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="updateInvoiceStatus('{{ invoice.id }}', 'erstellt')">
+                        <i class="bi bi-arrow-left"></i> Zu "Erstellt"
+                    </button>
+                    {% endif %}
+
+                    <!-- Löschen -->
+                    {% if invoice.status not in ['bezahlt', 'teilweise_bezahlt'] %}
+                    <hr>
+                    <button class="btn btn-outline-danger" onclick="deleteInvoice('{{ invoice.id }}')">
+                        <i class="bi bi-trash"></i> Rechnung löschen
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modals von der Übersichtseite übernehmen -->
+<!-- Modal: Als bezahlt markieren -->
+<div class="modal fade" id="markPaidModal" tabindex="-1" aria-labelledby="markPaidModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="markPaidModalLabel">Rechnung als vollständig bezahlt markieren</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="markPaidForm">
+                <div class="modal-body">
+                    <input type="hidden" id="paid_invoice_id" name="invoice_id" value="{{ invoice.id }}">
+                    
+                    <div class="mb-3">
+                        <label for="paid_date" class="form-label">Bezahldatum</label>
+                        <input type="date" name="paid_date" id="paid_date" class="form-control">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="payment_reference" class="form-label">Zahlungsreferenz</label>
+                        <input type="text" name="payment_reference" id="payment_reference" class="form-control" placeholder="z.B. Überweisungsreferenz">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="payment_comment" class="form-label">Kommentar</label>
+                        <textarea name="comment" id="payment_comment" class="form-control" rows="2" placeholder="Optional: Zusätzliche Informationen"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <button type="submit" class="btn btn-success">Als vollständig bezahlt markieren</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Als teilweise bezahlt markieren -->
+<div class="modal fade" id="markPartiallyPaidModal" tabindex="-1" aria-labelledby="markPartiallyPaidModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="markPartiallyPaidModalLabel">Rechnung als teilweise bezahlt markieren</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="markPartiallyPaidForm">
+                <div class="modal-body">
+                    <input type="hidden" id="partially_paid_invoice_id" name="invoice_id" value="{{ invoice.id }}">
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Rechnungsbetrag (brutto)</label>
+                            <div class="form-control-plaintext" id="invoice_total_amount">{{ invoice.gross_amount|currency }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Bereits bezahlt</label>
+                            <div class="form-control-plaintext" id="already_paid_amount">{{ (invoice.paid_amount or 0)|currency }}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="partial_paid_amount" class="form-label">Bezahlter Betrag <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <input type="number" name="paid_amount" id="partial_paid_amount" class="form-control" 
+                                   step="0.01" min="0.01" max="{{ invoice.get_remaining_amount() }}" placeholder="0,00" required>
+                            <span class="input-group-text">€</span>
+                        </div>
+                        <div class="form-text">Geben Sie den tatsächlich bezahlten Betrag ein. Noch offen: {{ invoice.get_remaining_amount()|currency }}</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="partial_paid_date" class="form-label">Bezahldatum</label>
+                        <input type="date" name="paid_date" id="partial_paid_date" class="form-control">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="partial_payment_reference" class="form-label">Zahlungsreferenz</label>
+                        <input type="text" name="payment_reference" id="partial_payment_reference" class="form-control" placeholder="z.B. Überweisungsreferenz">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="partial_payment_comment" class="form-label">Kommentar zur Teilzahlung</label>
+                        <textarea name="comment" id="partial_payment_comment" class="form-control" rows="2" placeholder="Optional: Zusätzliche Informationen zur Teilzahlung"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <button type="submit" class="btn btn-info">Als teilweise bezahlt markieren</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// JavaScript von der Übersichtseite übernehmen
+function markAsPaid(invoiceId) {
+    document.getElementById('paid_invoice_id').value = invoiceId;
+    // Datum auf heute setzen wenn Modal geöffnet wird
+    setTodaysDate();
+    new bootstrap.Modal(document.getElementById('markPaidModal')).show();
+}
+
+const markPaidForm = document.getElementById('markPaidForm');
+if (markPaidForm) {
+    markPaidForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const invoiceId = document.getElementById('paid_invoice_id').value;
+        const formData = new FormData(this);
+        
+        fetch(`/invoices/${invoiceId}/mark_paid`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('markPaidModal')).hide();
+                location.reload();
+            } else {
+                alert('Fehler: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Ein Fehler ist aufgetreten: ' + error);
+        });
+    });
+}
+
+function markAsPartiallyPaid(invoiceId) {
+    // Datum auf heute setzen wenn Modal geöffnet wird
+    setTodaysDate();
+    new bootstrap.Modal(document.getElementById('markPartiallyPaidModal')).show();
+}
+
+const markPartiallyPaidForm = document.getElementById('markPartiallyPaidForm');
+if (markPartiallyPaidForm) {
+    markPartiallyPaidForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const invoiceId = document.getElementById('partially_paid_invoice_id').value;
+        const paidAmount = parseFloat(document.getElementById('partial_paid_amount').value);
+        const maxAmount = parseFloat(document.getElementById('partial_paid_amount').getAttribute('max'));
+        
+        if (isNaN(paidAmount) || paidAmount <= 0) {
+            alert('Bitte geben Sie einen gültigen bezahlten Betrag ein.');
+            return;
+        }
+        
+        if (paidAmount > maxAmount) {
+            alert(`Der bezahlte Betrag kann nicht höher als der offene Betrag (${maxAmount.toFixed(2)} €) sein.`);
+            return;
+        }
+        
+        const formData = new FormData(this);
+        
+        fetch(`/invoices/${invoiceId}/mark_partially_paid`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: formData
+        })
+        .then(response => {
+            if (response.ok) {
+                return response.json();
+            } else {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+        })
+        .then(data => {
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('markPartiallyPaidModal')).hide();
+                location.reload();
+            } else {
+                alert('Fehler: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Ein Fehler ist aufgetreten: ' + error);
+        });
+    });
+}
+
+function updateInvoiceStatus(invoiceId, newStatus) {
+    fetch(`/invoices/${invoiceId}/update_status`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({status: newStatus})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Fehler: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Ein Fehler ist aufgetreten: ' + error);
+    });
+}
+
+function deleteInvoice(invoiceId) {
+    if (confirm('Sind Sie sicher, dass Sie diese Rechnung löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.')) {
+        fetch(`/invoices/${invoiceId}/delete`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Rechnung wurde erfolgreich gelöscht.');
+                window.location.href = '{{ url_for("invoices") }}';
+            } else {
+                alert('Fehler beim Löschen: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Ein Fehler ist aufgetreten: ' + error);
+        });
+    }
+}
+
+// Bezahldatum auf heute setzen (deutsches Format dd.mm.yyyy)
+function setTodaysDate() {
+    const today = new Date();
+    const day = String(today.getDate()).padStart(2, '0');
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const year = today.getFullYear();
+    const dateString = `${year}-${month}-${day}`; // HTML input format: yyyy-mm-dd
+    
+    if (document.getElementById('paid_date')) {
+        document.getElementById('paid_date').value = dateString;
+    }
+    if (document.getElementById('partial_paid_date')) {
+        document.getElementById('partial_paid_date').value = dateString;
+    }
+}
+
+// Beim Laden der Seite das heutige Datum setzen
+setTodaysDate();
+</script>
+{% endblock %}

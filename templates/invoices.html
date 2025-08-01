@@ -31,6 +31,58 @@
     padding: 0.5rem 1rem;
     color: #6c757d;
 }
+
+/* Harmonische Tabellen-Styling */
+.table-hover tbody tr:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+.table th {
+    font-weight: 600;
+    color: #495057;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.table td {
+    vertical-align: middle;
+    padding: 1rem 0.75rem;
+}
+
+/* Status-Badge-Styling */
+.badge {
+    font-size: 0.85em;
+    font-weight: 500;
+}
+
+/* Button-Gruppe kompakter */
+.btn-group .btn-sm {
+    padding: 0.25rem 0.5rem;
+}
+
+/* Dashboard-Karten Hover-Effekt */
+.card {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Responsive Dashboard */
+@media (max-width: 768px) {
+    .card-body {
+        padding: 1.5rem 1rem !important;
+    }
+    
+    .card-title {
+        font-size: 0.8rem !important;
+    }
+    
+    .card h3 {
+        font-size: 1.5rem !important;
+    }
+}
 </style>
 {% endblock %}
 
@@ -38,43 +90,70 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>Rechnungsübersicht</h2>
     <div>
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createInvoiceModal">
+        <a href="{{ url_for('new_invoice') }}" class="btn btn-primary">
             <i class="bi bi-plus-circle"></i> Neue Rechnung
-        </button>
+        </a>
     </div>
 </div>
 
 <!-- Statistiken Dashboard -->
-<div class="row mb-4">
-    <div class="col-md-3">
-        <div class="card bg-warning text-white">
-            <div class="card-body">
-                <h5 class="card-title">Offene Rechnungen</h5>
-                <h3>{{ stats.open_count }}</h3>
+<div class="row mb-4 g-3">
+    <div class="col-lg-2 col-md-4 col-sm-6">
+        <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #ffc107 0%, #ffb300 100%);">
+            <div class="card-body text-white text-center py-4">
+                <div class="mb-2">
+                    <i class="bi bi-clock-history" style="font-size: 2rem; opacity: 0.8;"></i>
+                </div>
+                <h5 class="card-title mb-1" style="font-size: 0.9rem; font-weight: 600;">Offene Rechnungen</h5>
+                <h3 class="mb-0" style="font-weight: 700;">{{ stats.open_count }}</h3>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-success text-white">
-            <div class="card-body">
-                <h5 class="card-title">Bezahlte Rechnungen</h5>
-                <h3>{{ stats.paid_count }}</h3>
+    <div class="col-lg-2 col-md-4 col-sm-6">
+        <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);">
+            <div class="card-body text-white text-center py-4">
+                <div class="mb-2">
+                    <i class="bi bi-pie-chart-fill" style="font-size: 2rem; opacity: 0.8;"></i>
+                </div>
+                <h5 class="card-title mb-1" style="font-size: 0.9rem; font-weight: 600;">Teilweise bezahlt</h5>
+                <h3 class="mb-1" style="font-weight: 700;">{{ stats.partially_paid_count }}</h3>
+                <small style="opacity: 0.9; font-size: 0.8rem;">{{ stats.total_partial_paid|currency }}</small>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-danger text-white">
-            <div class="card-body">
-                <h5 class="card-title">Überfällige Rechnungen</h5>
-                <h3>{{ stats.overdue_count }}</h3>
+    <div class="col-lg-2 col-md-4 col-sm-6">
+        <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">
+            <div class="card-body text-white text-center py-4">
+                <div class="mb-2">
+                    <i class="bi bi-check-circle-fill" style="font-size: 2rem; opacity: 0.8;"></i>
+                </div>
+                <h5 class="card-title mb-1" style="font-size: 0.9rem; font-weight: 600;">Bezahlte Rechnungen</h5>
+                <h3 class="mb-0" style="font-weight: 700;">{{ stats.paid_count }}</h3>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-info text-white">
-            <div class="card-body">
-                <h5 class="card-title">Bezahlter Gesamtbetrag</h5>
-                <h3>{{ stats.total_amount|currency }}</h3>
+    <div class="col-lg-2 col-md-4 col-sm-6">
+        <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);">
+            <div class="card-body text-white text-center py-4">
+                <div class="mb-2">
+                    <i class="bi bi-exclamation-triangle-fill" style="font-size: 2rem; opacity: 0.8;"></i>
+                </div>
+                <h5 class="card-title mb-1" style="font-size: 0.9rem; font-weight: 600;">Überfällige Rechnungen</h5>
+                <h3 class="mb-0" style="font-weight: 700;">{{ stats.overdue_count }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4 col-md-8 col-sm-12">
+        <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #6c757d 0%, #495057 100%);">
+            <div class="card-body text-white text-center py-4">
+                <div class="mb-2">
+                    <i class="bi bi-currency-euro" style="font-size: 2rem; opacity: 0.8;"></i>
+                </div>
+                <h5 class="card-title mb-1" style="font-size: 0.9rem; font-weight: 600;">Bezahlter Gesamtbetrag</h5>
+                <h3 class="mb-1" style="font-weight: 700;">{{ stats.total_amount|currency }}</h3>
+                {% if stats.total_partial_paid > 0 %}
+                <small style="opacity: 0.9; font-size: 0.8rem;">+ {{ stats.total_partial_paid|currency }} teilweise</small>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -85,34 +164,6 @@
     <div class="card-body">
         <form method="GET" class="row g-3">
             <div class="col-md-3">
-                <label class="form-label">Status</label>
-                <select name="status" class="form-select">
-                    <option value="">Alle Status</option>
-                    <option value="erstellt" {{ 'selected' if request.args.get('status') == 'erstellt' }}>Erstellt</option>
-                    <option value="versendet" {{ 'selected' if request.args.get('status') == 'versendet' }}>Versendet</option>
-                    <option value="bezahlt" {{ 'selected' if request.args.get('status') == 'bezahlt' }}>Bezahlt</option>
-                    <option value="ueberfaellig" {{ 'selected' if request.args.get('status') == 'ueberfaellig' }}>Überfällig</option>
-                </select>
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Typ</label>
-                <select name="invoice_type" class="form-select">
-                    <option value="">Alle Typen</option>
-                    <option value="anzahlung" {{ 'selected' if request.args.get('invoice_type') == 'anzahlung' }}>Anzahlung</option>
-                    <option value="schluss" {{ 'selected' if request.args.get('invoice_type') == 'schluss' }}>Schlussrechnung</option>
-                </select>
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Zeitraum</label>
-                <select name="period" class="form-select">
-                    <option value="">Alle Zeiträume</option>
-                    <option value="today" {{ 'selected' if request.args.get('period') == 'today' }}>Heute</option>
-                    <option value="week" {{ 'selected' if request.args.get('period') == 'week' }}>Diese Woche</option>
-                    <option value="month" {{ 'selected' if request.args.get('period') == 'month' }}>Dieser Monat</option>
-                    <option value="quarter" {{ 'selected' if request.args.get('period') == 'quarter' }}>Dieses Quartal</option>
-                </select>
-            </div>
-            <div class="col-md-3">
                 <label class="form-label">Suche</label>
                 <div class="input-group">
                     <input type="text" name="search" class="form-control" placeholder="Rechnungsnummer, Kunde..." value="{{ request.args.get('search', '') }}">
@@ -120,6 +171,37 @@
                         <i class="bi bi-search"></i>
                     </button>
                 </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select auto-submit">
+                    <option value="">Alle Status</option>
+                    <option value="erstellt" {{ 'selected' if request.args.get('status') == 'erstellt' }}>Erstellt</option>
+                    <option value="versendet" {{ 'selected' if request.args.get('status') == 'versendet' }}>Versendet</option>
+                    <option value="teilweise_bezahlt" {{ 'selected' if request.args.get('status') == 'teilweise_bezahlt' }}>Teilweise bezahlt</option>
+                    <option value="bezahlt" {{ 'selected' if request.args.get('status') == 'bezahlt' }}>Bezahlt</option>
+                    <option value="ueberfaellig" {{ 'selected' if request.args.get('status') == 'ueberfaellig' }}>Überfällig</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Typ</label>
+                <select name="invoice_type" class="form-select auto-submit">
+                    <option value="">Alle Typen</option>
+                    <option value="anzahlung" {{ 'selected' if request.args.get('invoice_type') == 'anzahlung' }}>Anzahlung</option>
+                    <option value="schluss" {{ 'selected' if request.args.get('invoice_type') == 'schluss' }}>Schlussrechnung</option>
+                    <option value="detailed_final" {{ 'selected' if request.args.get('invoice_type') == 'detailed_final' }}>Detaillierte Schlussrechnung</option>
+                    <option value="allgemein" {{ 'selected' if request.args.get('invoice_type') == 'allgemein' }}>Allgemeine Rechnung</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Zeitraum</label>
+                <select name="period" class="form-select auto-submit">
+                    <option value="">Alle Zeiträume</option>
+                    <option value="today" {{ 'selected' if request.args.get('period') == 'today' }}>Heute</option>
+                    <option value="week" {{ 'selected' if request.args.get('period') == 'week' }}>Diese Woche</option>
+                    <option value="month" {{ 'selected' if request.args.get('period') == 'month' }}>Dieser Monat</option>
+                    <option value="quarter" {{ 'selected' if request.args.get('period') == 'quarter' }}>Dieses Quartal</option>
+                </select>
             </div>
         </form>
     </div>
@@ -130,17 +212,17 @@
     <div class="card-body">
         {% if invoices.items %}
         <div class="table-responsive">
-            <table class="table table-striped">
-                <thead>
+            <table class="table table-hover">
+                <thead class="table-light">
                     <tr>
-                        <th>Rechnungsnummer</th>
-                        <th>Kunde</th>
-                        <th>Typ</th>
-                        <th>Betrag</th>
-                        <th>Fällig am</th>
-                        <th>Status</th>
-                        <th>Erstellt am</th>
-                        <th>Aktionen</th>
+                        <th style="width: 15%;">Rechnungsnummer</th>
+                        <th style="width: 18%;">Kunde</th>
+                        <th style="width: 12%;">Typ</th>
+                        <th style="width: 15%;" class="text-end">Betrag</th>
+                        <th style="width: 12%;">Fällig am</th>
+                        <th style="width: 13%;">Status</th>
+                        <th style="width: 10%;">Erstellt am</th>
+                        <th style="width: 5%;" class="text-center">Aktionen</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -166,29 +248,40 @@
                             {% endif %}
                         </td>
                         <td>
-                            <span class="badge bg-info">
-                                {{ invoice.invoice_type.title() }}
+                            <span class="badge bg-light text-dark border">
+                                {{ invoice.get_type_display() }}
                             </span><br>
-                            <small>{{ invoice.percentage }}%</small>
+                            <small class="text-muted">{{ invoice.percentage }}%</small>
                         </td>
-                        <td>
-                            <strong>{{ invoice.gross_amount|currency }}</strong><br>
+                        <td class="text-end">
+                            <strong class="text-dark">{{ invoice.gross_amount|currency }}</strong><br>
                             <small class="text-muted">netto: {{ invoice.final_amount|currency }}</small>
-                        </td>
-                        <td>
-                            {{ invoice.due_date.strftime('%d.%m.%Y') }}
-                            {% if invoice.is_overdue() %}
-                            <br><small class="text-danger">{{ invoice.days_overdue() }} Tage überfällig</small>
+                            {% if invoice.status == 'teilweise_bezahlt' and invoice.paid_amount %}
+                            <br><small class="text-success fw-bold">bezahlt: {{ invoice.paid_amount|currency }} ({{ "%.0f"|format(invoice.get_payment_percentage()) }}%)</small>
+                            <br><small class="text-warning fw-bold">offen: {{ invoice.get_remaining_amount()|currency }}</small>
                             {% endif %}
                         </td>
                         <td>
-                            <span class="badge {{ invoice.get_status_badge_class() }}">
-                                {{ invoice.status.title() }}
+                            <span class="fw-bold">{{ invoice.due_date.strftime('%d.%m.%Y') }}</span>
+                            {% if invoice.is_overdue() %}
+                            <br><small class="text-danger fw-bold"><i class="bi bi-exclamation-triangle"></i> {{ invoice.days_overdue() }} Tage überfällig</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge {{ invoice.get_status_badge_class() }} px-3 py-2">
+                                {{ invoice.status.replace('_', ' ').title() }}
                             </span>
                         </td>
-                        <td>{{ invoice.created_at.strftime('%d.%m.%Y') }}</td>
-                        <td>
+                        <td><span class="text-muted">{{ invoice.created_at.strftime('%d.%m.%Y') }}</span></td>
+                        <td class="text-center">
                             <div class="btn-group" role="group">
+                                <!-- Details anzeigen -->
+                                <a href="{{ url_for('invoice_details', id=invoice.id) }}" 
+                                   class="btn btn-outline-primary btn-sm" 
+                                   title="Details anzeigen">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                
                                 <!-- PDF Download -->
                                 <a href="{{ url_for('download_invoice_pdf', id=invoice.id) }}" 
                                    class="btn btn-outline-danger btn-sm" 
@@ -209,13 +302,24 @@
                                         <li><a class="dropdown-item" href="#" onclick="updateInvoiceStatus('{{ invoice.id }}', 'versendet')">
                                             <i class="bi bi-send"></i> Als versendet markieren</a></li>
                                         {% endif %}
-                                        {% if invoice.status in ['erstellt', 'versendet'] %}
+                                        {% if invoice.status in ['erstellt', 'versendet', 'teilweise_bezahlt'] %}
+                                        <li><a class="dropdown-item" href="#" onclick="markAsPartiallyPaid('{{ invoice.id }}')">
+                                            <i class="bi bi-cash-coin"></i> Als teilweise bezahlt markieren</a></li>
+                                        {% endif %}
+                                        {% if invoice.status in ['erstellt', 'versendet', 'teilweise_bezahlt'] %}
                                         <li><a class="dropdown-item" href="#" onclick="markAsPaid('{{ invoice.id }}')">
-                                            <i class="bi bi-check-circle"></i> Als bezahlt markieren</a></li>
+                                            <i class="bi bi-check-circle"></i> Als vollständig bezahlt markieren</a></li>
                                         {% endif %}
                                         
                                         <!-- Retour-Status -->
                                         {% if invoice.status == 'bezahlt' %}
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item text-info" href="#" onclick="updateInvoiceStatus('{{ invoice.id }}', 'teilweise_bezahlt')">
+                                            <i class="bi bi-arrow-left"></i> Zurück zu "Teilweise bezahlt"</a></li>
+                                        <li><a class="dropdown-item text-warning" href="#" onclick="updateInvoiceStatus('{{ invoice.id }}', 'versendet')">
+                                            <i class="bi bi-arrow-left"></i> Zurück zu "Versendet"</a></li>
+                                        {% endif %}
+                                        {% if invoice.status == 'teilweise_bezahlt' %}
                                         <li><hr class="dropdown-divider"></li>
                                         <li><a class="dropdown-item text-warning" href="#" onclick="updateInvoiceStatus('{{ invoice.id }}', 'versendet')">
                                             <i class="bi bi-arrow-left"></i> Zurück zu "Versendet"</a></li>
@@ -228,8 +332,8 @@
                                     </ul>
                                 </div>
                                 
-                                <!-- Löschen (nur wenn nicht bezahlt) -->
-                                {% if invoice.status != 'bezahlt' %}
+                                <!-- Löschen (nur wenn nicht bezahlt oder teilweise bezahlt) -->
+                                {% if invoice.status not in ['bezahlt', 'teilweise_bezahlt'] %}
                                 <button class="btn btn-outline-danger btn-sm" 
                                         onclick="deleteInvoice('{{ invoice.id }}')"
                                         title="Rechnung löschen">
@@ -291,96 +395,12 @@
     </div>
 </div>
 
-<!-- Modal: Neue Rechnung erstellen -->
-<div class="modal fade" id="createInvoiceModal" tabindex="-1" aria-labelledby="createInvoiceModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="createInvoiceModalLabel">Neue Rechnung erstellen</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form id="createInvoiceForm">
-                <div class="modal-body">
-                    <div class="mb-3" id="order-selection">
-                        <label for="order_search" class="form-label">Auftrag *</label>
-                        <div class="position-relative">
-                            <input type="text" id="order_search" class="form-control" 
-                                   placeholder="Auftragsnummer oder Kundenname eingeben..." 
-                                   autocomplete="off">
-                            <input type="hidden" name="order_id" id="order_id">
-                            <div id="order_dropdown" class="dropdown-menu position-absolute w-100" style="max-height: 200px; overflow-y: auto; z-index: 1050;">
-                                <!-- Dropdown-Optionen werden hier dynamisch eingefügt -->
-                            </div>
-                        </div>
-                        <div class="form-text">Suchen Sie nach Auftragsnummer oder Kundenname</div>
-                    </div>
-                    
-                    <div class="mb-3" id="customer-selection" style="display: none;">
-                        <label for="customer_select" class="form-label">Kunde *</label>
-                        <input type="text" id="customer_search" class="form-control mb-2" placeholder="Kunde suchen..." style="display: none;">
-                        <select name="customer_id" id="customer_select" class="form-select">
-                            <option value="">Kunde auswählen...</option>
-                            {% for customer in customers %}
-                            <option value="{{ customer.id }}">{{ customer.full_name }} - {{ customer.email }}</option>
-                            {% endfor %}
-                        </select>
-                        <div class="form-text">Wählen Sie den Kunden für die allgemeine Rechnung</div>
-                    </div>
-                    
-                    <div class="mb-3" id="service-description" style="display: none;">
-                        <label for="service_description" class="form-label">Leistungsbeschreibung *</label>
-                        <textarea name="service_description" id="service_description" class="form-control" rows="3" placeholder="Beschreibung der erbrachten Leistung..."></textarea>
-                        <div class="form-text">Geben Sie eine detaillierte Beschreibung der erbrachten Leistung ein</div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="invoice_type" class="form-label">Rechnungstyp *</label>
-                        <select name="invoice_type" id="invoice_type" class="form-select" required>
-                            <option value="">Typ auswählen...</option>
-                            <option value="anzahlung">Anzahlungsrechnung</option>
-                            <option value="schluss">Schlussrechnung</option>
-                            <option value="allgemein">Allgemeine Rechnung</option>
-                        </select>
-                    </div>
-                    
-                    <div class="mb-3" id="percentage-group">
-                        <label for="percentage" class="form-label">Prozentsatz *</label>
-                        <div class="input-group">
-                            <input type="number" name="percentage" id="percentage" class="form-control" min="1" max="100" step="1">
-                            <span class="input-group-text">%</span>
-                        </div>
-                        <div class="form-text">Typisch: Anzahlung 30%, Schlussrechnung 70%</div>
-                    </div>
-                    
-                    <div class="mb-3" id="base-amount-group" style="display: none;">
-                        <label for="base_amount" class="form-label">Rechnungsbetrag (netto) *</label>
-                        <div class="input-group">
-                            <input type="number" name="base_amount" id="base_amount" class="form-control" min="0" step="0.01" placeholder="0.00">
-                            <span class="input-group-text">€</span>
-                        </div>
-                        <div class="form-text">Geben Sie den Netto-Betrag für die allgemeine Rechnung ein</div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="due_date" class="form-label">Fälligkeitsdatum *</label>
-                        <input type="date" name="due_date" id="due_date" class="form-control" required>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
-                    <button type="submit" class="btn btn-primary">Rechnung erstellen</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
 <!-- Modal: Als bezahlt markieren -->
 <div class="modal fade" id="markPaidModal" tabindex="-1" aria-labelledby="markPaidModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="markPaidModalLabel">Rechnung als bezahlt markieren</h5>
+                <h5 class="modal-title" id="markPaidModalLabel">Rechnung als vollständig bezahlt markieren</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="markPaidForm">
@@ -404,7 +424,64 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
-                    <button type="submit" class="btn btn-success">Als bezahlt markieren</button>
+                    <button type="submit" class="btn btn-success">Als vollständig bezahlt markieren</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Als teilweise bezahlt markieren -->
+<div class="modal fade" id="markPartiallyPaidModal" tabindex="-1" aria-labelledby="markPartiallyPaidModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="markPartiallyPaidModalLabel">Rechnung als teilweise bezahlt markieren</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="markPartiallyPaidForm">
+                <div class="modal-body">
+                    <input type="hidden" id="partially_paid_invoice_id" name="invoice_id">
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Rechnungsbetrag (brutto)</label>
+                            <div class="form-control-plaintext" id="invoice_total_amount">0,00 €</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Bereits bezahlt</label>
+                            <div class="form-control-plaintext" id="already_paid_amount">0,00 €</div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="partial_paid_amount" class="form-label">Bezahlter Betrag <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <input type="number" name="paid_amount" id="partial_paid_amount" class="form-control" 
+                                   step="0.01" min="0.01" placeholder="0,00" required>
+                            <span class="input-group-text">€</span>
+                        </div>
+                        <div class="form-text">Geben Sie den tatsächlich bezahlten Betrag ein.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="partial_paid_date" class="form-label">Bezahldatum</label>
+                        <input type="date" name="paid_date" id="partial_paid_date" class="form-control">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="partial_payment_reference" class="form-label">Zahlungsreferenz</label>
+                        <input type="text" name="payment_reference" id="partial_payment_reference" class="form-control" placeholder="z.B. Überweisungsreferenz">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="partial_payment_comment" class="form-label">Kommentar zur Teilzahlung</label>
+                        <textarea name="comment" id="partial_payment_comment" class="form-control" rows="2" placeholder="Optional: Zusätzliche Informationen zur Teilzahlung"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <button type="submit" class="btn btn-info">Als teilweise bezahlt markieren</button>
                 </div>
             </form>
         </div>
@@ -412,85 +489,185 @@
 </div>
 
 <script>
-// Rechnung erstellen
-document.getElementById('createInvoiceForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    const invoiceType = document.getElementById('invoice_type').value;
-    const orderIdField = document.getElementById('order_id');
-    const orderSearchField = document.getElementById('order_search');
-    const customerSelectField = document.getElementById('customer_select');
-    const baseAmountField = document.getElementById('base_amount');
-    
-    // Validierung basierend auf Rechnungstyp
-    if (invoiceType === 'allgemein') {
-        // Allgemeine Rechnung: Kunde und Betrag erforderlich
-        if (!customerSelectField.value) {
-            alert('Bitte wählen Sie einen Kunden aus.');
-            customerSelectField.focus();
-            return;
-        }
-        if (!baseAmountField.value || parseFloat(baseAmountField.value) <= 0) {
-            alert('Bitte geben Sie einen gültigen Rechnungsbetrag ein.');
-            baseAmountField.focus();
-            return;
-        }
-    } else {
-        // Anzahlung/Schluss: Auftrag erforderlich
-        if (!orderIdField.value) {
-            alert('Bitte wählen Sie einen Auftrag aus.');
-            orderSearchField.focus();
-            return;
-        }
-    }
-    
-    const formData = new FormData(this);
-    
-    fetch('{{ url_for("create_invoice") }}', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            location.reload();
+// Rechnung erstellen - nur wenn das Element existiert
+const createInvoiceForm = document.getElementById('createInvoiceForm');
+if (createInvoiceForm) {
+    createInvoiceForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const invoiceType = document.getElementById('invoice_type').value;
+        const orderIdField = document.getElementById('order_id');
+        const orderSearchField = document.getElementById('order_search');
+        const customerSelectField = document.getElementById('customer_select');
+        const baseAmountField = document.getElementById('base_amount');
+        
+        // Validierung basierend auf Rechnungstyp
+        if (invoiceType === 'allgemein') {
+            // Allgemeine Rechnung: Kunde und Betrag erforderlich
+            if (!customerSelectField.value) {
+                alert('Bitte wählen Sie einen Kunden aus.');
+                customerSelectField.focus();
+                return;
+            }
+            if (!baseAmountField.value || parseFloat(baseAmountField.value) <= 0) {
+                alert('Bitte geben Sie einen gültigen Rechnungsbetrag ein.');
+                baseAmountField.focus();
+                return;
+            }
         } else {
-            alert('Fehler: ' + data.message);
+            // Anzahlung/Schluss: Auftrag erforderlich
+            if (!orderIdField.value) {
+                alert('Bitte wählen Sie einen Auftrag aus.');
+                orderSearchField.focus();
+                return;
+            }
         }
-    })
-    .catch(error => {
-        alert('Ein Fehler ist aufgetreten: ' + error);
+        
+        const formData = new FormData(this);
+        
+        fetch('{{ url_for("create_invoice") }}', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Fehler: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Ein Fehler ist aufgetreten: ' + error);
+        });
     });
-});
+}
 
 // Als bezahlt markieren
 function markAsPaid(invoiceId) {
     document.getElementById('paid_invoice_id').value = invoiceId;
+    // Datum auf heute setzen wenn Modal geöffnet wird
+    setTodaysDateForModals();
     new bootstrap.Modal(document.getElementById('markPaidModal')).show();
 }
 
-document.getElementById('markPaidForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    const invoiceId = document.getElementById('paid_invoice_id').value;
-    const formData = new FormData(this);
-    
-    fetch(`/invoices/${invoiceId}/mark_paid`, {
-        method: 'POST',
-        body: formData
+const markPaidForm = document.getElementById('markPaidForm');
+if (markPaidForm) {
+    markPaidForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const invoiceId = document.getElementById('paid_invoice_id').value;
+        const formData = new FormData(this);
+        
+        fetch(`/invoices/${invoiceId}/mark_paid`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Modal schließen
+                bootstrap.Modal.getInstance(document.getElementById('markPaidModal')).hide();
+                // Seite neu laden
+                location.reload();
+            } else {
+                alert('Fehler: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Ein Fehler ist aufgetreten: ' + error);
+        });
+    });
+}
+
+// Als teilweise bezahlt markieren
+function markAsPartiallyPaid(invoiceId) {
+    // Lade Rechnungsdaten für das Modal
+    fetch(`/api/invoice/${invoiceId}/payment_info`, {
+        method: 'GET',
+        credentials: 'same-origin',
+        headers: {
+            'Content-Type': 'application/json',
+        }
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            location.reload();
+            document.getElementById('partially_paid_invoice_id').value = invoiceId;
+            document.getElementById('invoice_total_amount').textContent = data.gross_amount.toFixed(2).replace('.', ',') + ' €';
+            document.getElementById('already_paid_amount').textContent = (data.paid_amount || 0).toFixed(2).replace('.', ',') + ' €';
+            
+            // Max-Wert für den Input setzen (Gesamtbetrag - bereits bezahlt)
+            const remainingAmount = data.gross_amount - (data.paid_amount || 0);
+            document.getElementById('partial_paid_amount').setAttribute('max', remainingAmount.toFixed(2));
+            document.getElementById('partial_paid_amount').value = '';
+            
+            // Datum auf heute setzen wenn Modal geöffnet wird
+            setTodaysDateForModals();
+            
+            new bootstrap.Modal(document.getElementById('markPartiallyPaidModal')).show();
         } else {
-            alert('Fehler: ' + data.message);
+            alert('Fehler beim Laden der Rechnungsdaten: ' + data.message);
         }
     })
     .catch(error => {
         alert('Ein Fehler ist aufgetreten: ' + error);
     });
-});
+}
+
+const markPartiallyPaidForm = document.getElementById('markPartiallyPaidForm');
+if (markPartiallyPaidForm) {
+    markPartiallyPaidForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const invoiceId = document.getElementById('partially_paid_invoice_id').value;
+        const paidAmount = parseFloat(document.getElementById('partial_paid_amount').value);
+        const maxAmount = parseFloat(document.getElementById('partial_paid_amount').getAttribute('max'));
+        
+        // Validierung
+        if (isNaN(paidAmount) || paidAmount <= 0) {
+            alert('Bitte geben Sie einen gültigen bezahlten Betrag ein.');
+            return;
+        }
+        
+        if (paidAmount > maxAmount) {
+            alert(`Der bezahlte Betrag kann nicht höher als der offene Betrag (${maxAmount.toFixed(2)} €) sein.`);
+            return;
+        }
+        
+        const formData = new FormData(this);
+        
+        fetch(`/invoices/${invoiceId}/mark_partially_paid`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: formData
+        })
+        .then(response => {
+            console.log('Response status:', response.status);
+            if (response.ok) {
+                return response.json();
+            } else {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+        })
+        .then(data => {
+            console.log('Response data:', data);
+            if (data.success) {
+                // Modal schließen
+                bootstrap.Modal.getInstance(document.getElementById('markPartiallyPaidModal')).hide();
+                // Seite neu laden
+                location.reload();
+            } else {
+                alert('Fehler: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Fetch error:', error);
+            alert('Ein Fehler ist aufgetreten: ' + error);
+        });
+    });
+}
 
 // Status aktualisieren
 function updateInvoiceStatus(invoiceId, newStatus) {
@@ -538,203 +715,45 @@ function deleteInvoice(invoiceId) {
     }
 }
 
-// Fälligkeitsdatum automatisch setzen
-document.getElementById('due_date').valueAsDate = new Date(Date.now() + 0 * 24 * 60 * 60 * 1000);
+// Fälligkeitsdatum automatisch setzen (falls existent)
+if (document.getElementById('due_date')) {
+    document.getElementById('due_date').valueAsDate = new Date(Date.now() + 0 * 24 * 60 * 60 * 1000);
+}
 
-// Bezahldatum auf heute setzen
-document.getElementById('paid_date').valueAsDate = new Date();
-
-// Auftragssuche-Funktionalität
-let availableOrders = {{ available_orders_json|safe }};
-
-function initOrderSearch() {
-    const searchInput = document.getElementById('order_search');
-    const hiddenInput = document.getElementById('order_id');
-    const dropdown = document.getElementById('order_dropdown');
+// Bezahldatum auf heute setzen (deutsches Format)
+function setTodaysDateForModals() {
+    const today = new Date();
+    const day = String(today.getDate()).padStart(2, '0');
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const year = today.getFullYear();
+    const dateString = `${year}-${month}-${day}`; // HTML input format: yyyy-mm-dd
     
-    // Initial alle Aufträge anzeigen
-    showOrderOptions(availableOrders);
-    
-    searchInput.addEventListener('input', function() {
-        const searchTerm = this.value.toLowerCase().trim();
-        hiddenInput.value = ''; // Reset hidden value
-        
-        if (searchTerm === '') {
-            showOrderOptions(availableOrders);
-            return;
-        }
-        
-        const filteredOrders = availableOrders.filter(order => 
-            order.order_number.toLowerCase().includes(searchTerm) ||
-            order.customer_name.toLowerCase().includes(searchTerm)
-        );
-        
-        showOrderOptions(filteredOrders);
-    });
-    
-    searchInput.addEventListener('focus', function() {
-        dropdown.style.display = 'block';
-    });
-    
-    // Dropdown ausblenden wenn außerhalb geklickt wird
-    document.addEventListener('click', function(e) {
-        if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
-            dropdown.style.display = 'none';
+    // Für alle Datum-Felder in den Modals
+    const dateFields = ['paid_date', 'partial_paid_date'];
+    dateFields.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (field) {
+            field.value = dateString;
         }
     });
 }
 
-function showOrderOptions(orders) {
-    const dropdown = document.getElementById('order_dropdown');
-    
-    if (orders.length === 0) {
-        dropdown.innerHTML = '<div class="dropdown-item-text text-muted">Keine Aufträge gefunden</div>';
-        dropdown.style.display = 'block';
-        return;
-    }
-    
-    dropdown.innerHTML = orders.map(order => 
-        `<a href="#" class="dropdown-item" onclick="selectOrder(${order.id}, '${order.display_text.replace(/'/g, "\\'")}')">
-            <div><strong>${order.order_number}</strong></div>
-            <div class="text-muted small">${order.customer_name} - ${order.total_amount}</div>
-        </a>`
-    ).join('');
-    
-    dropdown.style.display = 'block';
-}
+// Beim Laden der Seite das heutige Datum setzen
+setTodaysDateForModals();
 
-function selectOrder(orderId, displayText) {
-    document.getElementById('order_search').value = displayText;
-    document.getElementById('order_id').value = orderId;
-    document.getElementById('order_dropdown').style.display = 'none';
-}
-
-// Bootstrap Dropdowns explizit initialisieren
+// Filter-Dropdowns aktivieren - automatisches Abschicken bei Änderung
+// Auto-Submit für Filter-Dropdowns
 document.addEventListener('DOMContentLoaded', function() {
-    // Auftragssuche initialisieren
-    initOrderSearch();
-    
-    // Alle Dropdown-Toggle-Buttons finden und initialisieren
-    var dropdownElementList = [].slice.call(document.querySelectorAll('[data-bs-toggle="dropdown"]'));
-    var dropdownList = dropdownElementList.map(function (dropdownToggleEl) {
-        return new bootstrap.Dropdown(dropdownToggleEl);
-    });
-    
-    // Filter-Dropdowns aktivieren - automatisches Abschicken bei Änderung
     const filterForm = document.querySelector('form[method="GET"]');
-    const filterSelects = filterForm.querySelectorAll('select[name="status"], select[name="invoice_type"], select[name="period"]');
-    
-    filterSelects.forEach(select => {
-        select.addEventListener('change', function() {
-            filterForm.submit();
+    if (filterForm) {
+        // Alle Dropdown-Felder automatisch abschicken bei Änderung
+        const filterSelects = filterForm.querySelectorAll('select.auto-submit');
+        
+        filterSelects.forEach(select => {
+            select.addEventListener('change', function() {
+                filterForm.submit();
+            });
         });
-    });
-});
-
-// Prozentsatz-Vorschläge basierend auf Rechnungstyp
-document.getElementById('invoice_type').addEventListener('change', function() {
-    const invoiceType = this.value;
-    const percentageGroup = document.getElementById('percentage-group');
-    const percentageField = document.getElementById('percentage');
-    const baseAmountGroup = document.getElementById('base-amount-group');
-    const baseAmountField = document.getElementById('base_amount');
-    const orderSelection = document.getElementById('order-selection');
-    const customerSelection = document.getElementById('customer-selection');
-    const serviceDescription = document.getElementById('service-description');
-    const orderSearchField = document.getElementById('order_search');
-    const orderIdField = document.getElementById('order_id');
-    const customerSelectField = document.getElementById('customer_select');
-    const serviceDescriptionField = document.getElementById('service_description');
-    
-    if (invoiceType === 'allgemein') {
-        // Allgemeine Rechnung: Kundenauswahl statt Auftragsauswahl, Betrag statt Prozentsatz
-        orderSelection.style.display = 'none';
-        customerSelection.style.display = 'block';
-        serviceDescription.style.display = 'block';
-        percentageGroup.style.display = 'none';
-        baseAmountGroup.style.display = 'block';
-        
-        // Felder als required/nicht required setzen
-        orderSearchField.removeAttribute('required');
-        orderIdField.removeAttribute('required');
-        percentageField.removeAttribute('required');
-        customerSelectField.setAttribute('required', 'required');
-        serviceDescriptionField.setAttribute('required', 'required');
-        baseAmountField.setAttribute('required', 'required');
-        
-        // Werte zurücksetzen
-        orderSearchField.value = '';
-        orderIdField.value = '';
-        percentageField.value = '';
-    } else {
-        // Anzahlung/Schluss: Auftragsauswahl und Prozentsatz
-        orderSelection.style.display = 'block';
-        customerSelection.style.display = 'none';
-        serviceDescription.style.display = 'none';
-        percentageGroup.style.display = 'block';
-        baseAmountGroup.style.display = 'none';
-        
-        // Felder als required/nicht required setzen
-        orderSearchField.setAttribute('required', 'required');
-        orderIdField.setAttribute('required', 'required');
-        percentageField.setAttribute('required', 'required');
-        customerSelectField.removeAttribute('required');
-        serviceDescriptionField.removeAttribute('required');
-        baseAmountField.removeAttribute('required');
-        
-        // Werte zurücksetzen
-        customerSelectField.value = '';
-        serviceDescriptionField.value = '';
-        baseAmountField.value = '';
-        
-        // Prozentsatz-Vorschläge
-        if (invoiceType === 'anzahlung') {
-            percentageField.value = 30;
-        } else if (invoiceType === 'schluss') {
-            percentageField.value = 70;
-        }
-    }
-});
-
-// Kundensuchfunktion
-document.getElementById('customer_search').addEventListener('input', function() {
-    const searchTerm = this.value.toLowerCase();
-    const customerSelect = document.getElementById('customer_select');
-    const options = customerSelect.getElementsByTagName('option');
-    
-    for (let i = 1; i < options.length; i++) { // Skip first empty option
-        const option = options[i];
-        const customerName = option.textContent.toLowerCase();
-        
-        if (customerName.includes(searchTerm)) {
-            option.style.display = 'block';
-        } else {
-            option.style.display = 'none';
-        }
-    }
-    
-    // Automatisch ersten sichtbaren Kunden auswählen wenn nur einer gefunden
-    const visibleOptions = Array.from(options).filter(opt => opt.style.display !== 'none' && opt.value);
-    if (visibleOptions.length === 1) {
-        customerSelect.value = visibleOptions[0].value;
-    }
-});
-
-// Suchfeld anzeigen/verstecken basierend auf Rechnungstyp
-document.getElementById('invoice_type').addEventListener('change', function() {
-    const searchField = document.getElementById('customer_search');
-    const selectField = document.getElementById('customer_select');
-    
-    if (this.value === 'allgemein') {
-        searchField.style.display = 'block';
-        // Alle Optionen wieder anzeigen
-        const options = selectField.getElementsByTagName('option');
-        for (let option of options) {
-            option.style.display = 'block';
-        }
-    } else {
-        searchField.style.display = 'none';
-        searchField.value = '';
     }
 });
 </script>

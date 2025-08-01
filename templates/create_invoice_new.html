@@ -1,0 +1,722 @@
+{% extends "base.html" %}
+
+{% block title %}Neue Rechnung erstellen{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Hauptstile */
+.invoice-wizard {
+    max-width: 1200px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+    overflow: hidden;
+}
+
+.wizard-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2rem;
+    text-align: center;
+}
+
+.wizard-header h1 {
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 300;
+}
+
+.wizard-header p {
+    margin: 0.5rem 0 0 0;
+    opacity: 0.9;
+}
+
+/* Formular-Sektion */
+.form-container {
+    padding: 2rem;
+}
+
+.form-section {
+    background: #f8f9fb;
+    border: 1px solid #e1e5e9;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.form-section.active {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.section-title {
+    color: #2d3748;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.section-title i {
+    color: #667eea;
+    font-size: 1.2rem;
+}
+
+/* Versteckt standardmäßig */
+.hidden-section {
+    display: none !important;
+}
+
+/* Formular-Elemente */
+.form-label {
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 0.5rem;
+}
+
+.form-control, .form-select {
+    border: 2px solid #e1e5e9;
+    border-radius: 6px;
+    padding: 0.75rem;
+    transition: border-color 0.2s ease;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* Spezielle Felder */
+.invoice-type-select {
+    font-size: 1.1rem;
+    padding: 1rem;
+    background: white;
+    border: 2px solid #e1e5e9;
+}
+
+.invoice-type-select:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+}
+
+.type-info-box {
+    background: linear-gradient(135deg, #667eea20, #764ba220);
+    border: 1px solid #667eea40;
+    border-radius: 6px;
+    padding: 1rem;
+    color: #4a5568;
+    font-size: 0.9rem;
+    margin-top: 1rem;
+}
+
+/* Berechnungs-Displays */
+.calculation-display {
+    background: linear-gradient(135deg, #f7fafc, #edf2f7);
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 0.75rem;
+    font-family: 'Segoe UI', monospace;
+    font-weight: 500;
+    color: #2d3748;
+    text-align: right;
+}
+
+/* Editierbare Felder Highlighting */
+.editable-field {
+    border-color: #f6ad55;
+    background: linear-gradient(135deg, #fff5f0, #fefcfb);
+}
+
+.editable-field:focus {
+    border-color: #ed8936;
+    box-shadow: 0 0 0 3px rgba(237, 137, 54, 0.1);
+}
+
+/* Buttons */
+.btn-primary-custom {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border: none;
+    padding: 0.75rem 2rem;
+    border-radius: 6px;
+    color: white;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.btn-primary-custom:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.btn-secondary-custom {
+    background: #6c757d;
+    border: none;
+    padding: 0.75rem 2rem;
+    border-radius: 6px;
+    color: white;
+    transition: all 0.2s ease;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .wizard-header {
+        padding: 1.5rem 1rem;
+    }
+    
+    .form-container {
+        padding: 1rem;
+    }
+    
+    .wizard-header h1 {
+        font-size: 1.5rem;
+    }
+}
+
+/* Animation für einblendende Sektionen */
+.fade-in {
+    animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Dropdown Styles */
+.order-dropdown {
+    background: white;
+    border: 1px solid #e1e5e9;
+    border-radius: 6px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 1050;
+}
+
+.dropdown-item-custom {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #f1f5f9;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.dropdown-item-custom:hover {
+    background-color: #f8f9fb;
+}
+
+.dropdown-item-custom:last-child {
+    border-bottom: none;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="invoice-wizard">
+        <!-- Header -->
+        <div class="wizard-header">
+            <h1><i class="bi bi-receipt-cutoff"></i> Neue Rechnung erstellen</h1>
+            <p>Wählen Sie den Rechnungstyp und folgen Sie den Schritten</p>
+        </div>
+
+        <!-- Formular -->
+        <div class="form-container">
+            <form id="invoiceForm" method="POST" action="{{ url_for('create_invoice') }}">
+                
+                <!-- Schritt 1: Rechnungstyp -->
+                <div class="form-section active" id="type-section">
+                    <div class="section-title">
+                        <i class="bi bi-1-circle-fill"></i>
+                        Rechnungstyp auswählen
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-8">
+                            <label for="invoice_type" class="form-label">Rechnungstyp *</label>
+                            <select name="invoice_type" id="invoice_type" class="form-select invoice-type-select" required>
+                                <option value="">-- Bitte wählen Sie einen Rechnungstyp --</option>
+                                <option value="anzahlung">🔸 Anzahlungsrechnung (30%)</option>
+                                <option value="schluss">🔹 Schlussrechnung (70%)</option>
+                                <option value="detailed_final">📋 Detaillierte Schlussrechnung</option>
+                                <option value="allgemein">📄 Allgemeine Rechnung</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <div id="type-info" class="type-info-box" style="display: none;">
+                                <!-- Info wird hier eingefügt -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Schritt 2: Auftrag auswählen (für auftragsbezogene Rechnungen) -->
+                <div class="form-section hidden-section" id="order-section">
+                    <div class="section-title">
+                        <i class="bi bi-2-circle-fill"></i>
+                        Auftrag auswählen
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-8">
+                            <label for="order_search" class="form-label">Auftrag suchen *</label>
+                            <div class="position-relative">
+                                <input type="text" 
+                                       id="order_search" 
+                                       class="form-control" 
+                                       placeholder="Auftragsnummer oder Kundenname eingeben..."
+                                       autocomplete="off">
+                                <input type="hidden" name="order_id" id="order_id">
+                                <div id="order_dropdown" class="order-dropdown position-absolute w-100" style="display: none;">
+                                    <!-- Dropdown wird dynamisch gefüllt -->
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Auftragssumme</label>
+                            <div id="order_total" class="calculation-display">
+                                Auftrag auswählen...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Schritt 2b: Kunde auswählen (für allgemeine Rechnungen) -->
+                <div class="form-section hidden-section" id="customer-section">
+                    <div class="section-title">
+                        <i class="bi bi-2-circle-fill"></i>
+                        Kunde auswählen
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-12">
+                            <label for="customer_select" class="form-label">Kunde *</label>
+                            <select name="customer_id" id="customer_select" class="form-select">
+                                <option value="">-- Kunde auswählen --</option>
+                                {% for customer in customers %}
+                                <option value="{{ customer.id }}">{{ customer.full_name }} - {{ customer.email }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Schritt 3: Standard Rechnungsdetails -->
+                <div class="form-section hidden-section" id="standard-section">
+                    <div class="section-title">
+                        <i class="bi bi-3-circle-fill"></i>
+                        Rechnungsdetails
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label for="percentage" class="form-label">Prozentsatz</label>
+                            <div class="input-group">
+                                <input type="number" name="percentage" id="percentage" class="form-control" readonly>
+                                <span class="input-group-text">%</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Grundbetrag (netto)</label>
+                            <div id="base_amount" class="calculation-display">0,00 €</div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Rechnungsbetrag (netto)</label>
+                            <div id="invoice_amount" class="calculation-display">0,00 €</div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Bruttobetrag</label>
+                            <div id="gross_amount" class="calculation-display">0,00 €</div>
+                        </div>
+                    </div>
+
+                    <!-- Schlussrechnung Anzahlungsabzug -->
+                    <div class="row mt-3 hidden-section" id="previous-payments">
+                        <div class="col-md-6">
+                            <label class="form-label">Bereits erhaltene Anzahlungen</label>
+                            <div id="previous_amount" class="calculation-display">0,00 €</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Zu zahlender Betrag</label>
+                            <div id="final_amount" class="calculation-display">0,00 €</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Schritt 3: Detaillierte Schlussrechnung -->
+                <div class="form-section hidden-section" id="detailed-section">
+                    <div class="section-title">
+                        <i class="bi bi-3-circle-fill"></i>
+                        Detaillierte Kostenaufstellung
+                    </div>
+                    
+                    <!-- Materialkosten -->
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Materialkosten (berechnet)</label>
+                            <div id="material_calc" class="calculation-display">0,00 €</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="material_editable" class="form-label">Materialkosten (editierbar)</label>
+                            <div class="input-group">
+                                <input type="number" name="material_costs_editable" id="material_editable" 
+                                       class="form-control editable-field" step="0.01" min="0">
+                                <span class="input-group-text">€</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="material_desc" class="form-label">Materialbezeichnung</label>
+                            <input type="text" name="material_description" id="material_desc" 
+                                   class="form-control" value="Materialkosten">
+                        </div>
+                    </div>
+
+                    <!-- Arbeitskosten -->
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Stunden (berechnet)</label>
+                            <div id="hours_calc" class="calculation-display">0,0 h</div>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="hours_editable" class="form-label">Stunden (editierbar)</label>
+                            <div class="input-group">
+                                <input type="number" name="labor_hours_editable" id="hours_editable" 
+                                       class="form-control editable-field" step="0.1" min="0">
+                                <span class="input-group-text">h</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="rate_editable" class="form-label">Stundensatz</label>
+                            <div class="input-group">
+                                <input type="number" name="labor_rate_editable" id="rate_editable" 
+                                       class="form-control editable-field" step="0.01" min="0" value="95.00">
+                                <span class="input-group-text">€/h</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Arbeitskosten</label>
+                            <div id="labor_costs" class="calculation-display">0,00 €</div>
+                        </div>
+                    </div>
+
+                    <!-- Summen -->
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label class="form-label">Zwischensumme (netto)</label>
+                            <div id="subtotal" class="calculation-display">0,00 €</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Netto-Gesamtsumme</label>
+                            <div id="net_total" class="calculation-display">0,00 €</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Brutto-Gesamtsumme</label>
+                            <div id="gross_total" class="calculation-display">0,00 €</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Schritt 3: Allgemeine Rechnung -->
+                <div class="form-section hidden-section" id="general-section">
+                    <div class="section-title">
+                        <i class="bi bi-3-circle-fill"></i>
+                        Rechnungsdetails
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label for="amount_general" class="form-label">Rechnungsbetrag (netto) *</label>
+                            <div class="input-group">
+                                <input type="number" name="base_amount" id="amount_general" 
+                                       class="form-control" min="0" step="0.01" placeholder="0.00">
+                                <span class="input-group-text">€</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="service_desc" class="form-label">Leistungsbeschreibung *</label>
+                            <textarea name="service_description" id="service_desc" 
+                                      class="form-control" rows="3" 
+                                      placeholder="Beschreibung der erbrachten Leistung..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Schritt 4: Zahlungskonditionen -->
+                <div class="form-section hidden-section" id="payment-section">
+                    <div class="section-title">
+                        <i class="bi bi-4-circle-fill"></i>
+                        Zahlungskonditionen
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label for="due_date" class="form-label">Fälligkeitsdatum *</label>
+                            <input type="date" name="due_date" id="due_date" class="form-control" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="payment_terms" class="form-label">Zahlungsziel (Tage)</label>
+                            <input type="number" name="payment_terms" id="payment_terms" 
+                                   class="form-control" value="14" min="1" max="90">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="vat_rate" class="form-label">MwSt.-Satz</label>
+                            <div class="input-group">
+                                <input type="number" name="vat_rate" id="vat_rate" 
+                                       class="form-control" value="20.0" step="0.1" min="0" max="30">
+                                <span class="input-group-text">%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Aktionen -->
+                <div class="form-section hidden-section" id="actions-section">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <a href="{{ url_for('invoices') }}" class="btn btn-secondary-custom">
+                            <i class="bi bi-arrow-left"></i> Abbrechen
+                        </a>
+                        <button type="submit" class="btn btn-primary-custom">
+                            <i class="bi bi-check-circle"></i> Rechnung erstellen
+                        </button>
+                    </div>
+                </div>
+
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Verfügbare Aufträge aus Backend
+const availableOrders = {{ available_orders_json|safe }};
+
+// Typ-Informationen
+const typeInfos = {
+    'anzahlung': 'Anzahlungsrechnung über 30% der Auftragssumme. Wird vor Arbeitsbeginn gestellt.',
+    'schluss': 'Schlussrechnung über 70% der Auftragssumme abzüglich bereits erhaltener Anzahlungen.',
+    'detailed_final': 'Detaillierte Schlussrechnung mit separater Aufstellung von Material- und Arbeitskosten.',
+    'allgemein': 'Allgemeine Rechnung ohne Auftragsbezug. Freier Betrag und Leistungsbeschreibung.'
+};
+
+// DOM-Elemente
+const typeSelect = document.getElementById('invoice_type');
+const typeInfo = document.getElementById('type-info');
+
+// Alle versteckten Sektionen
+const hiddenSections = [
+    'order-section',
+    'customer-section', 
+    'standard-section',
+    'detailed-section',
+    'general-section',
+    'payment-section',
+    'actions-section',
+    'previous-payments'
+];
+
+// Event Listener für Rechnungstyp
+typeSelect.addEventListener('change', function() {
+    const selectedType = this.value;
+    console.log('Selected type:', selectedType);
+    
+    // Alle Sektionen verstecken
+    hideAllSections();
+    
+    if (selectedType) {
+        // Typ-Info anzeigen
+        showTypeInfo(selectedType);
+        
+        // Je nach Typ entsprechende Sektionen anzeigen
+        switch(selectedType) {
+            case 'anzahlung':
+                showSections(['order-section', 'standard-section', 'payment-section', 'actions-section']);
+                document.getElementById('percentage').value = 30;
+                break;
+                
+            case 'schluss':
+                showSections(['order-section', 'standard-section', 'previous-payments', 'payment-section', 'actions-section']);
+                document.getElementById('percentage').value = 70;
+                break;
+                
+            case 'detailed_final':
+                showSections(['order-section', 'detailed-section', 'payment-section', 'actions-section']);
+                break;
+                
+            case 'allgemein':
+                showSections(['customer-section', 'general-section', 'payment-section', 'actions-section']);
+                break;
+        }
+    } else {
+        typeInfo.style.display = 'none';
+    }
+});
+
+function hideAllSections() {
+    hiddenSections.forEach(sectionId => {
+        const section = document.getElementById(sectionId);
+        if (section) {
+            section.classList.add('hidden-section');
+            section.classList.remove('fade-in');
+        }
+    });
+}
+
+function showSections(sectionIds) {
+    sectionIds.forEach(sectionId => {
+        const section = document.getElementById(sectionId);
+        if (section) {
+            section.classList.remove('hidden-section');
+            section.classList.add('fade-in');
+        }
+    });
+}
+
+function showTypeInfo(type) {
+    if (typeInfos[type]) {
+        typeInfo.textContent = typeInfos[type];
+        typeInfo.style.display = 'block';
+    }
+}
+
+// Auftragssuche
+function initOrderSearch() {
+    const searchInput = document.getElementById('order_search');
+    const dropdown = document.getElementById('order_dropdown');
+    const orderIdInput = document.getElementById('order_id');
+    
+    searchInput.addEventListener('input', function() {
+        const term = this.value.toLowerCase().trim();
+        orderIdInput.value = '';
+        
+        if (term === '') {
+            dropdown.style.display = 'none';
+            return;
+        }
+        
+        const filtered = availableOrders.filter(order => 
+            order.order_number.toLowerCase().includes(term) ||
+            order.customer_name.toLowerCase().includes(term)
+        );
+        
+        showOrderDropdown(filtered);
+    });
+    
+    // Dropdown verstecken bei Klick außerhalb
+    document.addEventListener('click', function(e) {
+        if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.style.display = 'none';
+        }
+    });
+}
+
+function showOrderDropdown(orders) {
+    const dropdown = document.getElementById('order_dropdown');
+    
+    if (orders.length === 0) {
+        dropdown.innerHTML = '<div class="dropdown-item-custom text-muted">Keine Aufträge gefunden</div>';
+    } else {
+        dropdown.innerHTML = orders.map(order => 
+            `<div class="dropdown-item-custom" onclick="selectOrder(${order.id}, '${order.display_text.replace(/'/g, "\\'")}', '${order.total_amount}')">
+                <strong>${order.order_number}</strong><br>
+                <small class="text-muted">${order.customer_name} - ${order.total_amount}</small>
+            </div>`
+        ).join('');
+    }
+    
+    dropdown.style.display = 'block';
+}
+
+function selectOrder(orderId, displayText, totalAmount) {
+    document.getElementById('order_search').value = displayText;
+    document.getElementById('order_id').value = orderId;
+    document.getElementById('order_dropdown').style.display = 'none';
+    document.getElementById('order_total').textContent = totalAmount;
+    
+    // Berechnungen aktualisieren
+    updateCalculations();
+}
+
+function updateCalculations() {
+    const percentage = parseInt(document.getElementById('percentage').value) || 0;
+    const orderTotal = parseFloat(document.getElementById('order_total').textContent.replace(/[^0-9.,]/g, '').replace(',', '.')) || 0;
+    
+    if (percentage > 0 && orderTotal > 0) {
+        const invoiceAmount = orderTotal * (percentage / 100);
+        const grossAmount = invoiceAmount * 1.2; // 20% MwSt
+        
+        document.getElementById('base_amount').textContent = `${orderTotal.toFixed(2)} €`;
+        document.getElementById('invoice_amount').textContent = `${invoiceAmount.toFixed(2)} €`;
+        document.getElementById('gross_amount').textContent = `${grossAmount.toFixed(2)} €`;
+    }
+}
+
+// Detaillierte Berechnungen
+function updateDetailedCalculations() {
+    const materialCosts = parseFloat(document.getElementById('material_editable').value) || 0;
+    const hours = parseFloat(document.getElementById('hours_editable').value) || 0;
+    const rate = parseFloat(document.getElementById('rate_editable').value) || 0;
+    
+    const laborCosts = hours * rate;
+    const subtotal = materialCosts + laborCosts;
+    const vatRate = parseFloat(document.getElementById('vat_rate').value) || 20;
+    const grossTotal = subtotal * (1 + vatRate / 100);
+    
+    document.getElementById('labor_costs').textContent = `${laborCosts.toFixed(2)} €`;
+    document.getElementById('subtotal').textContent = `${subtotal.toFixed(2)} €`;
+    document.getElementById('net_total').textContent = `${subtotal.toFixed(2)} €`;
+    document.getElementById('gross_total').textContent = `${grossTotal.toFixed(2)} €`;
+}
+
+// Event Listeners für Berechnungen
+document.getElementById('hours_editable').addEventListener('input', updateDetailedCalculations);
+document.getElementById('rate_editable').addEventListener('input', updateDetailedCalculations);
+document.getElementById('material_editable').addEventListener('input', updateDetailedCalculations);
+
+// Formular-Submit
+document.getElementById('invoiceForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const invoiceType = typeSelect.value;
+    if (!invoiceType) {
+        alert('Bitte wählen Sie einen Rechnungstyp aus.');
+        return;
+    }
+    
+    // Weitere Validierung je nach Typ
+    if (invoiceType === 'allgemein') {
+        if (!document.getElementById('customer_select').value) {
+            alert('Bitte wählen Sie einen Kunden aus.');
+            return;
+        }
+        if (!document.getElementById('amount_general').value) {
+            alert('Bitte geben Sie einen Rechnungsbetrag ein.');
+            return;
+        }
+    } else {
+        if (!document.getElementById('order_id').value) {
+            alert('Bitte wählen Sie einen Auftrag aus.');
+            return;
+        }
+    }
+    
+    // Formular absenden
+    this.submit();
+});
+
+// Initialisierung
+document.addEventListener('DOMContentLoaded', function() {
+    // Auftragssuche initialisieren
+    initOrderSearch();
+    
+    // Fälligkeitsdatum setzen (+14 Tage)
+    const today = new Date();
+    today.setDate(today.getDate() + 14);
+    document.getElementById('due_date').valueAsDate = today;
+    
+    console.log('Invoice form initialized');
+});
+</script>
+{% endblock %}

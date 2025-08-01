@@ -10,7 +10,7 @@ from werkzeug.utils import secure_filename
 
 # Lokale Imports
 from config import Config
-from models import db, Customer, Quote, QuoteItem, QuoteSubItem, Supplier, CompanySettings, QuoteRejection, Order, SupplierOrder, SupplierOrderItem, WorkInstruction, AcquisitionChannel, PositionTemplate, PositionTemplateSubItem, Invoice
+from models import db, Customer, Quote, QuoteItem, QuoteSubItem, Supplier, CompanySettings, QuoteRejection, Order, SupplierOrder, SupplierOrderItem, WorkInstruction, AcquisitionChannel, PositionTemplate, PositionTemplateSubItem, Invoice, InvoiceReminder
 from flask_migrate import Migrate
 from forms import CustomerForm, QuoteForm, SupplierForm, SettingsForm, QuoteRejectionForm, SupplierOrderUpdateForm, OrderForm, OrderUpdateForm, AcquisitionChannelForm, CustomerWorkflowForm, AppointmentForm
 from utils import get_default_hourly_rate, generate_quote_number, load_position_templates, load_suppliers, update_quote_total, safe_float_conversion, parse_quantity_from_text
@@ -281,10 +281,10 @@ def register_routes(app):
         <p><a href="/login">Zum Login</a></p>
         """
 
-    # Bestellung per E-Mail senden (nachträglich)
-    @app.route('/supplier_order/<int:order_id>/send_email', methods=['POST'])
+    # Bestellung per E-Mail anzeigen (ohne Status zu ändern)
+    @app.route('/supplier_order/<int:order_id>/email_preview', methods=['GET'])
     @login_required
-    def send_supplier_order_email(order_id):
+    def preview_supplier_order_email(order_id):
         from models import SupplierOrder, SupplierOrderItem, Quote
         from utils import generate_supplier_order_email, get_supplier_email
         order = SupplierOrder.query.get_or_404(order_id)
@@ -301,11 +301,7 @@ def register_routes(app):
             })
         supplier_email = get_supplier_email(order.supplier_name)
         subject, html_body, plain_body = generate_supplier_order_email(quote, order.supplier_name, order_items, order.order_id)
-        # Hier könnte ein echter E-Mail-Versand erfolgen, aktuell nur Anzeige
-        # Status auf 'Bestellt' setzen
-        order.status = 'Bestellt'
-        db.session.commit()
-        flash('Die Bestellung wurde als "Bestellt" markiert. E-Mail-Text wird angezeigt.', 'success')
+        # Status wird NICHT geändert - nur Vorschau
         return render_template('quote_order_emails.html', quote=quote, order=order, email_info=[{
             'supplier': order.supplier_name,
             'email': supplier_email,
@@ -314,13 +310,26 @@ def register_routes(app):
             'plain_body': plain_body,
             'items_count': len(order_items)
         }])
+
+    # Bestellung per E-Mail senden (Status ändern)
+    @app.route('/supplier_order/<int:order_id>/send_email', methods=['POST'])
+    @login_required
+    def send_supplier_order_email(order_id):
+        from models import SupplierOrder
+        order = SupplierOrder.query.get_or_404(order_id)
+        
+        # Status auf 'Bestellt' setzen
+        order.status = 'Bestellt'
+        db.session.commit()
+        flash('Die Bestellung wurde als "Bestellt" markiert!', 'success')
+        return redirect(url_for('supplier_orders'))
     """Registriert alle Routen"""
     
     # Hauptseiten
     @app.route('/')
     @login_required
     def index():
-        from models import Customer, Quote, Order, SupplierOrder
+        from models import Customer, Quote, Order, SupplierOrder, InvoiceReminder
         from datetime import datetime, timedelta
         
         # Dashboard-Statistiken berechnen (ohne Preisinformationen)
@@ -344,6 +353,11 @@ def register_routes(app):
             SupplierOrder.status.in_(['Bestellt', 'Bestätigt'])
         ).count()
         
+        # Rechnungs-Reminder
+        invoice_reminders = InvoiceReminder.get_active_reminders()
+        # Nur Reminder anzeigen, für die tatsächlich noch Rechnungen benötigt werden
+        needed_reminders = [r for r in invoice_reminders if r.is_invoice_needed()]
+        
         return render_template('index.html', 
                              total_customers=total_customers,
                              pending_quotes=pending_quotes,
@@ -352,6 +366,7 @@ def register_routes(app):
                              recent_orders=recent_orders,
                              upcoming_orders=upcoming_orders,
                              pending_deliveries=pending_deliveries,
+                             invoice_reminders=needed_reminders,
                              today=datetime.now().strftime('%d.%m.%Y'))
     
     # ===============================
@@ -470,9 +485,23 @@ def register_routes(app):
     def customers():
         from flask import request
         
+        # Automatische Status-Updates für alle Kunden prüfen
+        customers_to_update = Customer.query.filter(
+            Customer.status == '1. Termin vereinbart',
+            Customer.appointment_date < db.func.date('now')
+        ).all()
+        
+        for customer in customers_to_update:
+            if customer.check_auto_status_update():
+                try:
+                    db.session.commit()
+                except Exception as e:
+                    db.session.rollback()
+        
         # Filter-Parameter aus URL lesen
         search_query = request.args.get('search', '').strip()
         customer_manager_filter = request.args.get('customer_manager', '')
+        status_filter = request.args.get('status', '')
         sort_by = request.args.get('sort', 'last_name')
         sort_dir = request.args.get('dir', 'asc')
         
@@ -497,6 +526,10 @@ def register_routes(app):
                 query = query.filter(db.or_(Customer.customer_manager == None, Customer.customer_manager == ''))
             else:
                 query = query.filter(Customer.customer_manager == customer_manager_filter)
+        
+        # Status-Filter anwenden
+        if status_filter:
+            query = query.filter(Customer.status == status_filter)
         
         # Sortierung anwenden
         sort_column = None
@@ -539,6 +572,7 @@ def register_routes(app):
                              customers=customers, 
                              search_query=search_query,
                              customer_manager_filter=customer_manager_filter,
+                             status_filter=status_filter,
                              customer_managers=customer_managers,
                              sort_by=sort_by,
                              sort_dir=sort_dir)
@@ -565,6 +599,7 @@ def register_routes(app):
                     postal_code=form.postal_code.data,
                     customer_manager=form.customer_manager.data if form.customer_manager.data else None,
                     acquisition_channel_id=form.acquisition_channel.data if form.acquisition_channel.data != 0 else None,
+                    detailed_acquisition_channel=form.detailed_acquisition_channel.data if form.detailed_acquisition_channel.data else None,
                     comments=form.comments.data if form.comments.data else None
                 )
                 db.session.add(customer)
@@ -605,6 +640,7 @@ def register_routes(app):
                 customer.postal_code = form.postal_code.data
                 customer.customer_manager = form.customer_manager.data if form.customer_manager.data else None
                 customer.acquisition_channel_id = form.acquisition_channel.data if form.acquisition_channel.data != 0 else None
+                customer.detailed_acquisition_channel = form.detailed_acquisition_channel.data if form.detailed_acquisition_channel.data else None
                 customer.comments = form.comments.data if form.comments.data else None
                 
                 db.session.commit()
@@ -734,6 +770,11 @@ def register_routes(app):
                 )
                 db.session.add(quote)
                 db.session.commit()
+                
+                # Automatisch Kundenstatus auf "2. Termin vereinbaren" setzen
+                if customer.status == 'Angebot erstellen':
+                    customer.status = '2. Termin vereinbaren'
+                    db.session.commit()
                 
                 flash('Angebot wurde erfolgreich erstellt!', 'success')
                 return redirect(url_for('edit_quote', id=quote.id))
@@ -971,11 +1012,8 @@ def register_routes(app):
             if template.enable_volume and volume > 0:
                 dimension_parts.append(f"Vol.:{volume:.2f}m³")
             
-            # Beschreibung erstellen
-            if dimension_parts:
-                description = f"{template.name} ({', '.join(dimension_parts)})"
-            else:
-                description = template.name
+            # Beschreibung erstellen - nur Template-Name ohne Variablen
+            description = template.name
             
             # Hauptposition erstellen
             quote_item = QuoteItem(
@@ -1159,6 +1197,11 @@ def register_routes(app):
                         else:
                             # Falls schon vorhanden, nur Auftrag zuordnen
                             existing_order.order_id = order.id
+
+                # Erstelle Rechnungs-Reminder für den neuen Auftrag
+                reminders = InvoiceReminder.create_reminders_for_order(order)
+                for reminder in reminders:
+                    db.session.add(reminder)
 
                 db.session.commit()
 
@@ -1805,7 +1848,12 @@ def get_work_step_by_category_and_name(category, name):
                         db.session.delete(sub_item)
 
                     # Neue Unterpositionen verarbeiten
-                    sub_items_data = process_sub_items(request.form)
+                    try:
+                        sub_items_data = process_sub_items(request.form)
+                    except ValueError as e:
+                        flash(str(e), 'error')
+                        return redirect(url_for('edit_quote_item', id=id, item_id=item_id))
+                    
                     total_price = sum(sub_data['price'] for sub_data in sub_items_data)
 
                     # Hauptposition aktualisieren
@@ -1922,7 +1970,7 @@ def get_work_step_by_category_and_name(category, name):
                             quote_id=quote.id,
                             order_id=order_id,  # Automatische Zuordnung zum Auftrag
                             supplier_name=supplier_name,
-                            status='Bestellt'
+                            status='Noch nicht bestellt'  # Status bleibt unverändert bis E-Mail versendet wird
                         )
                         db.session.add(supplier_order)
                         db.session.flush()  # Um ID zu bekommen
@@ -3042,17 +3090,28 @@ def get_work_step_by_category_and_name(category, name):
         customer = Customer.query.get_or_404(id)
         form = CustomerWorkflowForm(obj=customer)
         
+        # Automatische Status-Updates prüfen
+        auto_updated = customer.check_auto_status_update()
+        if auto_updated:
+            db.session.commit()
+            flash(f'Status wurde automatisch auf "{customer.status}" aktualisiert!', 'info')
+        
         if form.validate_on_submit():
             try:
                 old_status = customer.status
                 customer.status = form.status.data
                 customer.appointment_date = form.appointment_date.data
                 customer.appointment_notes = form.appointment_notes.data
+                customer.second_appointment_date = form.second_appointment_date.data
+                customer.second_appointment_notes = form.second_appointment_notes.data
                 customer.comments = form.comments.data
                 
                 # Automatische Status-Updates basierend auf Aktionen
                 if form.appointment_date.data and customer.status == '1. Termin vereinbaren':
-                    customer.status = '2. Termin vereinbart'
+                    customer.status = '1. Termin vereinbart'
+                
+                if form.second_appointment_date.data and customer.status == '2. Termin vereinbaren':
+                    customer.status = 'Warten auf Rückmeldung'
                 
                 db.session.commit()
                 flash(f'Workflow-Status wurde von "{old_status}" auf "{customer.status}" aktualisiert!', 'success')
@@ -3079,9 +3138,9 @@ def get_work_step_by_category_and_name(category, name):
                 customer.appointment_date = form.appointment_date.data
                 customer.appointment_notes = form.appointment_notes.data
                 
-                # Status automatisch auf "2. Termin vereinbart" setzen
+                # Status automatisch auf "1. Termin vereinbart" setzen
                 if customer.status == '1. Termin vereinbaren':
-                    customer.status = '2. Termin vereinbart'
+                    customer.status = '1. Termin vereinbart'
                 
                 db.session.commit()
                 flash('Termin wurde erfolgreich gespeichert!', 'success')
@@ -3091,6 +3150,51 @@ def get_work_step_by_category_and_name(category, name):
                 flash(f'Fehler beim Speichern: {str(e)}', 'error')
         
         return render_template('appointment_form.html', form=form, customer=customer, title='Termin vereinbaren')
+    
+    @app.route('/customer/<int:id>/update_appointment/<appointment_type>', methods=['POST'])
+    @login_required
+    def update_appointment(id, appointment_type):
+        customer = Customer.query.get_or_404(id)
+        
+        try:
+            if appointment_type == 'first':
+                # 1. Termin bearbeiten
+                appointment_date_str = request.form.get('appointment_date')
+                if appointment_date_str:
+                    from datetime import datetime
+                    customer.appointment_date = datetime.strptime(appointment_date_str, '%Y-%m-%d').date()
+                    
+                    # Status automatisch setzen
+                    if customer.status == 'Termin vereinbaren':
+                        customer.status = '1. Termin vereinbart'
+                else:
+                    customer.appointment_date = None
+                
+                customer.appointment_notes = request.form.get('appointment_notes', '').strip() or None
+                
+            elif appointment_type == 'second':
+                # 2. Termin bearbeiten
+                appointment_date_str = request.form.get('second_appointment_date')
+                if appointment_date_str:
+                    from datetime import datetime
+                    customer.second_appointment_date = datetime.strptime(appointment_date_str, '%Y-%m-%d').date()
+                    
+                    # Status automatisch setzen
+                    if customer.status == '2. Termin vereinbaren':
+                        customer.status = 'Warten auf Rückmeldung'
+                else:
+                    customer.second_appointment_date = None
+                
+                customer.second_appointment_notes = request.form.get('second_appointment_notes', '').strip() or None
+            
+            db.session.commit()
+            flash(f'{"1. Termin" if appointment_type == "first" else "2. Termin"} wurde erfolgreich aktualisiert!', 'success')
+            
+        except Exception as e:
+            safe_rollback()
+            flash(f'Fehler beim Aktualisieren des Termins: {str(e)}', 'error')
+        
+        return redirect(url_for('customer_detail', id=id))
     
     @app.route('/customer/<int:id>/create_quote')
     @login_required
@@ -3301,6 +3405,14 @@ def process_sub_items(form_data):
             part_quantity = sub_part_quantities[i] if i < len(sub_part_quantities) else '1'
             part_price = safe_float_conversion_strict(sub_part_prices[i] if i < len(sub_part_prices) else 0)
             
+            # Validierung: Für Bestellteile muss ein Lieferant ausgewählt werden
+            if not supplier.strip():
+                raise ValueError(f"Für Bestellteil '{sub_desc}' muss ein Lieferant ausgewählt werden.")
+            
+            # Berechnung: Berechneter Preis = Anzahl × Stückpreis
+            quantity_float = safe_float_conversion_strict(part_quantity, 1.0)
+            calculated_price = quantity_float * part_price
+            
             sub_items_data.append({
                 'description': sub_desc,
                 'item_type': 'bestellteil',
@@ -3309,7 +3421,7 @@ def process_sub_items(form_data):
                 'part_number': part_number,
                 'part_quantity': part_quantity,
                 'part_price': part_price,
-                'price': part_price,
+                'price': calculated_price,  # Verwende berechneten Preis
                 'hours': 0.0,
                 'hourly_rate': 0.0,
                 'quantity': '',
@@ -3392,7 +3504,13 @@ def invoices():
     
     # Status-Filter
     if status_filter:
-        query = query.filter(Invoice.status == status_filter)
+        if status_filter == 'ueberfaellig':
+            # Überfällige Rechnungen: nicht vollständig bezahlt und Fälligkeitsdatum überschritten
+            query = query.filter(
+                and_(Invoice.status.notin_(['bezahlt']), Invoice.due_date < date.today())
+            )
+        else:
+            query = query.filter(Invoice.status == status_filter)
     
     # Typ-Filter
     if invoice_type_filter:
@@ -3431,44 +3549,269 @@ def invoices():
     
     # Statistiken für Dashboard
     stats = {
-        'open_count': Invoice.query.filter(Invoice.status.in_(['erstellt', 'versendet'])).count(),
+        'open_count': Invoice.query.filter(Invoice.status.in_(['erstellt', 'versendet', 'teilweise_bezahlt'])).count(),
         'paid_count': Invoice.query.filter_by(status='bezahlt').count(),
+        'partially_paid_count': Invoice.query.filter_by(status='teilweise_bezahlt').count(),
         'overdue_count': Invoice.query.filter(
-            and_(Invoice.status != 'bezahlt', Invoice.due_date < date.today())
+            and_(
+                Invoice.status.notin_(['bezahlt']), 
+                Invoice.due_date < date.today()
+            )
         ).count(),
         'total_amount': sum(
             invoice.gross_amount for invoice in Invoice.query.filter_by(status='bezahlt').all()
+        ) or 0,
+        'total_partial_paid': sum(
+            invoice.paid_amount or 0 for invoice in Invoice.query.filter_by(status='teilweise_bezahlt').all()
         ) or 0
     }
-    
-    # Verfügbare Aufträge für neue Rechnungen
-    available_orders = Order.query.filter(
-        Order.status.in_(['Angenommen', 'Geplant', 'In Arbeit', 'Abgeschlossen'])
-    ).all()
-    
-    # Alle Kunden für allgemeine Rechnungen
-    customers = Customer.query.order_by(Customer.last_name, Customer.first_name).all()
-    
-    # JSON-Daten für JavaScript vorbereiten
-    import json
-    available_orders_json = json.dumps([
-        {
-            "id": order.id,
-            "order_number": order.order_number,
-            "customer_name": order.quote.customer.full_name,
-            "total_amount": f"{order.quote.total_amount:.2f} €" if order.quote.total_amount else "0,00 €",
-            "display_text": f"{order.order_number} - {order.quote.customer.full_name} ({order.quote.total_amount:.2f} €)" if order.quote.total_amount else f"{order.order_number} - {order.quote.customer.full_name} (0,00 €)"
-        }
-        for order in available_orders
-    ])
     
     return render_template('invoices.html',
                          invoices=invoices,
                          stats=stats,
-                         available_orders=available_orders,
-                         customers=customers,
-                         available_orders_json=available_orders_json,
                          today=date.today)
+
+@app.route('/invoices/simple', methods=['GET'])
+@login_required  
+def simple_new_invoice():
+    """Einfache Test-Route für neue Rechnungserstellung"""
+    return render_template('simple_create_invoice.html')
+
+@app.route('/invoices/test', methods=['GET'])
+@login_required
+def test_new_invoice():
+    """Test-Route für neue Rechnungserstellung"""
+    from models import Order, Customer
+    
+    try:
+        # Verfügbare Aufträge holen
+        available_orders = db.session.query(Order).join(Order.quote).filter(
+            Order.status.in_(['Angenommen', 'Geplant', 'In Arbeit', 'Abgeschlossen'])
+        ).order_by(Order.created_at.desc()).all()
+        
+        # Alle Kunden für allgemeine Rechnungen
+        customers = Customer.query.order_by(Customer.last_name, Customer.first_name).all()
+        
+        # JSON-Daten für JavaScript vorbereiten
+        available_orders_json = json.dumps([
+            {
+                "id": order.id,
+                "order_number": order.order_number,
+                "customer_name": order.quote.customer.full_name,
+                "total_amount": f"{order.quote.total_amount:.2f} €" if order.quote.total_amount else "0,00 €",
+                "display_text": f"{order.order_number} - {order.quote.customer.full_name} ({order.quote.total_amount:.2f} €)" if order.quote.total_amount else f"{order.order_number} - {order.quote.customer.full_name} (0,00 €)"
+            }
+            for order in available_orders
+        ])
+        
+        return render_template('test_create_invoice.html',
+                             available_orders=available_orders,
+                             customers=customers,
+                             available_orders_json=available_orders_json)
+                             
+    except Exception as e:
+        print(f"Error in test_new_invoice: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return f"Error: {str(e)}", 500
+
+@app.route('/invoices/new', methods=['GET'])
+@login_required
+def new_invoice():
+    """Zeigt die neue Rechnungserstellungsseite an"""
+    from models import Order, Customer
+    
+    try:
+        print("Loading new invoice page...")
+        
+        # Verfügbare Aufträge holen
+        print("Fetching available orders...")
+        available_orders = db.session.query(Order).join(Order.quote).filter(
+            Order.status.in_(['Angenommen', 'Geplant', 'In Arbeit', 'Abgeschlossen'])
+        ).order_by(Order.created_at.desc()).all()
+        print(f"Found {len(available_orders)} orders")
+        
+        # Alle Kunden für allgemeine Rechnungen
+        print("Fetching customers...")
+        customers = Customer.query.order_by(Customer.last_name, Customer.first_name).all()
+        print(f"Found {len(customers)} customers")
+        
+        # JSON-Daten für JavaScript vorbereiten
+        print("Preparing JSON data...")
+        available_orders_json = json.dumps([
+            {
+                "id": order.id,
+                "order_number": order.order_number,
+                "customer_name": order.quote.customer.full_name,
+                "customer_id": order.quote.customer.id,
+                "total_amount": f"{order.quote.total_amount:.2f} €" if order.quote.total_amount else "0,00 €",
+                "display_text": f"{order.order_number} - {order.quote.customer.full_name} ({order.quote.total_amount:.2f} €)" if order.quote.total_amount else f"{order.order_number} - {order.quote.customer.full_name} (0,00 €)"
+            }
+            for order in available_orders
+        ])
+        
+        # Kunden-JSON für JavaScript-Suche
+        customers_json = json.dumps([
+            {
+                "id": customer.id,
+                "name": customer.full_name,
+                "display_text": f"{customer.full_name}"
+            }
+            for customer in customers
+        ])
+        print(f"JSON data prepared, orders: {len(available_orders_json)}, customers: {len(customers_json)}")
+        
+        print("Rendering template...")
+        return render_template('create_invoice.html',
+                             available_orders=available_orders,
+                             customers=customers,
+                             available_orders_json=available_orders_json,
+                             customers_json=customers_json)
+                             
+    except Exception as e:
+        print(f"Error in new_invoice: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return f"Error loading invoice page: {str(e)}", 500
+
+@app.route('/api/order/<int:order_id>/details')
+@login_required
+def get_order_details(order_id):
+    """API-Endpoint für Auftragsdetails"""
+    from models import Order
+    
+    try:
+        order = Order.query.get_or_404(order_id)
+        
+        # Berechne Material- und Arbeitskosten aus dem Angebot
+        material_costs = 0.0
+        work_hours = 0.0
+        hourly_rate = 95.0  # Standard-Stundensatz
+        
+        if order.quote and order.quote.quote_items:
+            for item in order.quote.quote_items:
+                for sub_item in item.sub_items:
+                    if sub_item.item_type in ['bestellteil', 'sonstiges']:
+                        material_costs += sub_item.calculate_price()
+                    elif sub_item.item_type == 'arbeitsvorgang':
+                        work_hours += sub_item.hours or 0.0
+        
+        # Anzahlungsabzug aus bereits erstellten Rechnungen berechnen
+        downpayment_deduction = 0.0
+        for invoice in order.invoices:
+            if invoice.invoice_type == 'anzahlung' and invoice.status in ['erstellt', 'versendet', 'bezahlt']:
+                downpayment_deduction += invoice.final_amount
+        
+        return jsonify({
+            'success': True,
+            'total_amount': order.total_amount,
+            'quote': {
+                'project_description': order.quote.project_description if order.quote else None,
+                'material_costs': material_costs,
+                'work_hours': work_hours,
+                'hourly_rate': hourly_rate
+            },
+            'downpayment_deduction': downpayment_deduction
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/order/<int:order_id>/downpayment_info')
+@login_required
+def get_order_downpayment_info(order_id):
+    """API-Endpoint für Anzahlungsinformationen eines Auftrags"""
+    from models import Order, Invoice
+    
+    try:
+        order = Order.query.get_or_404(order_id)
+        
+        # Suche nach Anzahlungsrechnungen für diesen Auftrag
+        downpayment_invoices = Invoice.query.filter_by(
+            order_id=order_id, 
+            invoice_type='anzahlung'
+        ).all()
+        
+        if downpayment_invoices:
+            # Berechne Gesamtbetrag aller Anzahlungsrechnungen
+            total_downpayment = sum(inv.final_amount for inv in downpayment_invoices)
+            
+            return jsonify({
+                'success': True,
+                'has_downpayment': True,
+                'downpayment_amount': total_downpayment,
+                'downpayment_count': len(downpayment_invoices),
+                'order_total': order.total_amount
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'has_downpayment': False,
+                'downpayment_amount': 0.0,
+                'downpayment_count': 0,
+                'order_total': order.total_amount
+            })
+            
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/order/<int:order_id>/quote_details')
+@login_required
+def get_order_quote_details(order_id):
+    """API-Endpoint für Angebotsdaten eines Auftrags (Materialkosten, Arbeitsstunden, etc.)"""
+    from models import Order, QuoteSubItem, CompanySettings
+    
+    try:
+        order = Order.query.get_or_404(order_id)
+        
+        if not order.quote or not order.quote.quote_items:
+            return jsonify({
+                'success': True,
+                'material_costs': 0.0,
+                'labor_hours': 0.0,
+                'labor_costs': 0.0,
+                'default_hourly_rate': 95.0
+            })
+        
+        # Berechne Materialkosten und Arbeitsstunden aus dem Angebot
+        material_costs = 0.0
+        labor_hours = 0.0
+        labor_costs = 0.0
+        
+        # Durchlaufe alle QuoteItems und deren SubItems
+        for item in order.quote.quote_items:
+            for sub_item in item.sub_items:
+                if sub_item.item_type in ['bestellteil', 'sonstiges']:
+                    # Materialkosten: Bestellteile + Sonstiges
+                    material_costs += sub_item.price or 0.0
+                elif sub_item.item_type == 'arbeitsvorgang':
+                    # Arbeitsstunden und -kosten
+                    labor_hours += sub_item.hours or 0.0
+                    labor_costs += sub_item.price or 0.0
+        
+        # Aufschlag anwenden (falls vorhanden)
+        markup_factor = 1.0
+        if order.quote.markup_percentage and order.quote.markup_percentage > 0:
+            markup_factor = 1 + (order.quote.markup_percentage / 100)
+        
+        # Materialkosten und Arbeitskosten mit Aufschlag berechnen
+        material_costs_with_markup = material_costs * markup_factor
+        labor_costs_with_markup = labor_costs * markup_factor
+        
+        # Standard-Stundensatz aus Stammdaten laden und mit Aufschlag versehen
+        default_hourly_rate = CompanySettings.get_setting('default_hourly_rate', 95.0)
+        default_hourly_rate_with_markup = float(default_hourly_rate) * markup_factor
+        
+        return jsonify({
+            'success': True,
+            'material_costs': round(material_costs_with_markup, 2),
+            'labor_hours': round(labor_hours, 1),
+            'labor_costs': round(labor_costs_with_markup, 2),
+            'default_hourly_rate': round(default_hourly_rate_with_markup, 2)
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/invoices/create', methods=['POST'])
 @login_required
@@ -3476,6 +3819,25 @@ def create_invoice():
     """Erstellt eine neue Rechnung"""
     from models import Invoice, Order, Customer
     from datetime import datetime, date, timedelta
+    
+    def parse_german_float(value_str):
+        """Hilfsfunktion zum Parsen deutscher Zahlenformate"""
+        if not value_str:
+            return 0.0
+        
+        # Entferne Währungszeichen und Leerzeichen
+        clean_str = str(value_str).strip().replace('€', '').replace(' ', '')
+        
+        # Deutsche Formatierung: Punkt = Tausender-Trenner, Komma = Dezimal-Trenner
+        if ',' in clean_str:
+            # Hat Komma -> deutsche Formatierung
+            # Entferne Punkte (Tausender-Trenner) und ersetze Komma durch Punkt
+            clean_str = clean_str.replace('.', '').replace(',', '.')
+        
+        try:
+            return float(clean_str)
+        except (ValueError, TypeError):
+            raise ValueError(f"Ungültiges Zahlenformat: '{value_str}'")
     
     try:
         # Sichere Formular-Daten-Extraktion
@@ -3486,6 +3848,7 @@ def create_invoice():
         base_amount_str = request.form.get('base_amount')
         service_description = request.form.get('service_description')
         due_date_str = request.form.get('due_date')
+        optional_order_id = request.form.get('optional_order_id')  # Neue optionale Auftrags-ID
         
         # Validierung der Eingabedaten
         if not invoice_type:
@@ -3510,7 +3873,7 @@ def create_invoice():
             
             try:
                 customer_id = int(customer_id)
-                base_amount = float(base_amount_str)
+                base_amount = parse_german_float(base_amount_str)
             except (ValueError, TypeError) as e:
                 return jsonify({'success': False, 'message': f'Ungültige Eingabedaten: {str(e)}'})
             
@@ -3521,42 +3884,94 @@ def create_invoice():
             order = None
             percentage = 100.0  # Allgemeine Rechnungen sind immer 100%
             
-        else:
-            # Anzahlung/Schluss: Auftrag und Prozentsatz erforderlich
+            # Prüfe optionale Auftrags-Verknüpfung
+            if optional_order_id and optional_order_id.strip():
+                try:
+                    optional_order_id = int(optional_order_id)
+                    order = Order.query.get(optional_order_id)
+                    if order:
+                        # Prüfe ob der Auftrag zum gewählten Kunden gehört
+                        if order.quote.customer_id != customer_id:
+                            return jsonify({'success': False, 'message': 'Der gewählte Auftrag gehört nicht zum ausgewählten Kunden'})
+                except (ValueError, TypeError):
+                    pass  # Ignoriere ungültige optional_order_id
+            
+        elif invoice_type in ['anzahlung', 'schluss', 'detailed_final']:
+            # Anzahlung/Schluss/Detaillierte Schlussrechnung: Auftrag erforderlich
             if not order_id:
                 return jsonify({'success': False, 'message': 'Auftrag ist erforderlich'})
-            if not percentage_str:
-                return jsonify({'success': False, 'message': 'Prozentsatz ist erforderlich'})
             
             try:
                 order_id = int(order_id)
-                percentage = float(percentage_str)
             except (ValueError, TypeError) as e:
                 return jsonify({'success': False, 'message': f'Ungültige Eingabedaten: {str(e)}'})
-            
-            # Prozentsatz-Validierung
-            if percentage <= 0 or percentage > 100:
-                return jsonify({'success': False, 'message': 'Prozentsatz muss zwischen 1 und 100 liegen'})
             
             order = Order.query.get_or_404(order_id)
             customer = order.quote.customer
             
-            # Prüfen ob Rechnung bereits existiert
-            existing = Invoice.query.filter_by(order_id=order_id, invoice_type=invoice_type).first()
-            if existing:
-                return jsonify({'success': False, 'message': f'{invoice_type.title()}rechnung existiert bereits'})
-            
-            # Grundbetrag aus Angebot holen - MIT Aufschlag
-            base_amount = order.quote.total_amount  # Das ist die Auftragssumme mit Aufschlag
-            if base_amount is None or base_amount <= 0:
-                return jsonify({'success': False, 'message': 'Auftragswert konnte nicht ermittelt werden'})
+            # Für detaillierte Schlussrechnung: Spezielle Logik
+            if invoice_type == 'detailed_final':
+                # Prüfen ob bereits eine Schlussrechnung existiert
+                existing = Invoice.query.filter_by(order_id=order_id, invoice_type='schluss').first()
+                if existing:
+                    return jsonify({'success': False, 'message': 'Schlussrechnung existiert bereits'})
+                
+                # Detaillierte Felder extrahieren
+                material_costs_str = request.form.get('material_costs_editable', '0')
+                labor_hours_str = request.form.get('labor_hours_editable', '0')
+                labor_rate_str = request.form.get('labor_rate_editable', '95')
+                labor_costs_str = request.form.get('labor_costs_editable', '0')
+                project_name = request.form.get('project_name', '')
+                material_description = request.form.get('material_description', 'Materialkosten')
+                labor_description = request.form.get('labor_description', 'Arbeitsleistung')
+                
+                try:
+                    material_costs = parse_german_float(material_costs_str)
+                    labor_hours = float(labor_hours_str)
+                    labor_rate = float(labor_rate_str)
+                    labor_costs = parse_german_float(labor_costs_str)
+                except (ValueError, TypeError) as e:
+                    return jsonify({'success': False, 'message': f'Ungültige Kostenangaben: {str(e)}'})
+                
+                # Basis-Betrag ist Summe der detaillierten Kosten
+                base_amount = material_costs + labor_costs
+                percentage = 100.0  # Detaillierte Rechnungen sind immer 100%
+                
+            else:
+                # Standard Anzahlung/Schluss
+                if not percentage_str:
+                    # Für Schlussrechnungen: Standard 100% wenn kein Prozentsatz angegeben
+                    if invoice_type == 'schluss':
+                        percentage = 100.0
+                    else:
+                        return jsonify({'success': False, 'message': 'Prozentsatz ist erforderlich'})
+                else:
+                    try:
+                        percentage = float(percentage_str)
+                    except (ValueError, TypeError) as e:
+                        return jsonify({'success': False, 'message': f'Ungültiger Prozentsatz: {str(e)}'})
+                
+                # Prozentsatz-Validierung
+                if percentage <= 0 or percentage > 100:
+                    return jsonify({'success': False, 'message': 'Prozentsatz muss zwischen 1 und 100 liegen'})
+                
+                # Prüfen ob Rechnung bereits existiert
+                existing = Invoice.query.filter_by(order_id=order_id, invoice_type=invoice_type).first()
+                if existing:
+                    return jsonify({'success': False, 'message': f'{invoice_type.title()}rechnung existiert bereits'})
+                
+                # Grundbetrag aus Angebot holen
+                base_amount = order.quote.total_amount
+                if base_amount is None or base_amount <= 0:
+                    return jsonify({'success': False, 'message': 'Auftragswert konnte nicht ermittelt werden'})
         
         # Neue Rechnung erstellen
         if invoice_type == 'allgemein':
-            # Allgemeine Rechnung - nur mit Kunde verknüpft
+            # Allgemeine Rechnung - mit Kunde und optional mit Auftrag verknüpft
             invoice = Invoice(
                 invoice_number=Invoice.generate_invoice_number(),
                 customer_id=customer_id,
+                order_id=order.id if order else None,  # Optionale Auftrags-Verknüpfung
                 invoice_type=invoice_type,
                 percentage=percentage,
                 base_amount=base_amount,
@@ -3569,8 +3984,61 @@ def create_invoice():
                 vat_amount=0.0,          # Wird in calculate_amounts gesetzt
                 gross_amount=0.0         # Wird in calculate_amounts gesetzt
             )
+        elif invoice_type == 'detailed_final':
+            # Detaillierte Schlussrechnung mit editierbaren Feldern
+            # Zusätzliche Formular-Daten für detaillierte Rechnung
+            material_costs_editable_str = request.form.get('material_costs_editable')
+            labor_hours_editable_str = request.form.get('labor_hours_editable')
+            labor_rate_editable_str = request.form.get('labor_rate_editable')
+            material_description = request.form.get('material_description', 'Materialkosten')
+            labor_description = request.form.get('labor_description', 'Arbeitsleistung')
+            project_name = request.form.get('project_name')
+            
+            # Sichere Konvertierung der editierbaren Werte
+            try:
+                material_costs_editable = parse_german_float(material_costs_editable_str) if material_costs_editable_str else 0.0
+                labor_hours_editable = float(labor_hours_editable_str) if labor_hours_editable_str else 0.0
+                labor_rate_editable = float(labor_rate_editable_str) if labor_rate_editable_str else 95.0
+                labor_costs_editable = labor_hours_editable * labor_rate_editable
+            except (ValueError, TypeError):
+                return jsonify({'success': False, 'message': 'Ungültige Zahlenwerte für Material- oder Arbeitskosten'})
+            
+            # Zwischensumme berechnen
+            subtotal = material_costs_editable + labor_costs_editable
+            
+            invoice = Invoice(
+                invoice_number=Invoice.generate_invoice_number(),
+                order_id=order_id,
+                invoice_type='detailed_final',  # Eigener Typ für detaillierte Schlussrechnung
+                percentage=100.0,  # Schlussrechnung ist immer 100%
+                base_amount=subtotal,  # Basis ist die Zwischensumme
+                due_date=due_date,
+                payment_terms=14,
+                vat_rate=20.0,
+                service_description=service_description,  # Leistungsbeschreibung hinzufügen
+                project_name=project_name if project_name else (order.quote.project_description if order.quote else None),
+                # Detaillierte Felder setzen
+                material_costs_editable=material_costs_editable,
+                labor_hours_editable=labor_hours_editable,
+                labor_rate_editable=labor_rate_editable,
+                labor_costs_editable=labor_costs_editable,
+                material_description=material_description,
+                labor_description=labor_description,
+                invoice_amount=subtotal,     # Rechnungsbetrag ist Zwischensumme
+                final_amount=0.0,            # Wird in calculate_amounts gesetzt (abzüglich Anzahlungen)
+                vat_amount=0.0,              # Wird in calculate_amounts gesetzt
+                gross_amount=0.0             # Wird in calculate_amounts gesetzt
+            )
+            
+            # Bereits erhaltene Anzahlungen berechnen
+            anzahlung_invoices = Invoice.query.filter_by(
+                order_id=order_id, 
+                invoice_type='anzahlung'
+            ).all()
+            invoice.previous_payments = sum(inv.final_amount for inv in anzahlung_invoices if inv.final_amount)
+            
         else:
-            # Auftrags-basierte Rechnung (anzahlung/schluss)
+            # Standard Auftrags-basierte Rechnung (anzahlung/schluss)
             invoice = Invoice(
                 invoice_number=Invoice.generate_invoice_number(),
                 order_id=order_id,
@@ -3579,20 +4047,20 @@ def create_invoice():
                 base_amount=base_amount,
                 due_date=due_date,
                 payment_terms=14,
-                vat_rate=20.0,           # Explizit 20% MwSt setzen
+                vat_rate=20.0,
+                service_description=service_description,  # Leistungsbeschreibung hinzufügen
                 invoice_amount=0.0,      # Wird in calculate_amounts gesetzt
                 final_amount=0.0,        # Wird in calculate_amounts gesetzt
                 vat_amount=0.0,          # Wird in calculate_amounts gesetzt
                 gross_amount=0.0         # Wird in calculate_amounts gesetzt
             )
             
-            # Für Schlussrechnung: Bereits erhaltene Anzahlungen berechnen
-            if invoice_type == 'schluss':
-                anzahlung_invoices = Invoice.query.filter_by(
-                    order_id=order_id, 
-                    invoice_type='anzahlung'
-                ).all()
-                invoice.previous_payments = sum(inv.final_amount for inv in anzahlung_invoices if inv.final_amount)
+            # Bereits erhaltene Anzahlungen berechnen (für alle Rechnungstypen)
+            anzahlung_invoices = Invoice.query.filter_by(
+                order_id=order_id, 
+                invoice_type='anzahlung'
+            ).all()
+            invoice.previous_payments = sum(inv.final_amount for inv in anzahlung_invoices if inv.final_amount)
         
         # Beträge berechnen
         invoice.calculate_amounts()
@@ -3600,16 +4068,37 @@ def create_invoice():
         db.session.add(invoice)
         db.session.commit()
         
-        return jsonify({'success': True, 'message': 'Rechnung wurde erfolgreich erstellt'})
+        # Bei Erfolg: Weiterleitung zur Rechnungsübersicht mit Erfolgsmeldung
+        flash(f'Rechnung {invoice.invoice_number} wurde erfolgreich erstellt!', 'success')
+        return redirect(url_for('invoices'))
         
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'message': f'Fehler beim Erstellen der Rechnung: {str(e)}'})
+        # Bei Fehler: Zurück zur Erstellungsseite mit Fehlermeldung
+        flash(f'Fehler beim Erstellen der Rechnung: {str(e)}', 'error')
+        return redirect(url_for('new_invoice'))
+
+@app.route('/invoices/<int:id>')
+@login_required
+def invoice_details(id):
+    """Zeigt die Details einer Rechnung an"""
+    from models import Invoice
+    
+    try:
+        invoice = Invoice.query.get_or_404(id)
+        
+        return render_template('invoice_details.html', 
+                             invoice=invoice,
+                             title=f'Rechnung {invoice.invoice_number}')
+        
+    except Exception as e:
+        flash(f'Fehler beim Laden der Rechnungsdetails: {str(e)}', 'error')
+        return redirect(url_for('invoices'))
 
 @app.route('/invoices/<int:id>/mark_paid', methods=['POST'])
 @login_required
 def mark_invoice_paid(id):
-    """Markiert eine Rechnung als bezahlt"""
+    """Markiert eine Rechnung als vollständig bezahlt"""
     from models import Invoice
     from datetime import datetime, date
     
@@ -3625,11 +4114,106 @@ def mark_invoice_paid(id):
         invoice.mark_as_paid(paid_date, payment_reference, comment)
         db.session.commit()
         
-        return jsonify({'success': True, 'message': 'Rechnung wurde als bezahlt markiert'})
+        return jsonify({'success': True, 'message': 'Rechnung wurde als vollständig bezahlt markiert'})
         
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': f'Fehler: {str(e)}'})
+
+@app.route('/invoices/<int:id>/mark_partially_paid', methods=['POST'])
+@login_required
+def mark_invoice_partially_paid(id):
+    """Markiert eine Rechnung als teilweise bezahlt"""
+    from models import Invoice
+    from datetime import datetime, date
+    
+    print(f"DEBUG: mark_partially_paid called for invoice {id}")
+    print(f"DEBUG: Form data: {dict(request.form)}")
+    
+    try:
+        invoice = Invoice.query.get_or_404(id)
+        print(f"DEBUG: Found invoice {invoice.invoice_number}")
+        
+        paid_amount_str = request.form.get('paid_amount')
+        paid_date_str = request.form.get('paid_date')
+        payment_reference = request.form.get('payment_reference', '')
+        comment = request.form.get('comment', '')
+        
+        print(f"DEBUG: paid_amount_str = {paid_amount_str}")
+        
+        # Validierung des bezahlten Betrags
+        try:
+            paid_amount = float(paid_amount_str)
+        except (ValueError, TypeError):
+            print(f"DEBUG: Invalid paid amount: {paid_amount_str}")
+            return jsonify({'success': False, 'message': 'Ungültiger bezahlter Betrag'})
+        
+        if paid_amount <= 0:
+            print(f"DEBUG: Paid amount <= 0: {paid_amount}")
+            return jsonify({'success': False, 'message': 'Bezahlter Betrag muss größer als 0 sein'})
+        
+        # Überprüfung: Neuer bezahlter Betrag darf nicht kleiner als der bereits bezahlte Betrag sein
+        current_paid = invoice.paid_amount or 0
+        if paid_amount < current_paid:
+            print(f"DEBUG: New amount {paid_amount} < current {current_paid}")
+            return jsonify({'success': False, 'message': f'Der neue bezahlte Betrag ({paid_amount:.2f}€) kann nicht kleiner sein als der bereits bezahlte Betrag ({current_paid:.2f}€)'})
+        
+        if paid_amount > invoice.gross_amount:
+            print(f"DEBUG: Paid amount {paid_amount} > gross amount {invoice.gross_amount}")
+            return jsonify({'success': False, 'message': f'Bezahlter Betrag kann nicht größer als der Gesamtbetrag ({invoice.gross_amount:.2f}€) sein'})
+        
+        paid_date = datetime.strptime(paid_date_str, '%Y-%m-%d').date() if paid_date_str else date.today()
+        
+        print(f"DEBUG: Calling mark_as_partially_paid with amount {paid_amount}")
+        # Verwende die neue Methode
+        invoice.mark_as_partially_paid(paid_amount, paid_date, payment_reference, comment)
+        db.session.commit()
+        
+        print(f"DEBUG: Successfully updated. New status: {invoice.status}, paid_amount: {invoice.paid_amount}")
+        
+        if invoice.status == 'bezahlt':
+            message = 'Rechnung wurde als vollständig bezahlt markiert'
+        else:
+            remaining = invoice.get_remaining_amount()
+            message = f'Rechnung wurde als teilweise bezahlt markiert. Noch offen: {remaining:.2f}€'
+        
+        return jsonify({'success': True, 'message': message})
+        
+    except Exception as e:
+        print(f"DEBUG: Exception occurred: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Fehler: {str(e)}'})
+
+@app.route('/api/invoice/<int:id>/payment_info')
+@login_required
+def get_invoice_payment_info(id):
+    """API-Endpoint für Zahlungsinformationen einer Rechnung"""
+    from models import Invoice
+    
+    print(f"DEBUG: get_invoice_payment_info called for invoice {id}")
+    
+    try:
+        invoice = Invoice.query.get_or_404(id)
+        
+        result = {
+            'success': True,
+            'invoice_number': invoice.invoice_number,
+            'gross_amount': invoice.gross_amount,
+            'paid_amount': invoice.paid_amount or 0,
+            'remaining_amount': invoice.get_remaining_amount(),
+            'status': invoice.status,
+            'payment_percentage': invoice.get_payment_percentage()
+        }
+        
+        print(f"DEBUG: Returning payment info: {result}")
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"DEBUG: Exception in get_invoice_payment_info: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/invoices/<int:id>/delete', methods=['DELETE'])
 @login_required
@@ -3664,8 +4248,8 @@ def update_invoice_status(id):
         invoice = Invoice.query.get_or_404(id)
         new_status = request.json.get('status')
         
-        # Erweiterte Status-Möglichkeiten
-        valid_statuses = ['erstellt', 'versendet', 'bezahlt']
+        # Erweiterte Status-Möglichkeiten inkl. teilweise_bezahlt
+        valid_statuses = ['erstellt', 'versendet', 'teilweise_bezahlt', 'bezahlt']
         
         if new_status not in valid_statuses:
             return jsonify({'success': False, 'message': 'Ungültiger Status'})
@@ -3673,23 +4257,36 @@ def update_invoice_status(id):
         # Status-Wechsel validieren und erlauben
         current_status = invoice.status
         
-        # Retour-Logik: Bezahlt kann zurück zu versendet, versendet zurück zu erstellt
-        if (current_status == 'bezahlt' and new_status in ['versendet', 'erstellt']) or \
-           (current_status == 'versendet' and new_status == 'erstellt') or \
-           (current_status == 'erstellt' and new_status in ['versendet', 'bezahlt']) or \
-           (current_status == 'versendet' and new_status == 'bezahlt'):
-            
+        # Erweiterte Retour-Logik mit teilweise_bezahlt
+        valid_transitions = {
+            'erstellt': ['versendet', 'teilweise_bezahlt', 'bezahlt'],
+            'versendet': ['erstellt', 'teilweise_bezahlt', 'bezahlt'],
+            'teilweise_bezahlt': ['versendet', 'bezahlt'],
+            'bezahlt': ['teilweise_bezahlt', 'versendet', 'erstellt']
+        }
+        
+        if new_status in valid_transitions.get(current_status, []):
             invoice.status = new_status
             
             # Bezahlt-Daten zurücksetzen wenn Status von bezahlt geändert wird
             if current_status == 'bezahlt' and new_status != 'bezahlt':
                 invoice.paid_date = None
                 invoice.payment_reference = None
+                # Bei Retour von "bezahlt" zu "teilweise_bezahlt": paid_amount beibehalten
+                if new_status != 'teilweise_bezahlt':
+                    invoice.paid_amount = 0.0
+            
+            # Teilzahlungs-Daten zurücksetzen wenn Status von teilweise_bezahlt geändert wird
+            if current_status == 'teilweise_bezahlt' and new_status not in ['bezahlt', 'teilweise_bezahlt']:
+                invoice.paid_amount = 0.0
+                invoice.paid_date = None
+                invoice.payment_reference = None
+                invoice.payment_comment = None
             
             db.session.commit()
             return jsonify({'success': True, 'message': f'Status auf "{new_status}" geändert'})
         else:
-            return jsonify({'success': False, 'message': 'Status-Wechsel nicht erlaubt'})
+            return jsonify({'success': False, 'message': f'Status-Wechsel von "{current_status}" zu "{new_status}" nicht erlaubt'})
         
     except Exception as e:
         db.session.rollback()
@@ -3768,6 +4365,60 @@ def download_invoice_pdf(id):
         return redirect(url_for('invoices'))
 
 # ===============================
+# RECHNUNGS-REMINDER MANAGEMENT
+# ===============================
+
+@app.route('/invoice_reminders/dismiss/<int:reminder_id>', methods=['POST'])
+@login_required
+def dismiss_reminder(reminder_id):
+    """Reminder ausblenden"""
+    try:
+        reminder = InvoiceReminder.query.get_or_404(reminder_id)
+        reminder.is_dismissed = True
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Reminder ausgeblendet'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/invoice_reminders/postpone/<int:reminder_id>', methods=['POST'])
+@login_required
+def postpone_reminder(reminder_id):
+    """Reminder verschieben"""
+    try:
+        from datetime import datetime, timedelta
+        
+        reminder = InvoiceReminder.query.get_or_404(reminder_id)
+        days = int(request.form.get('days', 7))  # Standard: 7 Tage
+        
+        reminder.due_date = reminder.due_date + timedelta(days=days)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Reminder um {days} Tage verschoben',
+            'new_date': reminder.due_date.strftime('%d.%m.%Y')
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/invoice_reminders/create_invoice/<int:reminder_id>')
+@login_required
+def create_invoice_from_reminder(reminder_id):
+    """Direkt zur Rechnungserstellung aus einem Reminder"""
+    try:
+        reminder = InvoiceReminder.query.get_or_404(reminder_id)
+        order = reminder.order
+        
+        # Redirect zur Rechnung-Erstellung mit vorausgefüllten Daten
+        return redirect(url_for('invoices', 
+                              auto_fill_order=order.id, 
+                              auto_fill_type=reminder.reminder_type,
+                              auto_open_modal='true'))
+    except Exception as e:
+        flash(f'Fehler: {str(e)}', 'error')
+        return redirect(url_for('index'))
+
+# ===============================
 # STANDALONE BACKUP-FUNKTIONALITÄT
 # ===============================
 
@@ -3808,9 +4459,92 @@ def download_backup(format):
         flash(f'Fehler beim Erstellen des Backups: {str(e)}', 'error')
         return redirect(url_for('index'))
 
+
+@app.route('/backup_manager')
+@login_required
+def backup_manager():
+    """GitHub Backup-Manager Interface"""
+    from github_backup import GitHubBackupManager
+    
+    try:
+        # GitHub Repository aus Umgebungsvariablen oder Config
+        github_repo = os.environ.get('GITHUB_BACKUP_REPO', 'MaximilianEbner/Holasek_Installationen')
+        github_manager = GitHubBackupManager(github_repo)
+        
+        # Verfügbare Backups auflisten
+        available_backups = github_manager.list_available_backups()
+        
+        return render_template('backup_manager.html', 
+                             backups=available_backups,
+                             github_repo=github_repo)
+        
+    except Exception as e:
+        flash(f'Fehler beim Laden der GitHub-Backups: {str(e)}', 'error')
+        return redirect(url_for('index'))
+
+
+@app.route('/restore_backup/<backup_name>')
+@login_required
+def restore_backup(backup_name):
+    """Stellt ein GitHub-Backup wieder her"""
+    from github_backup import GitHubBackupManager
+    
+    try:
+        github_repo = os.environ.get('GITHUB_BACKUP_REPO', 'MaximilianEbner/Holasek_Installationen')
+        github_manager = GitHubBackupManager(github_repo)
+        
+        # Backup-Informationen abrufen
+        backup_info = github_manager.get_backup_info(backup_name)
+        if not backup_info:
+            flash(f'Backup {backup_name} konnte nicht gefunden oder analysiert werden!', 'error')
+            return redirect(url_for('backup_manager'))
+        
+        # Backup wiederherstellen
+        success = github_manager.restore_backup(backup_name)
+        
+        if success:
+            flash(f'Backup {backup_name} erfolgreich wiederhergestellt! '
+                  f'Tabellen: {backup_info["table_count"]}, '
+                  f'Datensätze: {backup_info["total_records"]}', 'success')
+            
+            # Nach erfolgreicher Wiederherstellung App neu starten (falls möglich)
+            flash('WICHTIG: Starten Sie die Anwendung neu, um alle Änderungen zu übernehmen!', 'warning')
+        else:
+            flash(f'Fehler beim Wiederherstellen des Backups {backup_name}!', 'error')
+            
+        return redirect(url_for('backup_manager'))
+        
+    except Exception as e:
+        flash(f'Fehler beim Wiederherstellen des Backups: {str(e)}', 'error')
+        return redirect(url_for('backup_manager'))
+
+
+@app.route('/backup_info/<backup_name>')
+@login_required
+def backup_info(backup_name):
+    """Zeigt detaillierte Informationen zu einem Backup"""
+    from github_backup import GitHubBackupManager
+    
+    try:
+        github_repo = os.environ.get('GITHUB_BACKUP_REPO', 'MaximilianEbner/Holasek_Installationen')
+        github_manager = GitHubBackupManager(github_repo)
+        
+        backup_info = github_manager.get_backup_info(backup_name)
+        
+        if not backup_info:
+            flash(f'Backup {backup_name} konnte nicht analysiert werden!', 'error')
+            return redirect(url_for('backup_manager'))
+        
+        return render_template('backup_info.html', 
+                             backup=backup_info,
+                             github_repo=github_repo)
+        
+    except Exception as e:
+        flash(f'Fehler beim Analysieren des Backups: {str(e)}', 'error')
+        return redirect(url_for('backup_manager'))
+
 if __name__ == '__main__':
     # Cloud-Hosting-Erkennung - nur für Railway, nicht für lokale Entwicklung
-    # Update: Automatische Migrationen für Railway hinzugefügt (28.07.2025)
     is_production = bool(os.environ.get('DATABASE_URL')) and bool(os.environ.get('PORT'))
     
     if is_production:

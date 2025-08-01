@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}GitHub Backup-Manager{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1><i class="bi bi-cloud-download"></i> GitHub Backup-Manager</h1>
+                <div>
+                    <span class="badge bg-info">Repository: {{ github_repo }}</span>
+                </div>
+            </div>
+
+            <!-- Info-Panel -->
+            <div class="alert alert-info" role="alert">
+                <i class="bi bi-info-circle"></i>
+                <strong>GitHub Backup-System:</strong> Hier können Sie Datenbank-Backups von GitHub laden und als aktuelle Datenbank einsetzen.
+                Laden Sie Backup-Dateien (.db) manuell in den <code>/backups</code> Ordner Ihres GitHub-Repositories hoch.
+            </div>
+
+            {% if backups %}
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-list"></i> Verfügbare Backups ({{ backups|length }})</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Backup-Name</th>
+                                    <th>Größe</th>
+                                    <th>Erstellt</th>
+                                    <th>Aktionen</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for backup in backups %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ backup.name }}</strong>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ '%.2f'|format(backup.size / 1024 / 1024) }} MB</span>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">
+                                            {% if 'InnSAN_Database_Backup_' in backup.name %}
+                                                {% set timestamp = backup.name.replace('InnSAN_Database_Backup_', '').replace('.db', '') %}
+                                                {% if timestamp|length == 15 %}
+                                                    {{ timestamp[:8] }} {{ timestamp[9:11] }}:{{ timestamp[11:13] }}:{{ timestamp[13:15] }}
+                                                {% else %}
+                                                    {{ backup.last_modified }}
+                                                {% endif %}
+                                            {% else %}
+                                                {{ backup.last_modified }}
+                                            {% endif %}
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a href="{{ url_for('backup_info', backup_name=backup.name) }}" 
+                                               class="btn btn-outline-info btn-sm">
+                                                <i class="bi bi-info-circle"></i> Details
+                                            </a>
+                                            <button type="button" 
+                                                    class="btn btn-warning btn-sm" 
+                                                    onclick="confirmRestore('{{ backup.name }}')">
+                                                <i class="bi bi-arrow-clockwise"></i> Wiederherstellen
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="alert alert-warning" role="alert">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>Keine Backups gefunden!</strong>
+                <br>Es wurden keine .db Backup-Dateien im <code>/backups</code> Ordner des GitHub-Repositories gefunden.
+                <br><br>
+                <strong>So fügen Sie Backups hinzu:</strong>
+                <ol>
+                    <li>Erstellen Sie einen lokalen Backup mit dem <a href="{{ url_for('download_backup', format='sqlite') }}" class="alert-link">Datenbank Download</a></li>
+                    <li>Laden Sie die .db-Datei in den <code>/backups</code> Ordner Ihres GitHub-Repositories hoch</li>
+                    <li>Aktualisieren Sie diese Seite</li>
+                </ol>
+            </div>
+            {% endif %}
+
+            <!-- Aktionen -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5><i class="bi bi-tools"></i> Backup-Aktionen</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="d-grid">
+                                <a href="{{ url_for('download_backup', format='sqlite') }}" class="btn btn-primary">
+                                    <i class="bi bi-download"></i> Neues Backup erstellen
+                                </a>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="d-grid">
+                                <button class="btn btn-outline-secondary" onclick="location.reload()">
+                                    <i class="bi bi-arrow-clockwise"></i> Liste aktualisieren
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="d-grid">
+                                <a href="{{ url_for('index') }}" class="btn btn-outline-primary">
+                                    <i class="bi bi-house"></i> Zum Dashboard
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bestätigungs-Modal -->
+<div class="modal fade" id="confirmRestoreModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Backup wiederherstellen?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>ACHTUNG:</strong> Diese Aktion überschreibt die aktuelle Datenbank!
+                </div>
+                <p>Möchten Sie das Backup <strong id="backupNameConfirm"></strong> wirklich wiederherstellen?</p>
+                <p class="text-muted">
+                    <small>Eine Sicherung der aktuellen Datenbank wird automatisch erstellt.</small>
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <a href="#" id="confirmRestoreBtn" class="btn btn-warning">
+                    <i class="bi bi-arrow-clockwise"></i> Wiederherstellen
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function confirmRestore(backupName) {
+    document.getElementById('backupNameConfirm').textContent = backupName;
+    document.getElementById('confirmRestoreBtn').href = "{{ url_for('restore_backup', backup_name='BACKUP_NAME') }}".replace('BACKUP_NAME', backupName);
+    
+    var modal = new bootstrap.Modal(document.getElementById('confirmRestoreModal'));
+    modal.show();
+}
+</script>
+{% endblock %}

@@ -21,6 +21,7 @@ class CustomerForm(FlaskForm):
     postal_code = StringField('PLZ', validators=[Optional()])
     customer_manager = StringField('Kundenbetreuer', validators=[Optional()])
     acquisition_channel = SelectField('Akquisekanal', coerce=int, validators=[Optional()])
+    detailed_acquisition_channel = TextAreaField('Detaillierter Akquisekanal', validators=[Optional()])
     comments = TextAreaField('Kommentare zum Kunden', validators=[Optional()])
     submit = SubmitField('Speichern')
 
@@ -112,13 +113,16 @@ class CustomerWorkflowForm(FlaskForm):
     """Form für Workflow-Updates des Kunden"""
     status = SelectField('Status', choices=[
         ('1. Termin vereinbaren', '1. Termin vereinbaren'),
-        ('2. Termin vereinbart', '2. Termin vereinbart'),
-        ('3. Angebot erstellen', '3. Angebot erstellen'),
-        ('Angebot wurde erstellt', 'Angebot wurde erstellt'),
+        ('1. Termin vereinbart', '1. Termin vereinbart'),
+        ('Angebot erstellen', 'Angebot erstellen'),
+        ('2. Termin vereinbaren', '2. Termin vereinbaren'),
+        ('Warten auf Rückmeldung', 'Warten auf Rückmeldung'),
         ('Kein Interesse', 'Kein Interesse')
     ], validators=[DataRequired()])
-    appointment_date = DateField('Termindatum', validators=[Optional()])
-    appointment_notes = TextAreaField('Terminnotizen', validators=[Optional()])
+    appointment_date = DateField('1. Termindatum', validators=[Optional()])
+    appointment_notes = TextAreaField('Notizen zum 1. Termin', validators=[Optional()])
+    second_appointment_date = DateField('2. Termindatum', validators=[Optional()])
+    second_appointment_notes = TextAreaField('Notizen zum 2. Termin', validators=[Optional()])
     comments = TextAreaField('Kommentare zum Kunden', validators=[Optional()])
     submit = SubmitField('Status aktualisieren')
 

@@ -29,8 +29,10 @@ class InvoicePDFGenerator:
         
         if os.path.exists(self.logo_path):
             try:
-                # Logo mit angemessener Größe laden wie in pdf_export.py
-                self.logo_element = Image(self.logo_path, width=4*cm, height=2*cm)
+                # Logo mit korrektem Seitenverhältnis (624x222 Pixel = 2.81:1)
+                logo_width = 6*cm
+                logo_height = logo_width / 2.81  # Berechne Höhe basierend auf Original-Seitenverhältnis
+                self.logo_element = Image(self.logo_path, width=logo_width, height=logo_height)
             except Exception as e:
                 print(f"Fehler beim Laden des Logos: {e}")
                 self.logo_element = None
@@ -200,39 +202,54 @@ class InvoicePDFGenerator:
         y_pos -= 0.7*cm
         c.setFont("Helvetica", 11)
         
+        # Projektname und Angebotsbeschreibung in gewünschtem Format
         if invoice.order:
             project_desc = invoice.order.quote.project_description or "Installationsarbeiten"
-        else:
-            # Für allgemeine Rechnungen: Verwende service_description
-            project_desc = invoice.service_description or "Allgemeine Dienstleistungen"
-        
-        # Projektbeschreibung anzeigen - Text umbrechen falls zu lang
-        if len(project_desc) > 70:
-            words = project_desc.split()
-            lines = []
-            current_line = ""
-            for word in words:
-                if len(current_line + " " + word) <= 70:
-                    current_line += " " + word if current_line else word
+            # Format: Projektname | Verrechnung gemäß Angebot: "ANG-2025-XXX" - | Zeilenumbruch |
+            if quote_number:
+                # Für detaillierte Schlussrechnungen: Projektnamen nicht hier anzeigen, kommt in die Tabelle
+                if invoice.invoice_type == 'detailed_final':
+                    combined_line = f"Verrechnung gemäß Angebot: {quote_number}"
                 else:
-                    lines.append(current_line)
-                    current_line = word
-            if current_line:
-                lines.append(current_line)
+                    combined_line = f"{project_desc} | Verrechnung gemäß Angebot: {quote_number}"
+                c.drawString(self.margin, y_pos, combined_line)
+                y_pos -= 0.5*cm
+            else:
+                # Für detaillierte Schlussrechnungen: Projektnamen nicht hier anzeigen
+                if invoice.invoice_type != 'detailed_final':
+                    c.drawString(self.margin, y_pos, project_desc)
+                    y_pos -= 0.5*cm
         else:
-            lines = [project_desc]
+            # Für allgemeine Rechnungen: nur Projektname falls vorhanden und nicht detailed_final
+            if invoice.project_name and invoice.invoice_type != 'detailed_final':
+                project_line = f"{invoice.project_name} |"
+                c.drawString(self.margin, y_pos, project_line)
+                y_pos -= 0.5*cm
         
-        # Projektbeschreibung zeichnen
-        for line in lines:
-            c.drawString(self.margin, y_pos, line)
-            y_pos -= 0.5*cm
-        
-        # Angebotsnummer nur bei auftragsbasierten Rechnungen
-        if quote_number:
-            y_pos -= 0.3*cm
-            angebots_text = f'Verrechnung gemäß Angebot: "{quote_number}"'
-            c.drawString(self.margin, y_pos, angebots_text)
-            y_pos -= 0.5*cm
+        # Service Description aus dem Formular hinzufügen (falls vorhanden)
+        if invoice.service_description and invoice.service_description.strip():
+            service_desc = invoice.service_description.strip()
+            
+            # Text umbrechen falls zu lang
+            if len(service_desc) > 70:
+                words = service_desc.split()
+                lines = []
+                current_line = ""
+                for word in words:
+                    if len(current_line + " " + word) <= 70:
+                        current_line += " " + word if current_line else word
+                    else:
+                        lines.append(current_line)
+                        current_line = word
+                if current_line:
+                    lines.append(current_line)
+            else:
+                lines = [service_desc]
+            
+            # Service Description zeichnen
+            for line in lines:
+                c.drawString(self.margin, y_pos, line)
+                y_pos -= 0.5*cm
         
         # Beträge-Tabelle
         y_pos -= 1*cm
@@ -240,84 +257,309 @@ class InvoicePDFGenerator:
         # Tabellenkopf in Corporate Color
         c.setFont("Helvetica-Bold", 11)
         c.setFillColor(colors.HexColor('#CC5500'))  # Corporate Orange
-        c.drawString(self.margin, y_pos, "Position")
-        c.drawRightString(self.width - self.margin, y_pos, "Betrag")
-        c.setFillColor(colors.black)  # Zurück zu schwarz
         
-        y_pos -= 0.3*cm
-        c.setStrokeColor(colors.HexColor('#CC5500'))  # Corporate Orange für Linie
-        c.line(self.margin, y_pos, self.width - self.margin, y_pos)
-        c.setStrokeColor(colors.black)  # Zurück zu schwarz
-        y_pos -= 0.5*cm
-        
-        # Beträge
-        c.setFont("Helvetica", 11)
-        
-        rows = [
-            (f"Auftragssumme netto" if invoice.order else "Leistungssumme netto", format_currency_de(invoice.base_amount))
-                    ]
-        
-        # Abzug bei Schlussrechnung
-        if invoice.invoice_type == 'schluss' and invoice.previous_payments > 0:
-            rows.append(("Abzüglich bereits erhaltener Anzahlungen (netto)", f"- {format_currency_de(invoice.previous_payments)}"))
-        
-        for desc, amount in rows:
-            c.drawString(self.margin, y_pos, desc)
-            c.drawRightString(self.width - self.margin, y_pos, amount)
+        # Spezielle Tabelle für detaillierte Schlussrechnungen
+        if invoice.invoice_type == 'detailed_final':
+            # Erweiterte Tabellenkopfzeile mit 4 Spalten - angepasste Spaltenbreiten
+            c.drawString(self.margin, y_pos, "Beschreibung")
+            c.drawString(self.margin + 9*cm, y_pos, "Menge/Einheit")
+            c.drawString(self.margin + 12*cm, y_pos, "Preis")
+            c.drawRightString(self.width - self.margin, y_pos, "Netto")
+            
+            c.setFillColor(colors.black)  # Zurück zu schwarz
+            y_pos -= 0.3*cm
+            c.setStrokeColor(colors.HexColor('#CC5500'))  # Corporate Orange für Linie
+            c.line(self.margin, y_pos, self.width - self.margin, y_pos)
+            c.setStrokeColor(colors.black)  # Zurück zu schwarz
             y_pos -= 0.5*cm
-        
-        # Linie vor Zwischensumme/Restbetrag
-        y_pos -= 0.2*cm
-        c.line(self.margin + 8*cm, y_pos, self.width - self.margin, y_pos)
-        y_pos -= 0.5*cm
-        
-        # Zwischensumme/Restbetrag je nach Rechnungstyp
-        c.setFont("Helvetica-Bold", 11)
-        if invoice.invoice_type == 'anzahlung':
-            # Bei Anzahlungen: Anzahlungssumme
-            c.drawString(self.margin, y_pos, f"Anzahlungssumme netto ({invoice.percentage:.0f}%):")
-            c.drawRightString(self.width - self.margin, y_pos, format_currency_de(invoice.final_amount))
-        elif invoice.invoice_type == 'schluss':
-            # Bei Schlussrechnungen: Restbetrag (Auftragssumme - Anzahlungen)
-            restbetrag = invoice.base_amount - invoice.previous_payments
-            c.drawString(self.margin, y_pos, "Restbetrag netto:")
-            c.drawRightString(self.width - self.margin, y_pos, format_currency_de(restbetrag))
-        else:
-            # Standard für andere Rechnungstypen (allgemein)
-            c.drawString(self.margin, y_pos, "Zwischensumme netto:")
-            c.drawRightString(self.width - self.margin, y_pos, format_currency_de(invoice.final_amount))
-        y_pos -= 0.5*cm
-        
-        # MwSt
-        c.setFont("Helvetica", 11)
-        c.drawString(self.margin, y_pos, f"zzgl. {invoice.vat_rate:.0f}% MwSt.:")
-        if invoice.invoice_type == 'schluss':
-            # Bei Schlussrechnungen: MwSt vom Restbetrag berechnen
-            restbetrag = invoice.base_amount - invoice.previous_payments
-            vat_amount = restbetrag * invoice.vat_rate / 100
+            
+            # Materialkosten - aber zuerst Projektname als oberste Zeile
+            c.setFont("Helvetica-Bold", 11)
+            
+            # Projektname als oberste Zeile ermitteln
+            if invoice.order:
+                project_name = invoice.order.quote.project_description or "Einbau laut Auftrag"
+            else:
+                project_name = invoice.project_name or "Einbau laut Auftrag"
+            
+            # Projektname als erste Zeile - nur mit Materialkosten (nicht Arbeitskosten)
+            material_costs_only = invoice.material_costs_editable or 0
+            
+            # Automatischer Zeilenumbruch für Projektname falls nötig
+            if len(project_name) > 45:
+                words = project_name.split()
+                lines = []
+                current_line = ""
+                for word in words:
+                    if len(current_line + " " + word) <= 45:
+                        current_line += " " + word if current_line else word
+                    else:
+                        lines.append(current_line)
+                        current_line = word
+                if current_line:
+                    lines.append(current_line)
+                
+                # Erste Zeile mit Beträgen - nur Materialkosten
+                c.drawString(self.margin, y_pos, lines[0])
+                c.drawString(self.margin + 9*cm, y_pos, "1")
+                c.drawString(self.margin + 12*cm, y_pos, format_currency_de(material_costs_only))
+                c.drawRightString(self.width - self.margin, y_pos, format_currency_de(material_costs_only))
+                y_pos -= 0.4*cm
+                
+                # Weitere Zeilen des Projektnamens
+                c.setFont("Helvetica", 10)
+                for line in lines[1:]:
+                    c.drawString(self.margin, y_pos, line)
+                    y_pos -= 0.4*cm
+                c.setFont("Helvetica-Bold", 11)  # Zurück zu bold
+            else:
+                # Kurzer Projektname - normale Darstellung - nur Materialkosten
+                c.drawString(self.margin, y_pos, project_name)
+                c.drawString(self.margin + 9*cm, y_pos, "1")
+                c.drawString(self.margin + 12*cm, y_pos, format_currency_de(material_costs_only))
+                c.drawRightString(self.width - self.margin, y_pos, format_currency_de(material_costs_only))
+                y_pos -= 0.4*cm
+            
+            # Materialkosten-Details als Unterpunkte
+            if hasattr(invoice, 'material_description') and invoice.material_description:
+                material_desc = invoice.material_description
+            else:
+                material_desc = "Produkt- und Materialkosten (inkl. Fliesen)\nAn- und Abfahrtkosten\nKlein und Montagematerial\nWerkzeugverschleiß\nEntsorgungskosten"
+            
+            # Materialkosten-Details als Unterpunkte in kleinerer Schrift
+            material_lines = material_desc.split('\n')
+            c.setFont("Helvetica", 10)
+            for line in material_lines:
+                if line.strip():
+                    # Auch Unterpunkte umbrechen falls nötig
+                    if len(line.strip()) > 45:
+                        words = line.strip().split()
+                        sub_lines = []
+                        current_line = ""
+                        for word in words:
+                            if len(current_line + " " + word) <= 45:
+                                current_line += " " + word if current_line else word
+                            else:
+                                sub_lines.append(current_line)
+                                current_line = word
+                        if current_line:
+                            sub_lines.append(current_line)
+                        
+                        for sub_line in sub_lines:
+                            c.drawString(self.margin, y_pos, sub_line)
+                            y_pos -= 0.4*cm
+                    else:
+                        c.drawString(self.margin, y_pos, line.strip())
+                        y_pos -= 0.4*cm
+            
+            y_pos -= 0.2*cm
+            
+            # Arbeitszeit
+            c.setFont("Helvetica-Bold", 11)
+            labor_desc = "Arbeitszeit"  # Titel bleibt hart kodiert
+            labor_hours = invoice.labor_hours_editable or 0
+            labor_rate = invoice.labor_rate_editable or 95
+            labor_total = labor_hours * labor_rate
+            
+            # Auch Arbeitsbeschreibung umbrechen falls nötig
+            if len(labor_desc) > 45:
+                words = labor_desc.split()
+                lines = []
+                current_line = ""
+                for word in words:
+                    if len(current_line + " " + word) <= 45:
+                        current_line += " " + word if current_line else word
+                    else:
+                        lines.append(current_line)
+                        current_line = word
+                if current_line:
+                    lines.append(current_line)
+                
+                # Erste Zeile mit Beträgen
+                c.drawString(self.margin, y_pos, lines[0])
+                c.drawString(self.margin + 9*cm, y_pos, f"{format_number_de(labor_hours)}")
+                c.drawString(self.margin + 12*cm, y_pos, f"{format_currency_de(labor_rate)}")
+                c.drawRightString(self.width - self.margin, y_pos, format_currency_de(labor_total))
+                y_pos -= 0.4*cm
+                
+                # Weitere Zeilen
+                c.setFont("Helvetica", 10)
+                for line in lines[1:]:
+                    c.drawString(self.margin, y_pos, line)
+                    y_pos -= 0.4*cm
+                c.setFont("Helvetica-Bold", 11)  # Zurück zu bold für nächste Einträge
+            else:
+                c.drawString(self.margin, y_pos, labor_desc)
+                c.drawString(self.margin + 9*cm, y_pos, f"{format_number_de(labor_hours)}")
+                c.drawString(self.margin + 12*cm, y_pos, f"{format_currency_de(labor_rate)}")
+                c.drawRightString(self.width - self.margin, y_pos, format_currency_de(labor_total))
+                y_pos -= 0.4*cm
+            
+            # Unterbeschreibung für Arbeitszeit - aus Formular übernehmen
+            c.setFont("Helvetica", 10)
+            # labor_description aus dem Formular verwenden, Fallback auf "Partiestunde"
+            labor_sub_desc = invoice.labor_description if hasattr(invoice, 'labor_description') and invoice.labor_description else "Partiestunde"
+            c.drawString(self.margin, y_pos, labor_sub_desc)
+            y_pos -= 0.6*cm
+            
+            # Anzahlungsabzug
+            if invoice.previous_payments and invoice.previous_payments > 0:
+                c.setFont("Helvetica-Bold", 11)
+                c.drawString(self.margin, y_pos, "Anzahlung")
+                c.drawString(self.margin + 9*cm, y_pos, "1")
+                c.drawString(self.margin + 12*cm, y_pos, f"-{format_currency_de(invoice.previous_payments)}")
+                c.drawRightString(self.width - self.margin, y_pos, f"-{format_currency_de(invoice.previous_payments)}")
+                y_pos -= 0.4*cm
+                
+                # Unterbeschreibung für Anzahlung mit Zeilenumbruch
+                c.setFont("Helvetica", 10)
+                if hasattr(invoice, 'created_at') and invoice.created_at:
+                    anzahlung_date = invoice.created_at.strftime('%d.%m.%Y')
+                    # Prozentsatz aus der ursprünglichen Anzahlung ermitteln
+                    if invoice.order and invoice.order.quote:
+                        # Berechne Prozentsatz basierend auf Anzahlung vs. Auftragssumme
+                        total_order_amount = invoice.base_amount + (invoice.previous_payments or 0)
+                        if total_order_amount > 0:
+                            percentage = (invoice.previous_payments / total_order_amount) * 100
+                            anzahlung_desc = f"Anzahlung (netto)"
+                        else:
+                            anzahlung_desc = f"Anzahlung (netto)"
+                    else:
+                        anzahlung_desc = f"Anzahlung (netto)"
+                else:
+                    anzahlung_desc = "Anzahlung (netto)"
+                
+                # Anzahlungsbeschreibung umbrechen falls nötig
+                if len(anzahlung_desc) > 45:
+                    words = anzahlung_desc.split()
+                    lines = []
+                    current_line = ""
+                    for word in words:
+                        if len(current_line + " " + word) <= 45:
+                            current_line += " " + word if current_line else word
+                        else:
+                            lines.append(current_line)
+                            current_line = word
+                    if current_line:
+                        lines.append(current_line)
+                    
+                    for line in lines:
+                        c.drawString(self.margin, y_pos, line)
+                        y_pos -= 0.4*cm
+                else:
+                    c.drawString(self.margin, y_pos, anzahlung_desc)
+                    y_pos -= 0.4*cm
+                
+                y_pos -= 0.2*cm
+            
+            # Summenbereich für detaillierte Rechnung
+            y_pos -= 0.5*cm
+            
+            # Summe netto
+            c.setFont("Helvetica-Bold", 12)
+            total_netto = (invoice.material_costs_editable or 0) + labor_total - (invoice.previous_payments or 0)
+            c.drawString(self.margin + 10*cm, y_pos, "Summe netto")
+            c.drawRightString(self.width - self.margin, y_pos, format_currency_de(total_netto))
+            y_pos -= 0.5*cm
+            
+            # MwSt.
+            c.setFont("Helvetica", 11)
+            vat_amount = total_netto * (invoice.vat_rate / 100)
+            c.drawString(self.margin + 10*cm, y_pos, f"+{invoice.vat_rate:.0f}% USt (von {format_currency_de(total_netto)})")
             c.drawRightString(self.width - self.margin, y_pos, format_currency_de(vat_amount))
+            y_pos -= 0.5*cm
+            
+            # Linie vor Gesamtsumme
+            y_pos -= 0.2*cm
+            c.line(self.margin + 10*cm, y_pos, self.width - self.margin, y_pos)
+            y_pos -= 0.5*cm
+            
+            # Gesamt brutto
+            c.setFont("Helvetica-Bold", 14)
+            total_brutto = total_netto + vat_amount
+            c.drawString(self.margin + 10*cm, y_pos, "Gesamt brutto")
+            c.drawRightString(self.width - self.margin, y_pos, format_currency_de(total_brutto))
+            
         else:
-            c.drawRightString(self.width - self.margin, y_pos, format_currency_de(invoice.vat_amount))
-        y_pos -= 0.5*cm
-        
-        # Gesamtsumme
-        y_pos -= 0.2*cm
-        c.line(self.margin + 8*cm, y_pos, self.width - self.margin, y_pos)
-        y_pos -= 0.5*cm
-        
-        c.setFont("Helvetica-Bold", 14)
-        if invoice.invoice_type == 'anzahlung':
-            c.drawString(self.margin, y_pos, "Anzahlungssumme brutto:")
-            c.drawRightString(self.width - self.margin, y_pos, format_currency_de(invoice.gross_amount))
-        elif invoice.invoice_type == 'schluss':
-            # Bei Schlussrechnungen: Restbetrag + MwSt berechnen
-            restbetrag = invoice.base_amount - invoice.previous_payments
-            restbetrag_brutto = restbetrag + (restbetrag * invoice.vat_rate / 100)
-            c.drawString(self.margin, y_pos, "Gesamtsumme brutto:")
-            c.drawRightString(self.width - self.margin, y_pos, format_currency_de(restbetrag_brutto))
-        else:
-            c.drawString(self.margin, y_pos, "Gesamtsumme brutto:")
-            c.drawRightString(self.width - self.margin, y_pos, format_currency_de(invoice.gross_amount))
+            # Standard Tabelle für andere Rechnungstypen
+            c.drawString(self.margin, y_pos, "Position")
+            c.drawRightString(self.width - self.margin, y_pos, "Betrag")
+            c.setFillColor(colors.black)  # Zurück zu schwarz
+            
+            y_pos -= 0.3*cm
+            c.setStrokeColor(colors.HexColor('#CC5500'))  # Corporate Orange für Linie
+            c.line(self.margin, y_pos, self.width - self.margin, y_pos)
+            c.setStrokeColor(colors.black)  # Zurück zu schwarz
+            y_pos -= 0.5*cm
+            
+            # Beträge
+            c.setFont("Helvetica", 11)
+            
+            rows = [
+                (f"Auftragssumme netto" if invoice.order else "Leistungssumme netto", format_currency_de(invoice.base_amount))
+                        ]
+            
+            # Abzug bei Schlussrechnung
+            if invoice.invoice_type == 'schluss' and invoice.previous_payments > 0:
+                rows.append(("Abzüglich bereits erhaltener Anzahlungen (netto)", f"- {format_currency_de(invoice.previous_payments)}"))
+            
+            for desc, amount in rows:
+                c.drawString(self.margin, y_pos, desc)
+                c.drawRightString(self.width - self.margin, y_pos, amount)
+                y_pos -= 0.5*cm
+            
+            # Linie vor Zwischensumme/Restbetrag
+            y_pos -= 0.2*cm
+            c.line(self.margin + 8*cm, y_pos, self.width - self.margin, y_pos)
+            y_pos -= 0.5*cm
+            
+            # Zwischensumme/Restbetrag je nach Rechnungstyp
+            c.setFont("Helvetica-Bold", 11)
+            if invoice.invoice_type == 'anzahlung':
+                # Bei Anzahlungen: Anzahlungssumme
+                c.drawString(self.margin, y_pos, f"Anzahlungssumme netto ({invoice.percentage:.0f}%):")
+                c.drawRightString(self.width - self.margin, y_pos, format_currency_de(invoice.final_amount))
+            elif invoice.invoice_type == 'schluss':
+                # Bei Schlussrechnungen: Restbetrag (Auftragssumme - Anzahlungen)
+                restbetrag = invoice.base_amount - invoice.previous_payments
+                c.drawString(self.margin, y_pos, "Restbetrag netto:")
+                c.drawRightString(self.width - self.margin, y_pos, format_currency_de(restbetrag))
+            else:
+                # Standard für andere Rechnungstypen (allgemein)
+                c.drawString(self.margin, y_pos, "Zwischensumme netto:")
+                c.drawRightString(self.width - self.margin, y_pos, format_currency_de(invoice.final_amount))
+            y_pos -= 0.5*cm
+            
+            # MwSt
+            c.setFont("Helvetica", 11)
+            c.drawString(self.margin, y_pos, f"zzgl. {invoice.vat_rate:.0f}% MwSt.:")
+            if invoice.invoice_type == 'schluss':
+                # Bei Schlussrechnungen: MwSt vom Restbetrag berechnen
+                restbetrag = invoice.base_amount - invoice.previous_payments
+                vat_amount = restbetrag * invoice.vat_rate / 100
+                c.drawRightString(self.width - self.margin, y_pos, format_currency_de(vat_amount))
+            else:
+                c.drawRightString(self.width - self.margin, y_pos, format_currency_de(invoice.vat_amount))
+            y_pos -= 0.5*cm
+            
+            # Gesamtsumme
+            y_pos -= 0.2*cm
+            c.line(self.margin + 8*cm, y_pos, self.width - self.margin, y_pos)
+            y_pos -= 0.5*cm
+            
+            c.setFont("Helvetica-Bold", 14)
+            if invoice.invoice_type == 'anzahlung':
+                c.drawString(self.margin, y_pos, "Anzahlungssumme brutto:")
+                c.drawRightString(self.width - self.margin, y_pos, format_currency_de(invoice.gross_amount))
+            elif invoice.invoice_type == 'schluss':
+                # Bei Schlussrechnungen: Restbetrag + MwSt berechnen
+                restbetrag = invoice.base_amount - invoice.previous_payments
+                restbetrag_brutto = restbetrag + (restbetrag * invoice.vat_rate / 100)
+                c.drawString(self.margin, y_pos, "Gesamtsumme brutto:")
+                c.drawRightString(self.width - self.margin, y_pos, format_currency_de(restbetrag_brutto))
+            else:
+                c.drawString(self.margin, y_pos, "Gesamtsumme brutto:")
+                c.drawRightString(self.width - self.margin, y_pos, format_currency_de(invoice.gross_amount))
         
         # Abschlusstext vor Zahlungsbedingungen
         y_pos -= 2*cm
@@ -461,7 +703,9 @@ class InvoicePDFGenerator:
         titles = {
             'anzahlung': 'ANZAHLUNG',
             'zwischen': 'ZWISCHENRECHNUNG', 
-            'schluss': 'SCHLUSSRECHNUNG'
+            'schluss': 'RECHNUNG',
+            'detailed_final': 'RECHNUNG',
+            'allgemein': 'RECHNUNG'
         }
         return titles.get(invoice_type, 'RECHNUNG')
     
@@ -470,6 +714,8 @@ class InvoicePDFGenerator:
         descriptions = {
             'anzahlung': 'Anzahlung',
             'zwischen': 'Zwischenrechnung',
-            'schluss': 'Schlussrechnung'
+            'schluss': 'Schlussrechnung',
+            'detailed_final': 'Detaillierte Schlussrechnung',
+            'allgemein': 'Allgemeine Rechnung'
         }
         return descriptions.get(invoice_type, 'Rechnung')

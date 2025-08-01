@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+
+{% block title %}Neue Rechnung erstellen{% endblock %}
+
+{% block extra_css %}
+<style>
+.form-section {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-left: 4px solid #007bff;
+}
+
+.form-section h5 {
+    color: #495057;
+    margin-bottom: 15px;
+    font-weight: 600;
+}
+
+.field-group {
+    display: none;
+}
+
+.field-group.show {
+    display: block;
+}
+
+.invoice-type-card {
+    border: 2px solid #dee2e6;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.invoice-type-card:hover {
+    border-color: #007bff;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 123, 255, 0.075);
+}
+
+.invoice-type-card.selected {
+    border-color: #007bff;
+    background-color: #f8f9ff;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h2>Neue Rechnung erstellen</h2>
+            <p class="text-muted mb-4">Wählen Sie den Rechnungstyp und füllen Sie die erforderlichen Daten aus</p>
+
+            <form id="createInvoiceForm" method="POST" action="{{ url_for('create_invoice') }}">
+                
+                <!-- Rechnungstyp Auswahl -->
+                <div class="form-section">
+                    <h5>Schritt 1: Rechnungstyp wählen</h5>
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <div class="card invoice-type-card h-100" onclick="selectInvoiceType('anzahlung')">
+                                <div class="card-body text-center">
+                                    <h6 class="card-title">Anzahlungsrechnung</h6>
+                                    <span class="badge bg-success">30%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="card invoice-type-card h-100" onclick="selectInvoiceType('schluss')">
+                                <div class="card-body text-center">
+                                    <h6 class="card-title">Schlussrechnung</h6>
+                                    <span class="badge bg-primary">70%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="card invoice-type-card h-100" onclick="selectInvoiceType('detailed_final')">
+                                <div class="card-body text-center">
+                                    <h6 class="card-title">Detaillierte Schlussrechnung</h6>
+                                    <span class="badge bg-info">Detail</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="card invoice-type-card h-100" onclick="selectInvoiceType('allgemein')">
+                                <div class="card-body text-center">
+                                    <h6 class="card-title">Allgemeine Rechnung</h6>
+                                    <span class="badge bg-warning">Frei</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <input type="hidden" name="invoice_type" id="invoice_type" required>
+                    <div id="type-info" class="alert alert-info" style="display: none;"></div>
+                </div>
+
+                <!-- Auftrag auswählen -->
+                <div class="form-section field-group" id="order-section">
+                    <h5>Schritt 2: Auftrag auswählen</h5>
+                    <div class="row">
+                        <div class="col-md-8">
+                            <label for="order_search" class="form-label">Auftrag suchen *</label>
+                            <input type="text" id="order_search" class="form-control" 
+                                   placeholder="Auftragsnummer oder Kundenname eingeben...">
+                            <input type="hidden" name="order_id" id="order_id">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Kunde auswählen -->
+                <div class="form-section field-group" id="customer-section">
+                    <h5>Schritt 2: Kunde auswählen</h5>
+                    <div class="row">
+                        <div class="col-md-8">
+                            <label for="customer_select" class="form-label">Kunde *</label>
+                            <select name="customer_id" id="customer_select" class="form-select">
+                                <option value="">Kunde auswählen...</option>
+                                {% for customer in customers %}
+                                <option value="{{ customer.id }}">{{ customer.full_name }} - {{ customer.email }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Standard Details -->
+                <div class="form-section field-group" id="standard-details-section">
+                    <h5>Schritt 3: Rechnungsdetails</h5>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label for="percentage" class="form-label">Prozentsatz *</label>
+                            <input type="number" name="percentage" id="percentage" class="form-control" readonly>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Allgemeine Details -->
+                <div class="form-section field-group" id="general-details-section">
+                    <h5>Schritt 3: Rechnungsdetails</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label for="base_amount_general" class="form-label">Rechnungsbetrag (netto) *</label>
+                            <input type="number" name="base_amount" id="base_amount_general" 
+                                   class="form-control" step="0.01" placeholder="0.00">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="service_description" class="form-label">Leistungsbeschreibung *</label>
+                            <textarea name="service_description" id="service_description" 
+                                      class="form-control" rows="3"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Zahlungskonditionen -->
+                <div class="form-section field-group" id="payment-section">
+                    <h5>Schritt 4: Zahlungskonditionen</h5>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label for="due_date" class="form-label">Fälligkeitsdatum *</label>
+                            <input type="date" name="due_date" id="due_date" class="form-control" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="vat_rate" class="form-label">MwSt.-Satz</label>
+                            <input type="number" name="vat_rate" id="vat_rate" 
+                                   class="form-control" value="20.0" step="0.1">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Aktionen -->
+                <div class="row mt-4 field-group" id="actions-section">
+                    <div class="col-12 d-flex justify-content-between">
+                        <a href="{{ url_for('invoices') }}" class="btn btn-outline-secondary btn-lg">
+                            Abbrechen
+                        </a>
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            Rechnung erstellen
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+console.log('Starting invoice script...');
+
+// Einfache Typ-Auswahl
+function selectInvoiceType(type) {
+    console.log('Type selected:', type);
+    
+    // Alle Karten zurücksetzen
+    document.querySelectorAll('.invoice-type-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    
+    // Ausgewählte Karte markieren
+    event.currentTarget.classList.add('selected');
+    
+    // Hidden input setzen
+    document.getElementById('invoice_type').value = type;
+    
+    // Alle Feldgruppen verstecken
+    document.querySelectorAll('.field-group').forEach(group => {
+        group.classList.remove('show');
+    });
+    
+    // Info anzeigen
+    const infoBox = document.getElementById('type-info');
+    infoBox.style.display = 'block';
+    infoBox.textContent = 'Typ gewählt: ' + type;
+    
+    // Je nach Typ entsprechende Felder anzeigen
+    if (type === 'anzahlung') {
+        showSection('order-section');
+        showSection('standard-details-section');
+        showSection('payment-section');
+        showSection('actions-section');
+        document.getElementById('percentage').value = 30;
+    } else if (type === 'schluss') {
+        showSection('order-section');
+        showSection('standard-details-section');
+        showSection('payment-section');
+        showSection('actions-section');
+        document.getElementById('percentage').value = 70;
+    } else if (type === 'detailed_final') {
+        showSection('order-section');
+        showSection('payment-section');
+        showSection('actions-section');
+    } else if (type === 'allgemein') {
+        showSection('customer-section');
+        showSection('general-details-section');
+        showSection('payment-section');
+        showSection('actions-section');
+    }
+}
+
+function showSection(sectionId) {
+    const section = document.getElementById(sectionId);
+    if (section) {
+        section.classList.add('show');
+    }
+}
+
+// DOM ready
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, initializing...');
+    
+    // Fälligkeitsdatum setzen
+    const today = new Date();
+    today.setDate(today.getDate() + 14);
+    document.getElementById('due_date').valueAsDate = today;
+    
+    console.log('Invoice page initialized successfully');
+});
+
+console.log('Invoice script loaded');
+</script>
+{% endblock %}

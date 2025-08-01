@@ -360,8 +360,8 @@ html {
                                     <div class="row subitem-fields" id="fields_{{ template.id }}_{{ loop.index0 }}">
                                         {% if subitem.item_type == 'bestellteil' %}
                                         <div class="col-md-3">
-                                            <label class="form-label form-label-sm">Lieferant</label>
-                                            <select class="form-select form-select-sm subitem-supplier">
+                                            <label class="form-label form-label-sm">Lieferant <span class="text-danger">*</span></label>
+                                            <select class="form-select form-select-sm subitem-supplier supplier-required" required>
                                                 <option value="">Lieferant wählen</option>
                                                 {% for supplier in suppliers %}
                                                 <option value="{{ supplier.name }}" {% if subitem.supplier == supplier.name %}selected{% endif %}>{{ supplier.name }}</option>
@@ -872,7 +872,11 @@ function selectTemplate(templateId) {
 
     // Sammle alle Unterposition-Daten
     const subitems = document.querySelectorAll(`#subitems_${templateId} .subitem-row`);
+    let validationError = false;
+    
     subitems.forEach(subitem => {
+        if (validationError) return; // Beende Schleife bei Validierungsfehler
+        
         const typeElement = subitem.querySelector('.subitem-type');
         const type = typeElement ? typeElement.value : '';
         const description = subitem.querySelector('.subitem-description')?.value || '';
@@ -892,7 +896,18 @@ function selectTemplate(templateId) {
 
         // Typ-spezifische Daten
         if (type === 'bestellteil') {
-            subitemData.supplier = subitem.querySelector('.subitem-supplier')?.value || '';
+            const supplier = subitem.querySelector('.subitem-supplier')?.value || '';
+            
+            // Validierung: Für Bestellteile muss ein Lieferant ausgewählt werden
+            if (!supplier.trim()) {
+                alert(`Für Bestellteil "${description}" muss ein Lieferant ausgewählt werden.`);
+                // Scrolle zum entsprechenden Feld
+                subitem.querySelector('.subitem-supplier')?.focus();
+                validationError = true;
+                return;
+            }
+            
+            subitemData.supplier = supplier;
             subitemData.supplier_part_number = subitem.querySelector('.subitem-supplier-part-number')?.value || '';
             subitemData.part_quantity = subitem.querySelector('.subitem-quantity')?.value || '1';
             subitemData.requires_order = subitem.querySelector('.subitem-requires-order')?.checked || true;
@@ -905,6 +920,11 @@ function selectTemplate(templateId) {
 
         templateData.subitems.push(subitemData);
     });
+    
+    // Beende Funktion bei Validierungsfehler
+    if (validationError) {
+        return;
+    }
 
     // Berechne Gesamtpreis
     templateData.calculation_parameters.calculatedPrice = templateData.subitems.reduce((sum, item) => sum + item.calculated_price, 0);

@@ -124,6 +124,18 @@
                     </div>
                     
                     <div class="mb-3">
+                        {{ form.detailed_acquisition_channel.label(class="form-label") }}
+                        {{ form.detailed_acquisition_channel(class="form-control", rows="3", placeholder="Detaillierte Informationen zum Akquisekanal (z.B. spezifische Website, Empfehlung von Herrn Müller, etc.)...") }}
+                        {% if form.detailed_acquisition_channel.errors %}
+                            <div class="text-danger">
+                                {% for error in form.detailed_acquisition_channel.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
                         {{ form.comments.label(class="form-label") }}
                         {{ form.comments(class="form-control", rows="4", placeholder="Allgemeine Kommentare und Notizen zu diesem Kunden...") }}
                         {% if form.comments.errors %}
