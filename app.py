@@ -1109,7 +1109,7 @@ def register_routes(app):
         from utils import generate_order_number
         
         # Prüfe ob bereits ein Auftrag existiert (außer bei stornierten)
-        if quote.order and quote.status != 'Angenommen, Auftrag storniert':
+        if quote.order and quote.status != 'Auftrag storniert':
             flash('Für dieses Angebot existiert bereits ein Auftrag!', 'warning')
             return redirect(url_for('view_order', order_id=quote.order.id))
         
@@ -2270,8 +2270,8 @@ def get_work_step_by_category_and_name(category, name):
             # Auftragsstatus auf "Storniert" setzen
             order.status = 'Storniert'
             
-            # Angebotsstatus auf "Angenommen, Auftrag storniert" setzen
-            quote.status = 'Angenommen, Auftrag storniert'
+            # Angebotsstatus auf "Auftrag storniert" setzen
+            quote.status = 'Auftrag storniert'
             
             db.session.commit()
             
@@ -2312,7 +2312,7 @@ def get_work_step_by_category_and_name(category, name):
                 supplier_order.order_id = None  # Trennung vom Auftrag
             
             # 3. Angebotsstatus zurücksetzen
-            if quote.status == 'Angenommen, Auftrag storniert':
+            if quote.status == 'Auftrag storniert':
                 quote.status = 'Angenommen'  # Zurück zu normalem Angenommen-Status
             
             # 4. Auftrag selbst löschen

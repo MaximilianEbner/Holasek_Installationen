@@ -88,7 +88,7 @@ class Quote(db.Model):
     customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False)
     project_description = db.Column(db.Text)
     total_amount = db.Column(db.Float, default=0.0)
-    status = db.Column(db.String(20), default='Entwurf')  # Entwurf, Gesendet, Angenommen, Abgelehnt
+    status = db.Column(db.String(50), default='Entwurf')  # Entwurf, Gesendet, Angenommen, Abgelehnt, Auftrag storniert
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     valid_until = db.Column(db.Date)
     include_additional_info = db.Column(db.Boolean, default=True)

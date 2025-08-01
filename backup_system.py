@@ -574,11 +574,11 @@ class DatabaseBackup:
             return excel_buffer, f'backup_error_{timestamp}.xlsx'
     
     def create_sqlite_backup(self):
-        """Erstellt eine Kopie der SQLite-Datenbank"""
+        """Erstellt eine SQLite-Datenbank - entweder als Kopie (lokal) oder Export (PostgreSQL)"""
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         
         try:
-            # Suche nach der Datenbank-Datei
+            # Prüfe ob wir eine lokale SQLite-Datei haben (lokale Entwicklung)
             db_paths = [
                 'instance/installation_business.db',
                 os.path.join(os.path.dirname(__file__), 'instance', 'installation_business.db'),
@@ -591,15 +591,19 @@ class DatabaseBackup:
                     source_db = path
                     break
             
-            if not source_db:
-                print("Datenbank-Datei nicht gefunden!")
-                return None, None
-            
-            # Datenbank-Datei in BytesIO kopieren
-            db_buffer = BytesIO()
-            with open(source_db, 'rb') as f:
-                db_buffer.write(f.read())
-            db_buffer.seek(0)
+            if source_db:
+                # Lokale SQLite-Datei kopieren
+                db_buffer = BytesIO()
+                with open(source_db, 'rb') as f:
+                    db_buffer.write(f.read())
+                db_buffer.seek(0)
+            else:
+                # PostgreSQL (Railway) - neue SQLite-Datei aus den Daten erstellen
+                print("PostgreSQL erkannt - erstelle SQLite-Export...")
+                db_buffer = self._create_sqlite_from_postgresql()
+                if not db_buffer:
+                    print("Fehler beim PostgreSQL-Export!")
+                    return None, None
             
             filename = f'InnSAN_Database_Backup_{timestamp}.db'
             return db_buffer, filename
@@ -607,3 +611,215 @@ class DatabaseBackup:
         except Exception as e:
             print(f"Fehler beim SQLite-Backup: {e}")
             return None, None
+    
+    def _create_sqlite_from_postgresql(self):
+        """Erstellt eine SQLite-Datei aus PostgreSQL-Daten"""
+        try:
+            # Temporäre SQLite-Datei in BytesIO erstellen
+            db_buffer = BytesIO()
+            
+            # Temporäre SQLite-Verbindung erstellen
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as temp_file:
+                temp_db_path = temp_file.name
+            
+            # SQLite-Verbindung öffnen und Schema erstellen
+            sqlite_conn = sqlite3.connect(temp_db_path)
+            cursor = sqlite_conn.cursor()
+            
+            # Schema für alle wichtigen Tabellen erstellen
+            self._create_sqlite_schema(cursor)
+            
+            # Daten aus PostgreSQL lesen und in SQLite einfügen
+            self._export_data_to_sqlite(cursor)
+            
+            sqlite_conn.commit()
+            sqlite_conn.close()
+            
+            # Datei in BytesIO laden
+            with open(temp_db_path, 'rb') as f:
+                db_buffer.write(f.read())
+            db_buffer.seek(0)
+            
+            # Temporäre Datei löschen
+            os.unlink(temp_db_path)
+            
+            return db_buffer
+            
+        except Exception as e:
+            print(f"Fehler beim PostgreSQL-zu-SQLite Export: {e}")
+            return None
+    
+    def _create_sqlite_schema(self, cursor):
+        """Erstellt das SQLite-Schema basierend auf den Flask-SQLAlchemy Models"""
+        # Vereinfachtes Schema - die wichtigsten Tabellen
+        schema_sql = """
+        CREATE TABLE customer (
+            id INTEGER PRIMARY KEY,
+            salutation VARCHAR(100),
+            first_name VARCHAR(100) NOT NULL,
+            last_name VARCHAR(100) NOT NULL,
+            email VARCHAR(120) NOT NULL,
+            phone VARCHAR(20),
+            address TEXT,
+            city VARCHAR(100),
+            postal_code VARCHAR(10),
+            customer_manager VARCHAR(100),
+            acquisition_channel_id INTEGER,
+            detailed_acquisition_channel TEXT,
+            status VARCHAR(50) DEFAULT '1. Termin vereinbaren',
+            appointment_date DATE,
+            appointment_notes TEXT,
+            second_appointment_date DATE,
+            second_appointment_notes TEXT,
+            comments TEXT,
+            created_at DATETIME
+        );
+        
+        CREATE TABLE quote (
+            id INTEGER PRIMARY KEY,
+            quote_number VARCHAR(50) UNIQUE NOT NULL,
+            customer_id INTEGER NOT NULL,
+            project_description TEXT,
+            total_amount FLOAT DEFAULT 0.0,
+            status VARCHAR(50) DEFAULT 'Entwurf',
+            created_at DATETIME,
+            valid_until DATE,
+            include_additional_info BOOLEAN DEFAULT 1,
+            price_display_mode VARCHAR(20) DEFAULT 'standard',
+            show_subitem_prices BOOLEAN DEFAULT 0,
+            markup_percentage FLOAT DEFAULT 15.0,
+            leistungsumfang TEXT,
+            objektinformationen TEXT,
+            installationsleistungen TEXT
+        );
+        
+        CREATE TABLE quote_item (
+            id INTEGER PRIMARY KEY,
+            quote_id INTEGER NOT NULL,
+            quantity FLOAT NOT NULL DEFAULT 1.0,
+            unit_price FLOAT NOT NULL DEFAULT 0.0,
+            total_price FLOAT NOT NULL DEFAULT 0.0,
+            description TEXT NOT NULL,
+            position_number INTEGER NOT NULL DEFAULT 1,
+            requires_order BOOLEAN DEFAULT 0,
+            supplier VARCHAR(200),
+            item_type VARCHAR(20) DEFAULT 'standard'
+        );
+        
+        CREATE TABLE invoice (
+            id INTEGER PRIMARY KEY,
+            invoice_number VARCHAR(50) UNIQUE NOT NULL,
+            order_id INTEGER,
+            customer_id INTEGER,
+            invoice_type VARCHAR(20) NOT NULL,
+            percentage FLOAT NOT NULL,
+            base_amount FLOAT NOT NULL,
+            invoice_amount FLOAT NOT NULL,
+            previous_payments FLOAT DEFAULT 0.0,
+            final_amount FLOAT NOT NULL,
+            vat_rate FLOAT DEFAULT 20.0,
+            vat_amount FLOAT NOT NULL,
+            gross_amount FLOAT NOT NULL,
+            project_name VARCHAR(255),
+            due_date DATE NOT NULL,
+            payment_terms INTEGER DEFAULT 14,
+            status VARCHAR(20) DEFAULT 'erstellt',
+            paid_date DATE,
+            payment_reference VARCHAR(100),
+            comments TEXT,
+            paid_amount FLOAT DEFAULT 0.0,
+            payment_comment TEXT,
+            service_description TEXT,
+            created_at DATETIME,
+            updated_at DATETIME
+        );
+        """
+        
+        # Schema ausführen
+        for statement in schema_sql.split(';'):
+            if statement.strip():
+                cursor.execute(statement.strip())
+    
+    def _export_data_to_sqlite(self, cursor):
+        """Exportiert Daten von PostgreSQL zu SQLite"""
+        try:
+            # Kunden exportieren
+            customers = Customer.query.all()
+            for customer in customers:
+                cursor.execute('''
+                    INSERT INTO customer (id, salutation, first_name, last_name, email, phone, 
+                                        address, city, postal_code, customer_manager, 
+                                        acquisition_channel_id, detailed_acquisition_channel,
+                                        status, appointment_date, appointment_notes, 
+                                        second_appointment_date, second_appointment_notes, 
+                                        comments, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    customer.id, customer.salutation, customer.first_name, customer.last_name,
+                    customer.email, customer.phone, customer.address, customer.city,
+                    customer.postal_code, customer.customer_manager, customer.acquisition_channel_id,
+                    customer.detailed_acquisition_channel, customer.status, customer.appointment_date,
+                    customer.appointment_notes, customer.second_appointment_date, 
+                    customer.second_appointment_notes, customer.comments, customer.created_at
+                ))
+            
+            # Angebote exportieren
+            quotes = Quote.query.all()
+            for quote in quotes:
+                cursor.execute('''
+                    INSERT INTO quote (id, quote_number, customer_id, project_description, 
+                                     total_amount, status, created_at, valid_until, 
+                                     include_additional_info, price_display_mode, 
+                                     show_subitem_prices, markup_percentage, leistungsumfang,
+                                     objektinformationen, installationsleistungen)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    quote.id, quote.quote_number, quote.customer_id, quote.project_description,
+                    quote.total_amount, quote.status, quote.created_at, quote.valid_until,
+                    quote.include_additional_info, quote.price_display_mode,
+                    quote.show_subitem_prices, quote.markup_percentage, quote.leistungsumfang,
+                    quote.objektinformationen, quote.installationsleistungen
+                ))
+            
+            # Angebotspositionen exportieren
+            quote_items = QuoteItem.query.all()
+            for item in quote_items:
+                cursor.execute('''
+                    INSERT INTO quote_item (id, quote_id, quantity, unit_price, total_price,
+                                          description, position_number, requires_order, 
+                                          supplier, item_type)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    item.id, item.quote_id, item.quantity, item.unit_price, item.total_price,
+                    item.description, item.position_number, item.requires_order,
+                    item.supplier, item.item_type
+                ))
+            
+            # Rechnungen exportieren
+            invoices = Invoice.query.all()
+            for invoice in invoices:
+                cursor.execute('''
+                    INSERT INTO invoice (id, invoice_number, order_id, customer_id, invoice_type,
+                                       percentage, base_amount, invoice_amount, previous_payments,
+                                       final_amount, vat_rate, vat_amount, gross_amount,
+                                       project_name, due_date, payment_terms, status, paid_date,
+                                       payment_reference, comments, paid_amount, payment_comment,
+                                       service_description, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    invoice.id, invoice.invoice_number, invoice.order_id, invoice.customer_id,
+                    invoice.invoice_type, invoice.percentage, invoice.base_amount, 
+                    invoice.invoice_amount, invoice.previous_payments, invoice.final_amount,
+                    invoice.vat_rate, invoice.vat_amount, invoice.gross_amount, invoice.project_name,
+                    invoice.due_date, invoice.payment_terms, invoice.status, invoice.paid_date,
+                    invoice.payment_reference, invoice.comments, invoice.paid_amount,
+                    invoice.payment_comment, invoice.service_description, invoice.created_at,
+                    invoice.updated_at
+                ))
+            
+            print(f"SQLite-Export erfolgreich: {len(customers)} Kunden, {len(quotes)} Angebote, {len(quote_items)} Positionen, {len(invoices)} Rechnungen")
+            
+        except Exception as e:
+            print(f"Fehler beim Datenexport: {e}")
+            raise e
