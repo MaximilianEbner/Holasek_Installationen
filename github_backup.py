@@ -272,7 +272,8 @@ class GitHubBackupManager:
             for table in delete_order:
                 if table in tables:
                     try:
-                        pg_cursor.execute(f"DELETE FROM {table}")
+                        # Verwende Anführungszeichen für reservierte Wörter
+                        pg_cursor.execute(f'DELETE FROM "{table}"')
                         print(f"  ✓ {table} geleert")
                     except Exception as e:
                         print(f"  ⚠ Warnung beim Löschen von {table}: {e}")
@@ -283,39 +284,81 @@ class GitHubBackupManager:
             for table_name in tables:
                 print(f"Migriere Tabelle: {table_name}")
                 
-                # Alle Daten aus SQLite lesen
-                sqlite_cursor.execute(f"SELECT * FROM {table_name}")
-                rows = sqlite_cursor.fetchall()
-                
-                if not rows:
-                    print(f"  → {table_name} ist leer, überspringe")
+                try:
+                    # Alle Daten aus SQLite lesen - verwende Anführungszeichen für reservierte Wörter
+                    if table_name.lower() in ['order', 'user', 'group', 'table']:
+                        sqlite_cursor.execute(f'SELECT * FROM "{table_name}"')
+                    else:
+                        sqlite_cursor.execute(f"SELECT * FROM {table_name}")
+                        
+                    rows = sqlite_cursor.fetchall()
+                    
+                    if not rows:
+                        print(f"  → {table_name} ist leer, überspringe")
+                        continue
+                    
+                    # Spalten ermitteln
+                    columns = [description[0] for description in sqlite_cursor.description]
+                    
+                    # PostgreSQL Schema für Boolean-Felder ermitteln
+                    pg_cursor.execute(f"""
+                        SELECT column_name, data_type 
+                        FROM information_schema.columns 
+                        WHERE table_name = '{table_name}' 
+                        AND data_type = 'boolean'
+                    """)
+                    boolean_columns = {row[0] for row in pg_cursor.fetchall()}
+                    
+                    # Insert-Statement für PostgreSQL vorbereiten
+                    placeholders = ', '.join(['%s'] * len(columns))
+                    quoted_columns = ', '.join([f'"{col}"' for col in columns])
+                    insert_sql = f'INSERT INTO "{table_name}" ({quoted_columns}) VALUES ({placeholders})'
+                    
+                    # Daten konvertieren und stapelweise einfügen
+                    batch_size = 50  # Kleinere Batches für bessere Fehlerbehandlung
+                    converted_rows = []
+                    
+                    for row in rows:
+                        converted_row = []
+                        for i, value in enumerate(row):
+                            column_name = columns[i]
+                            # Boolean-Konvertierung für PostgreSQL
+                            if column_name in boolean_columns:
+                                if value in (0, '0', 'false', 'False', False, None):
+                                    converted_row.append(False)
+                                elif value in (1, '1', 'true', 'True', True):
+                                    converted_row.append(True)
+                                else:
+                                    converted_row.append(bool(value))
+                            else:
+                                converted_row.append(value)
+                        converted_rows.append(tuple(converted_row))
+                    
+                    # Stapelweise einfügen mit Rollback-Sicherheit
+                    for i in range(0, len(converted_rows), batch_size):
+                        batch = converted_rows[i:i + batch_size]
+                        try:
+                            pg_cursor.executemany(insert_sql, batch)
+                            pg_conn.commit()  # Jeder Batch wird sofort committet
+                            print(f"  → {len(batch)} Datensätze eingefügt")
+                        except Exception as e:
+                            pg_conn.rollback()  # Rollback nur für diesen Batch
+                            print(f"  ✗ Batch-Fehler in {table_name}: {e}")
+                            # Versuche einzeln einzufügen für bessere Fehleranalyse
+                            for row in batch:
+                                try:
+                                    pg_cursor.execute(insert_sql, row)
+                                    pg_conn.commit()
+                                except Exception as row_error:
+                                    pg_conn.rollback()
+                                    print(f"    ✗ Einzelner Datensatz fehlgeschlagen: {row_error}")
+                    
+                    print(f"  ✓ {table_name} komplett migriert ({len(rows)} Datensätze)")
+                    
+                except Exception as table_error:
+                    print(f"  ✗ Migration von {table_name} fehlgeschlagen: {table_error}")
+                    pg_conn.rollback()
                     continue
-                
-                # Spalten ermitteln
-                columns = [description[0] for description in sqlite_cursor.description]
-                
-                # Insert-Statement für PostgreSQL vorbereiten
-                placeholders = ', '.join(['%s'] * len(columns))
-                insert_sql = f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES ({placeholders})"
-                
-                # Daten stapelweise einfügen
-                batch_size = 100
-                for i in range(0, len(rows), batch_size):
-                    batch = rows[i:i + batch_size]
-                    try:
-                        pg_cursor.executemany(insert_sql, batch)
-                        print(f"  → {len(batch)} Datensätze eingefügt")
-                    except Exception as e:
-                        print(f"  ✗ Fehler beim Einfügen in {table_name}: {e}")
-                        # Versuche einzeln einzufügen für bessere Fehleranalyse
-                        for row in batch:
-                            try:
-                                pg_cursor.execute(insert_sql, row)
-                            except Exception as row_error:
-                                print(f"    ✗ Einzelner Datensatz fehlgeschlagen: {row_error}")
-                
-                pg_conn.commit()
-                print(f"  ✓ {table_name} komplett migriert ({len(rows)} Datensätze)")
             
             # PostgreSQL Sequences aktualisieren (wichtig für Auto-Increment)
             print("Aktualisiere PostgreSQL-Sequences...")
@@ -331,7 +374,7 @@ class GitHubBackupManager:
                     
                     for (pk_column,) in pk_columns:
                         # Sequence auf höchsten Wert setzen
-                        pg_cursor.execute(f"SELECT MAX({pk_column}) FROM {table_name}")
+                        pg_cursor.execute(f'SELECT MAX("{pk_column}") FROM "{table_name}"')
                         max_val = pg_cursor.fetchone()[0]
                         if max_val:
                             sequence_name = f"{table_name}_{pk_column}_seq"

@@ -16,9 +16,13 @@ def get_database_url():
         print(f"✓ Using Railway PostgreSQL Database")
         return database_url
     else:
-        # Lokale SQLite Entwicklung
-        print(f"✓ Using Local SQLite Database")
-        return 'sqlite:///instance/installation_business.db'
+        # Lokale SQLite Entwicklung - sicherstellen dass instance-Ordner existiert
+        instance_dir = os.path.join(os.path.dirname(__file__), 'instance')
+        os.makedirs(instance_dir, exist_ok=True)
+        
+        sqlite_path = os.path.join(instance_dir, 'installation_business.db')
+        print(f"✓ Using Local SQLite Database: {sqlite_path}")
+        return f'sqlite:///{sqlite_path}'
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'your-secret-key-here-change-in-production'

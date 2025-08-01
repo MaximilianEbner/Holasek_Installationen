@@ -3852,33 +3852,41 @@ def create_invoice():
         
         # Validierung der Eingabedaten
         if not invoice_type:
-            return jsonify({'success': False, 'message': 'Rechnungstyp ist erforderlich'})
+            flash('Rechnungstyp ist erforderlich', 'error')
+            return redirect(url_for('new_invoice'))
         if not due_date_str:
-            return jsonify({'success': False, 'message': 'Fälligkeitsdatum ist erforderlich'})
+            flash('Fälligkeitsdatum ist erforderlich', 'error')
+            return redirect(url_for('new_invoice'))
         
         # Sichere Konvertierung des Fälligkeitsdatums
         try:
             due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
         except (ValueError, TypeError) as e:
-            return jsonify({'success': False, 'message': f'Ungültiges Fälligkeitsdatum: {str(e)}'})
+            flash(f'Ungültiges Fälligkeitsdatum: {str(e)}', 'error')
+            return redirect(url_for('new_invoice'))
         
         if invoice_type == 'allgemein':
             # Allgemeine Rechnung: Kunde, Betrag und Leistungsbeschreibung erforderlich
             if not customer_id:
-                return jsonify({'success': False, 'message': 'Kunde ist erforderlich'})
+                flash('Kunde ist erforderlich', 'error')
+                return redirect(url_for('new_invoice'))
             if not base_amount_str:
-                return jsonify({'success': False, 'message': 'Rechnungsbetrag ist erforderlich'})
+                flash('Rechnungsbetrag ist erforderlich', 'error')
+                return redirect(url_for('new_invoice'))
             if not service_description:
-                return jsonify({'success': False, 'message': 'Leistungsbeschreibung ist erforderlich'})
+                flash('Leistungsbeschreibung ist erforderlich', 'error')
+                return redirect(url_for('new_invoice'))
             
             try:
                 customer_id = int(customer_id)
                 base_amount = parse_german_float(base_amount_str)
             except (ValueError, TypeError) as e:
-                return jsonify({'success': False, 'message': f'Ungültige Eingabedaten: {str(e)}'})
+                flash(f'Ungültige Eingabedaten: {str(e)}', 'error')
+                return redirect(url_for('new_invoice'))
             
             if base_amount <= 0:
-                return jsonify({'success': False, 'message': 'Rechnungsbetrag muss größer als 0 sein'})
+                flash('Rechnungsbetrag muss größer als 0 sein', 'error')
+                return redirect(url_for('new_invoice'))
             
             customer = Customer.query.get_or_404(customer_id)
             order = None
@@ -3892,19 +3900,22 @@ def create_invoice():
                     if order:
                         # Prüfe ob der Auftrag zum gewählten Kunden gehört
                         if order.quote.customer_id != customer_id:
-                            return jsonify({'success': False, 'message': 'Der gewählte Auftrag gehört nicht zum ausgewählten Kunden'})
+                            flash('Der gewählte Auftrag gehört nicht zum ausgewählten Kunden', 'error')
+                            return redirect(url_for('new_invoice'))
                 except (ValueError, TypeError):
                     pass  # Ignoriere ungültige optional_order_id
             
         elif invoice_type in ['anzahlung', 'schluss', 'detailed_final']:
             # Anzahlung/Schluss/Detaillierte Schlussrechnung: Auftrag erforderlich
             if not order_id:
-                return jsonify({'success': False, 'message': 'Auftrag ist erforderlich'})
+                flash('Auftrag ist erforderlich', 'error')
+                return redirect(url_for('new_invoice'))
             
             try:
                 order_id = int(order_id)
             except (ValueError, TypeError) as e:
-                return jsonify({'success': False, 'message': f'Ungültige Eingabedaten: {str(e)}'})
+                flash(f'Ungültige Eingabedaten: {str(e)}', 'error')
+                return redirect(url_for('new_invoice'))
             
             order = Order.query.get_or_404(order_id)
             customer = order.quote.customer
@@ -3914,7 +3925,8 @@ def create_invoice():
                 # Prüfen ob bereits eine Schlussrechnung existiert
                 existing = Invoice.query.filter_by(order_id=order_id, invoice_type='schluss').first()
                 if existing:
-                    return jsonify({'success': False, 'message': 'Schlussrechnung existiert bereits'})
+                    flash('Schlussrechnung existiert bereits', 'error')
+                    return redirect(url_for('new_invoice'))
                 
                 # Detaillierte Felder extrahieren
                 material_costs_str = request.form.get('material_costs_editable', '0')
@@ -3931,7 +3943,8 @@ def create_invoice():
                     labor_rate = float(labor_rate_str)
                     labor_costs = parse_german_float(labor_costs_str)
                 except (ValueError, TypeError) as e:
-                    return jsonify({'success': False, 'message': f'Ungültige Kostenangaben: {str(e)}'})
+                    flash(f'Ungültige Kostenangaben: {str(e)}', 'error')
+                    return redirect(url_for('new_invoice'))
                 
                 # Basis-Betrag ist Summe der detaillierten Kosten
                 base_amount = material_costs + labor_costs
@@ -3944,26 +3957,31 @@ def create_invoice():
                     if invoice_type == 'schluss':
                         percentage = 100.0
                     else:
-                        return jsonify({'success': False, 'message': 'Prozentsatz ist erforderlich'})
+                        flash('Prozentsatz ist erforderlich', 'error')
+                        return redirect(url_for('new_invoice'))
                 else:
                     try:
                         percentage = float(percentage_str)
                     except (ValueError, TypeError) as e:
-                        return jsonify({'success': False, 'message': f'Ungültiger Prozentsatz: {str(e)}'})
+                        flash(f'Ungültiger Prozentsatz: {str(e)}', 'error')
+                        return redirect(url_for('new_invoice'))
                 
                 # Prozentsatz-Validierung
                 if percentage <= 0 or percentage > 100:
-                    return jsonify({'success': False, 'message': 'Prozentsatz muss zwischen 1 und 100 liegen'})
+                    flash('Prozentsatz muss zwischen 1 und 100 liegen', 'error')
+                    return redirect(url_for('new_invoice'))
                 
                 # Prüfen ob Rechnung bereits existiert
                 existing = Invoice.query.filter_by(order_id=order_id, invoice_type=invoice_type).first()
                 if existing:
-                    return jsonify({'success': False, 'message': f'{invoice_type.title()}rechnung existiert bereits'})
+                    flash(f'{invoice_type.title()}rechnung existiert bereits', 'error')
+                    return redirect(url_for('new_invoice'))
                 
                 # Grundbetrag aus Angebot holen
                 base_amount = order.quote.total_amount
                 if base_amount is None or base_amount <= 0:
-                    return jsonify({'success': False, 'message': 'Auftragswert konnte nicht ermittelt werden'})
+                    flash('Auftragswert konnte nicht ermittelt werden', 'error')
+                    return redirect(url_for('new_invoice'))
         
         # Neue Rechnung erstellen
         if invoice_type == 'allgemein':
@@ -4001,7 +4019,8 @@ def create_invoice():
                 labor_rate_editable = float(labor_rate_editable_str) if labor_rate_editable_str else 95.0
                 labor_costs_editable = labor_hours_editable * labor_rate_editable
             except (ValueError, TypeError):
-                return jsonify({'success': False, 'message': 'Ungültige Zahlenwerte für Material- oder Arbeitskosten'})
+                flash('Ungültige Zahlenwerte für Material- oder Arbeitskosten', 'error')
+                return redirect(url_for('new_invoice'))
             
             # Zwischensumme berechnen
             subtotal = material_costs_editable + labor_costs_editable
