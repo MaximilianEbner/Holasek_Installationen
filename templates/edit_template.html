@@ -343,9 +343,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 const subitemId = this.dataset.subitemId;
                 
                 fetch(`/stammdaten/templates/{{ template.id }}/delete_subitem/${subitemId}`, {
-                    method: 'POST'
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
                 })
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(result => {
                     if (result.success) {
                         this.closest('.sortable-item').remove();
@@ -355,7 +364,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert('Fehler beim Löschen der Unterposition');
+                    alert('Fehler beim Löschen der Unterposition: ' + error.message);
                 });
             }
         });

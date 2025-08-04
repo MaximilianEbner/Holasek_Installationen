@@ -138,6 +138,8 @@
                                         <span class="badge bg-success">{{ quote.status }}</span>
                                     {% elif quote.status == 'Angenommen, Auftrag storniert' %}
                                         <span class="badge bg-warning">Auftrag storniert</span>
+                                    {% elif quote.status == 'Auftrag storniert' %}
+                                        <span class="badge bg-warning">Auftrag storniert</span>
                                     {% elif quote.status == 'Abgelehnt' %}
                                         {% if quote.rejection and quote.rejection.rejection_reason %}
                                         <span class="badge bg-danger" data-bs-toggle="tooltip" 
@@ -147,6 +149,8 @@
                                         {% else %}
                                         <span class="badge bg-danger">{{ quote.status }}</span>
                                         {% endif %}
+                                    {% else %}
+                                        <span class="badge bg-light text-dark">{{ quote.status }}</span>
                                     {% endif %}
                                 </td>
                                 <td>{{ quote.valid_until.strftime('%d.%m.%Y') if quote.valid_until else '-' }}</td>
@@ -156,7 +160,8 @@
                                         <a href="{{ url_for('view_quote', id=quote.id) }}" class="btn btn-sm btn-outline-primary">
                                             <i class="fas fa-eye"></i>
                                         </a>
-                                        {% if quote.status not in ['Angenommen'] %}
+                                        {# Bearbeiten-Button: Nicht bei "Angenommen" mit aktivem Auftrag #}
+                                        {% if quote.status != 'Angenommen' or not quote.order or quote.order.status == 'Storniert' %}
                                             <a href="{{ url_for('edit_quote', id=quote.id) }}" class="btn btn-sm btn-outline-secondary">
                                                 <i class="fas fa-edit"></i>
                                             </a>
@@ -164,13 +169,14 @@
                                         <a href="{{ url_for('export_quote_pdf', id=quote.id) }}" class="btn btn-sm btn-outline-info">
                                             <i class="fas fa-file-pdf"></i>
                                         </a>
-                                        {% if quote.status == 'Angenommen, Auftrag storniert' %}
+                                        {% if quote.status == 'Angenommen, Auftrag storniert' or quote.status == 'Auftrag storniert' %}
                                             <a href="{{ url_for('accept_quote', id=quote.id) }}" class="btn btn-sm btn-success" 
                                                title="Neuen Auftrag erstellen">
                                                 <i class="fas fa-redo"></i> Neuer Auftrag
                                             </a>
                                         {% endif %}
-                                        {% if quote.status not in ['Angenommen'] %}
+                                        {# Lösch-Button: Immer anzeigen außer bei "Angenommen" mit aktivem Auftrag #}
+                                        {% if quote.status != 'Angenommen' or not quote.order or quote.order.status == 'Storniert' %}
                                             <a href="{{ url_for('delete_quote', id=quote.id) }}" 
                                                class="btn btn-sm btn-outline-danger"
                                                onclick="return confirm('Angebot {{ quote.quote_number }} wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden!')">

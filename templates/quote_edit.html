@@ -698,7 +698,7 @@
                         </thead>
                         <tbody>
                             {% for item in quote.quote_items %}
-                            <tr>
+                            <tr id="position-{{ item.id }}">
                                 <td>
                                     <span class="badge bg-primary">{{ item.position_number or loop.index }}</span>
                                 </td>

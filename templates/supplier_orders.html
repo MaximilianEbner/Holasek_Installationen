@@ -240,17 +240,24 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <a href="{{ url_for('edit_supplier_order', order_id=order.id) }}" 
-                                       class="btn btn-sm btn-outline-primary">
-                                        <i class="fas fa-edit"></i> Bearbeiten
-                                    </a>
-                                    {% if order.status == 'Noch nicht bestellt' %}
-                                    <form method="get" action="{{ url_for('preview_supplier_order_email', order_id=order.id) }}" style="display:inline;">
-                                        <button type="submit" class="btn btn-sm btn-success ms-1" title="Jetzt bestellen">
-                                            <i class="fas fa-paper-plane"></i> Jetzt bestellen
-                                        </button>
-                                    </form>
-                                    {% endif %}
+                                    <div class="btn-group" role="group">
+                                        <a href="{{ url_for('edit_supplier_order', order_id=order.id) }}" 
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        {% if order.status == 'Noch nicht bestellt' %}
+                                        <form method="get" action="{{ url_for('preview_supplier_order_email', order_id=order.id) }}" style="display:inline;">
+                                            <button type="submit" class="btn btn-sm btn-success" title="Jetzt bestellen">
+                                                <i class="fas fa-paper-plane"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                        <a href="{{ url_for('delete_supplier_order', order_id=order.id) }}" 
+                                           class="btn btn-sm btn-outline-danger"
+                                           onclick="return confirm('Lieferantenbestellung für {{ order.supplier_name }} wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden!')">
+                                            <i class="fas fa-trash"></i>
+                                        </a>
+                                    </div>
                                 </td>
                             </tr>
                             <!-- Kollabierbare Positionsdetails -->
