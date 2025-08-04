@@ -886,7 +886,7 @@ class InvoiceReminder(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Beziehung
-    order = db.relationship('Order', backref='invoice_reminders')
+    order = db.relationship('Order', backref=db.backref('invoice_reminders', cascade='all, delete-orphan'))
     
     @staticmethod
     def create_reminders_for_order(order):

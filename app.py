@@ -2316,7 +2316,7 @@ def get_work_step_by_category_and_name(category, name):
     @login_required
     def delete_order(order_id):
         """Löscht einen stornierten Auftrag endgültig aus der Datenbank"""
-        from models import Order, Quote, WorkInstruction, SupplierOrder
+        from models import Order, Quote, WorkInstruction, SupplierOrder, InvoiceReminder
         
         order = Order.query.get_or_404(order_id)
         
@@ -2329,24 +2329,29 @@ def get_work_step_by_category_and_name(category, name):
         order_number = order.order_number
         
         try:
-            # 1. Arbeitsanweisung löschen
+            # 1. InvoiceReminder löschen (wichtig: vor dem Auftrag löschen!)
+            invoice_reminders = InvoiceReminder.query.filter_by(order_id=order.id).all()
+            for reminder in invoice_reminders:
+                db.session.delete(reminder)
+            
+            # 2. Arbeitsanweisung löschen
             if order.work_instruction:
                 work_instruction = order.work_instruction
                 # Lösche die Arbeitsanweisung selbst
                 db.session.delete(work_instruction)
             
-            # 2. Lieferantenbestellungen vom Auftrag trennen (aber nicht löschen)
+            # 3. Lieferantenbestellungen vom Auftrag trennen (aber nicht löschen)
             supplier_orders = SupplierOrder.query.filter_by(order_id=order.id).all()
             for supplier_order in supplier_orders:
                 supplier_order.order_id = None  # Trennung vom Auftrag
             
-            # 3. Angebotsstatus zurücksetzen - macht Angebot wieder löschbar
+            # 4. Angebotsstatus zurücksetzen - macht Angebot wieder löschbar
             if quote.status == 'Auftrag storniert':
                 quote.status = 'Gesendet'  # Zurück zu einem löschbaren Status
             elif quote.status == 'Angenommen':
                 quote.status = 'Gesendet'  # Zurück zu einem löschbaren Status
             
-            # 4. Auftrag selbst löschen
+            # 5. Auftrag selbst löschen
             db.session.delete(order)
             
             db.session.commit()
