@@ -278,6 +278,59 @@ class DatabaseBackup:
                         supplier.notes or ''
                     ])
             
+            # 8. Lieferantenbestellungen-Sheet
+            supplier_orders = SupplierOrder.query.all()
+            if supplier_orders:
+                ws = wb.create_sheet("Lieferantenbestellungen")
+                headers = ['ID', 'Auftrag_ID', 'Angebot_ID', 'Lieferant', 'Bestelldatum', 'Bestätigungsdatum', 
+                          'Liefertermin', 'Status', 'Notizen', 'Erstellt', 'Aktualisiert']
+                ws.append(headers)
+                
+                for cell in ws[1]:
+                    cell.font = header_font
+                    cell.fill = header_fill
+                
+                for supplier_order in supplier_orders:
+                    ws.append([
+                        supplier_order.id,
+                        supplier_order.order_id or '',
+                        supplier_order.quote_id or '',
+                        supplier_order.supplier_name or '',
+                        supplier_order.order_date if supplier_order.order_date else '',
+                        supplier_order.confirmation_date if supplier_order.confirmation_date else '',
+                        supplier_order.delivery_date if supplier_order.delivery_date else '',
+                        supplier_order.status or '',
+                        supplier_order.notes or '',
+                        supplier_order.created_at if supplier_order.created_at else '',
+                        supplier_order.updated_at if supplier_order.updated_at else ''
+                    ])
+            
+            # 9. Lieferantenbestellpositionen-Sheet
+            supplier_order_items = SupplierOrderItem.query.all()
+            if supplier_order_items:
+                ws = wb.create_sheet("Lieferantenbestellpositionen")
+                headers = ['ID', 'Bestellung_ID', 'QuoteSubItem_ID', 'Beschreibung', 'Teilenummer', 
+                          'Menge', 'Lieferant', 'Notizen', 'Erstellt', 'Aktualisiert']
+                ws.append(headers)
+                
+                for cell in ws[1]:
+                    cell.font = header_font
+                    cell.fill = header_fill
+                
+                for item in supplier_order_items:
+                    ws.append([
+                        item.id,
+                        item.supplier_order_id or '',
+                        item.quote_sub_item_id or '',
+                        item.description or '',
+                        item.part_number or '',
+                        item.quantity or 1,
+                        item.supplier_name or '',
+                        item.notes or '',
+                        item.created_at if item.created_at else '',
+                        item.updated_at if item.updated_at else ''
+                    ])
+            
             # 8. Positionsvorlagen-Sheet
             templates = PositionTemplate.query.all()
             if templates:
@@ -786,6 +839,34 @@ class DatabaseBackup:
             created_at DATETIME,
             updated_at DATETIME
         );
+        
+        CREATE TABLE supplier_order (
+            id INTEGER PRIMARY KEY,
+            order_id INTEGER,
+            quote_id INTEGER,
+            supplier_name VARCHAR(255) NOT NULL,
+            order_date DATE NOT NULL,
+            confirmation_date DATE,
+            delivery_date DATE,
+            status VARCHAR(50) DEFAULT 'Noch nicht bestellt',
+            notes TEXT,
+            created_at DATETIME,
+            updated_at DATETIME
+        );
+        
+        CREATE TABLE supplier_order_item (
+            id INTEGER PRIMARY KEY,
+            supplier_order_id INTEGER NOT NULL,
+            quote_sub_item_id INTEGER,
+            description TEXT NOT NULL,
+            part_number VARCHAR(255),
+            quantity INTEGER NOT NULL DEFAULT 1,
+            supplier_name VARCHAR(255),
+            notes TEXT,
+            created_at DATETIME,
+            updated_at DATETIME,
+            FOREIGN KEY (supplier_order_id) REFERENCES supplier_order (id) ON DELETE CASCADE
+        );
         """
         
         # Schema ausführen
@@ -918,7 +999,37 @@ class DatabaseBackup:
                     invoice.updated_at
                 ))
             
-            print(f"SQLite-Export erfolgreich: {len(customers)} Kunden, {len(quotes)} Angebote, {len(quote_items)} Positionen, {len(quote_sub_items)} Unterpositionen, {len(templates)} Vorlagen, {len(template_subitems)} Vorlagen-Unterpositionen, {len(invoices)} Rechnungen")
+            # Lieferantenbestellungen exportieren
+            supplier_orders = SupplierOrder.query.all()
+            for supplier_order in supplier_orders:
+                cursor.execute('''
+                    INSERT INTO supplier_order (id, order_id, quote_id, supplier_name, order_date,
+                                              confirmation_date, delivery_date, status, notes,
+                                              created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    supplier_order.id, supplier_order.order_id, supplier_order.quote_id,
+                    supplier_order.supplier_name, supplier_order.order_date,
+                    supplier_order.confirmation_date, supplier_order.delivery_date,
+                    supplier_order.status, supplier_order.notes, supplier_order.created_at,
+                    supplier_order.updated_at
+                ))
+            
+            # Lieferantenbestellpositionen exportieren
+            supplier_order_items = SupplierOrderItem.query.all()
+            for item in supplier_order_items:
+                cursor.execute('''
+                    INSERT INTO supplier_order_item (id, supplier_order_id, quote_sub_item_id, 
+                                                    description, part_number, quantity, supplier_name,
+                                                    notes, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    item.id, item.supplier_order_id, item.quote_sub_item_id, item.description,
+                    item.part_number, item.quantity, item.supplier_name, item.notes,
+                    item.created_at, item.updated_at
+                ))
+            
+            print(f"SQLite-Export erfolgreich: {len(customers)} Kunden, {len(quotes)} Angebote, {len(quote_items)} Positionen, {len(quote_sub_items)} Unterpositionen, {len(templates)} Vorlagen, {len(template_subitems)} Vorlagen-Unterpositionen, {len(invoices)} Rechnungen, {len(supplier_orders)} Lieferantenbestellungen, {len(supplier_order_items)} Bestellpositionen")
             
         except Exception as e:
             print(f"Fehler beim Datenexport: {e}")
