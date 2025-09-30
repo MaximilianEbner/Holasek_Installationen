@@ -7,12 +7,16 @@ from datetime import date
 from models import db, PositionTemplate, Supplier, CompanySettings, Quote
 
 def format_currency_de(amount):
-    """Formatiert Beträge im deutschen Format: 1.234,56 €"""
+    """Formatiert Beträge im deutschen Format: 1.234,56 € oder -1.234,56 €"""
     if amount is None:
         return "0,00 €"
     
     # Auf 2 Dezimalstellen runden
     amount = round(float(amount), 2)
+    
+    # Vorzeichen merken
+    is_negative = amount < 0
+    amount = abs(amount)
     
     # In String umwandeln und Teile trennen
     amount_str = f"{amount:.2f}"
@@ -25,7 +29,11 @@ def format_currency_de(amount):
             integer_with_dots = "." + integer_with_dots
         integer_with_dots = digit + integer_with_dots
     
-    return f"{integer_with_dots},{decimal_part} €"
+    # Vorzeichen hinzufügen
+    if is_negative:
+        return f"-{integer_with_dots},{decimal_part} €"
+    else:
+        return f"{integer_with_dots},{decimal_part} €"
 
 def format_number_de(number):
     """Formatiert Zahlen im deutschen Format: 1.234,56"""
@@ -124,7 +132,7 @@ def update_quote_total(quote_id):
 
 def safe_float_conversion(value, default=0.0):
     """Sichere Konvertierung zu Float mit Fallback"""
-    if not value:
+    if value is None or value == '':
         return default
     try:
         # Ersetze Komma durch Punkt für deutsche Zahlenformate
@@ -202,10 +210,7 @@ Bestellpositionen:
     plain_body += f"""
 
 Bitte bestätigen Sie den Erhalt dieser Bestellung und teilen Sie uns die Lieferzeit mit.
-
-Mit freundlichen Grüßen
-Ing. Michael Holasek
-InnSan"""
+"""
 
     # HTML E-Mail Body für Anzeige
     html_body = f"""
@@ -239,9 +244,7 @@ hiermit bestellen wir folgende Positionen für das Projekt:
     html_body += f"""
 Bitte bestätigen Sie den Erhalt dieser Bestellung und teilen Sie uns die Lieferzeit mit.
 
-Mit freundlichen Grüßen
-Ing. Michael Holasek
-InnSan"""
+"""
     return subject, html_body, plain_body
 
 def collect_supplier_orders(quote):

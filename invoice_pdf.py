@@ -54,8 +54,8 @@ class InvoicePDFGenerator:
             # Kundeninformationen
             self.draw_customer_info(c, invoice)
             
-            # Rechnungsbeträge (vereinfacht für Anzahlungen/Schlussrechnungen)
-            self.draw_invoice_amounts(c, invoice)
+            # Für alle Rechnungen: Position-Tabelle anzeigen (einheitliches Format)
+            self.draw_positions_table(c, invoice)
             
             c.save()
             buffer.seek(0)
@@ -102,7 +102,13 @@ class InvoicePDFGenerator:
         # Rechnungstitel groß und fett in Corporate Color
         c.setFont("Helvetica-Bold", 18)
         c.setFillColor(colors.HexColor('#CC5500'))  # Corporate Orange
-        invoice_title = self._get_invoice_title(invoice.invoice_type)
+        
+        # document_title verwenden, wenn vorhanden, sonst Fallback auf invoice_type
+        if hasattr(invoice, 'document_title') and invoice.document_title:
+            invoice_title = invoice.document_title.upper()
+        else:
+            invoice_title = self._get_invoice_title(invoice.invoice_type)
+            
         c.drawRightString(self.width - self.margin, y_start, invoice_title)
         
         # Zurück zu schwarz für Details
@@ -115,12 +121,24 @@ class InvoicePDFGenerator:
         details = [
             f"Rechnungsnummer: {invoice.invoice_number}",
             f"Rechnungsdatum: {invoice.created_at.strftime('%d.%m.%Y')}",
-            f"Fälligkeitsdatum: {invoice.due_date.strftime('%d.%m.%Y')}",
         ]
+        
+        # Leistungszeitraum anzeigen, falls vorhanden, sonst Fälligkeitsdatum
+        if invoice.service_period_start and invoice.service_period_end:
+            details.append(f"Leistungszeitraum: {invoice.service_period_start.strftime('%d.%m.%Y')} - {invoice.service_period_end.strftime('%d.%m.%Y')}")
+        elif invoice.service_period_start:
+            details.append(f"Leistungszeitraum: ab {invoice.service_period_start.strftime('%d.%m.%Y')}")
+        else:
+            details.append(f"Fälligkeitsdatum: {invoice.due_date.strftime('%d.%m.%Y')}")
         
         # Auftragsnummer nur bei auftragsbasierten Rechnungen
         if invoice.order:
             details.append(f"Auftragsnummer: {invoice.order.order_number}")
+        
+        # Kundennummer hinzufügen
+        customer = invoice.customer if invoice.customer else (invoice.order.quote.customer if invoice.order else None)
+        if customer and customer.customer_number:
+            details.append(f"Kundennummer: {customer.customer_number}")
         
         for detail in details:
             c.drawRightString(self.width - self.margin, y_pos, detail)
@@ -139,7 +157,7 @@ class InvoicePDFGenerator:
         # Firmenzeile oberhalb der Kundendaten in Schriftgröße 8
         c.setFont("Helvetica", 8)
         company_line = "InnSAN Fachbetrieb Ing. Michael Holasek | Hetzendorferstrasse 138/2/1B | 1120 Wien"
-        c.drawString(self.margin, y_start + 0.5*cm, company_line)
+        c.drawString(self.margin, y_start + 2*cm, company_line)
         
         # Überschrift Rechnungsadresse
         c.setFont("Helvetica", 10)
@@ -163,6 +181,21 @@ class InvoicePDFGenerator:
             if line.strip():  # Nur nicht-leere Zeilen
                 c.drawString(self.margin, y_pos, line)
                 y_pos -= 0.5*cm
+        
+        # UID Nummer hinzufügen (wenn vorhanden)
+        if hasattr(customer, 'uid_number') and customer.uid_number:
+            y_pos -= 0.2*cm  # Extra Abstand
+            c.setFont("Helvetica", 10)
+            c.drawString(self.margin, y_pos, f"UID: {customer.uid_number}")
+            y_pos -= 0.5*cm
+        
+        # UID Nummer auch von der Rechnung selbst prüfen (editierbare Kundendetails)
+        if hasattr(invoice, 'customer_uid') and invoice.customer_uid:
+            y_pos -= 0.2*cm  # Extra Abstand
+            c.setFont("Helvetica", 10)
+            c.drawString(self.margin, y_pos, f"UID: {invoice.customer_uid}")
+            y_pos -= 0.5*cm
+        
     
     def draw_invoice_amounts(self, c, invoice):
         """Zeichnet die Rechnungsbeträge mit verbessertem Layout"""
@@ -193,6 +226,16 @@ class InvoicePDFGenerator:
         
         y_pos -= 0.5*cm
         
+        # Leistungszeitraum hinzufügen (wenn vorhanden)
+        if hasattr(invoice, 'service_period_start') and invoice.service_period_start:
+            y_pos -= 0.2*cm  # Extra Abstand
+            c.setFont("Helvetica", 10)
+            if hasattr(invoice, 'service_period_end') and invoice.service_period_end:
+                period_text = f"Leistungszeitraum: {invoice.service_period_start.strftime('%d.%m.%Y')} - {invoice.service_period_end.strftime('%d.%m.%Y')}"
+            else:
+                period_text = f"Leistungszeitraum: ab {invoice.service_period_start.strftime('%d.%m.%Y')}"
+            c.drawString(self.margin, y_pos, period_text)
+
         # Projektbeschreibung in Corporate Color
         c.setFont("Helvetica-Bold", 12)
         c.setFillColor(colors.HexColor('#CC5500'))  # Corporate Orange
@@ -230,21 +273,28 @@ class InvoicePDFGenerator:
         if invoice.service_description and invoice.service_description.strip():
             service_desc = invoice.service_description.strip()
             
-            # Text umbrechen falls zu lang
-            if len(service_desc) > 70:
-                words = service_desc.split()
-                lines = []
-                current_line = ""
-                for word in words:
-                    if len(current_line + " " + word) <= 70:
-                        current_line += " " + word if current_line else word
-                    else:
+            # Erst explizite Zeilenumbrüche respektieren, dann lange Zeilen umbrechen
+            lines = []
+            for paragraph in service_desc.split('\n'):
+                paragraph = paragraph.strip()
+                if not paragraph:
+                    lines.append("")  # Leere Zeile für Absätze
+                    continue
+                    
+                # Text umbrechen falls zu lang
+                if len(paragraph) > 70:
+                    words = paragraph.split()
+                    current_line = ""
+                    for word in words:
+                        if len(current_line + " " + word) <= 70:
+                            current_line += " " + word if current_line else word
+                        else:
+                            lines.append(current_line)
+                            current_line = word
+                    if current_line:
                         lines.append(current_line)
-                        current_line = word
-                if current_line:
-                    lines.append(current_line)
-            else:
-                lines = [service_desc]
+                else:
+                    lines.append(paragraph)
             
             # Service Description zeichnen
             for line in lines:
@@ -679,6 +729,390 @@ class InvoicePDFGenerator:
         
         for i, line in enumerate(legal_info):
             c.drawString(col3_x, footer_y - i * 0.3*cm, line)
+
+    def draw_positions_table(self, c, invoice):
+        """Zeichnet eine detaillierte Position-Tabelle für allgemeine Rechnungen"""
+        y_start = self.height - 12*cm
+        
+        # Dankestext für allgemeine Rechnungen
+        c.setFont("Helvetica", 10)
+        thanks_text = [
+            "Herzlichen Dank für Ihr Vertrauen in unsere Dienstleistungen. Wir erlauben uns folgende Beträge in",
+            "Rechnung zu stellen und freuen uns, wenn wir auch in Zukunft für Sie tätig werden dürfen.",
+        ]
+        
+        y_pos = y_start
+        for line in thanks_text:
+            c.drawString(self.margin, y_pos, line)
+            y_pos -= 0.4*cm
+        
+        y_pos -= 0.5*cm
+        
+        # Leistungsbeschreibung Überschrift
+        c.setFont("Helvetica-Bold", 12)
+        c.setFillColor(colors.HexColor('#CC5500'))  # Corporate Orange
+        c.drawString(self.margin, y_pos, "Leistungsbeschreibung:")
+        c.setFillColor(colors.black)  # Zurück zu schwarz
+        
+        y_pos -= 0.5*cm
+        
+        # Leistungsbeschreibung Text hinzufügen (wenn vorhanden) - UNTER der Überschrift
+        if hasattr(invoice, 'service_description') and invoice.service_description:
+            c.setFont("Helvetica", 10)
+            
+            # Erst explizite Zeilenumbrüche respektieren, dann lange Zeilen umbrechen
+            lines = []
+            for paragraph in invoice.service_description.split('\n'):
+                paragraph = paragraph.strip()
+                if not paragraph:
+                    lines.append("")  # Leere Zeile für Absätze
+                    continue
+                    
+                # Text umbrechen falls zu lang
+                if len(paragraph) > 70:
+                    words = paragraph.split()
+                    current_line = ""
+                    for word in words:
+                        if len(current_line + " " + word) <= 70:
+                            current_line += " " + word if current_line else word
+                        else:
+                            lines.append(current_line)
+                            current_line = word
+                    if current_line:
+                        lines.append(current_line)
+                else:
+                    lines.append(paragraph)
+            
+            # Zeilen zeichnen
+            for line in lines:
+                if line.strip():  # Nur nicht-leere Zeilen zeichnen
+                    c.drawString(self.margin, y_pos, line.strip())
+                y_pos -= 0.4*cm
+            y_pos -= 0.3*cm  # Extra Abstand nach Leistungsbeschreibung
+        
+        y_pos -= 0.5*cm
+        
+        # Position-Tabelle Header
+        c.setFont("Helvetica-Bold", 9)
+        table_start_y = y_pos
+        
+        # Spaltenbreiten definieren - Menge/Einheit kombiniert
+        total_available = self.width - 2*self.margin  # 17cm verfügbar
+        col_pos = self.margin  # Position: 0-1cm (1cm breit)
+        col_desc = self.margin + 1.2*cm  # Beschreibung: 1.2-9.2cm (8cm breit)
+        col_price = self.margin + 9.2*cm  # Preis: 9.2-12.2cm (3cm breit) 
+        col_qty_unit = self.margin + 12.2*cm  # Menge/Einheit: 12.2-15.2cm (3cm breit)
+        col_total = self.margin + 15.2*cm  # Summe: 15.2-19cm (3.8cm breit bis Seitenende)
+        
+        # Beschreibungsspalten-Breite für Textumbruch (exakt wie Header)
+        desc_column_width = 8*cm  # Exakt 8cm wie im Header
+        
+        # Header zeichnen
+        header_y = y_pos
+        c.drawString(col_pos, header_y, "Pos.")
+        c.drawString(col_desc, header_y, "Beschreibung")
+        c.drawString(col_price, header_y, "Preis netto")
+        # Menge/Einheit zentriert über der Spalte
+        qty_header_x = col_qty_unit + (3*cm / 2) - (c.stringWidth("Menge/Einheit", "Helvetica-Bold", 9) / 2)
+        c.drawString(qty_header_x, header_y, "Menge/Einheit")
+        # Summe netto rechtsbündig
+        total_header_x = self.width - self.margin - c.stringWidth("Summe", "Helvetica-Bold", 9)
+        c.drawString(total_header_x, header_y, "Summe")
+        total_netto_x = self.width - self.margin - c.stringWidth("netto", "Helvetica-Bold", 9)
+        c.drawString(total_netto_x, header_y - 0.3*cm, "netto")
+        
+        y_pos -= 0.6*cm  # Mehr Platz für "netto" in zweiter Zeile
+        # Linie unter Header
+        c.line(self.margin, y_pos, self.width - self.margin, y_pos)
+        y_pos -= 0.5*cm
+        
+        # Positionen laden und anzeigen
+        from models import InvoicePosition
+        positions = InvoicePosition.query.filter_by(invoice_id=invoice.id).order_by(InvoicePosition.position_number).all()
+        
+        c.setFont("Helvetica", 9)
+        total_net = 0
+        vat_summary = {}  # Für MwSt-Zusammenfassung
+        
+        for position_index, position in enumerate(positions):
+            
+            # Trennlinie VOR jeder Position (außer der ersten)
+            if position_index > 0:  # Nicht vor der ersten Position
+                c.setLineWidth(0.5)  # Etwas dicker
+                c.setStrokeColorRGB(0.6, 0.6, 0.6)  # Mittleres Grau, besser sichtbar
+                c.line(self.margin, y_pos + 0.2*cm, self.width - self.margin, y_pos + 0.2*cm)
+                c.setLineWidth(1)  # Standardbreite zurücksetzen
+                c.setStrokeColorRGB(0, 0, 0)  # Schwarz zurücksetzen
+                y_pos -= 0.3*cm  # Abstand nach der Linie
+            
+            # Prüfe verfügbaren Platz - bei weniger als 3cm neue Seite
+            if y_pos < 5*cm:
+                c.showPage()
+                self._setup_header(c)
+                y_pos = self.height - 4*cm
+                
+                # Tabellen-Header auf neuer Seite wiederholen
+                c.setFont("Helvetica-Bold", 9)
+                c.drawString(col_pos, y_pos, "Pos.")
+                c.drawString(col_desc, y_pos, "Beschreibung")
+                c.drawString(col_price, y_pos, "Preis netto")
+                c.drawString(col_qty_unit, y_pos, "Menge/Einheit")
+                # Summe netto mit Zeilenumbruch auch auf neuer Seite
+                c.drawString(col_total, y_pos, "Summe")
+                c.drawString(col_total, y_pos - 0.3*cm, "netto")
+                
+                y_pos -= 0.6*cm  # Platz für zweizeiligen Header
+                c.line(self.margin, y_pos, self.width - self.margin, y_pos)
+                y_pos -= 0.5*cm
+                c.setFont("Helvetica", 9)
+            
+            # Position Nummer
+            current_y = y_pos
+            c.drawString(col_pos, current_y, str(position.position_number))
+            
+            # Beschreibung strukturiert vorbereiten - ALLE Artikel einheitlich formatieren
+            article_lines = []  # Erste Zeile(n) - immer fett
+            description_lines = []  # Weitere Zeilen - immer normal
+            
+            # Bestimme den Haupt-Artikel-Text (erste Zeile fett)
+            main_article_text = ""
+            additional_description = ""
+            
+            # NEUE LOGIK: Artikel-Name fett, dann Beschreibung normal
+            if position.article:
+                # Artikel ausgewählt: Name fett, Beschreibung normal darunter
+                main_article_text = position.article.name
+                if position.description and position.description.strip():
+                    additional_description = position.description.strip()
+            elif position.article_text and position.article_text.strip():
+                # Freitext-Artikel: article_text fett, description normal darunter
+                main_article_text = position.article_text.strip()
+                if position.description and position.description.strip():
+                    additional_description = position.description.strip()
+            elif position.description and position.description.strip():
+                # Nur Beschreibung vorhanden: erste Zeile fett, Rest normal
+                desc_lines = position.description.strip().split('\n')
+                main_article_text = desc_lines[0] if desc_lines else ""
+                # Rest der Zeilen als zusätzliche Beschreibung
+                if len(desc_lines) > 1:
+                    additional_description = '\n'.join(desc_lines[1:])
+            
+            # Haupt-Artikel-Text verarbeiten (FETT)
+            if main_article_text:
+                # Zeilenumbrüche normalisieren
+                main_article_text = main_article_text.replace('\r\n', '\n').replace('\r', '\n')
+                raw_lines = main_article_text.split('\n')
+                for raw_line in raw_lines:
+                    if not raw_line.strip():
+                        continue
+                    # Berechne maximale Zeichen basierend auf Spaltenbreite (8cm ≈ 58 Zeichen)
+                    max_chars = 58
+                    while len(raw_line) > max_chars:
+                        break_point = raw_line.rfind(' ', 0, max_chars)
+                        if break_point == -1:
+                            break_point = max_chars
+                        article_lines.append(raw_line[:break_point])
+                        raw_line = raw_line[break_point:].strip()
+                    if raw_line:
+                        article_lines.append(raw_line)
+            
+            # Zusätzliche Beschreibung verarbeiten (NORMAL)
+            if additional_description:
+                # Zeilenumbrüche normalisieren
+                additional_description = additional_description.replace('\r\n', '\n').replace('\r', '\n')
+                raw_lines = additional_description.split('\n')
+                for raw_line in raw_lines:
+                    if not raw_line.strip():
+                        continue
+                    # Berechne maximale Zeichen basierend auf Spaltenbreite (8cm ≈ 58 Zeichen)
+                    max_chars = 58
+                    while len(raw_line) > max_chars:
+                        break_point = raw_line.rfind(' ', 0, max_chars)
+                        if break_point == -1:
+                            break_point = max_chars
+                        description_lines.append(raw_line[:break_point])
+                        raw_line = raw_line[break_point:].strip()
+                    if raw_line:
+                        description_lines.append(raw_line)
+            
+            # Beschreibung zeichnen: Artikel fett, dann Beschreibung normal
+            desc_y = current_y
+            
+            # Artikel-Text fett zeichnen
+            if article_lines:
+                c.setFont("Helvetica-Bold", 9)
+                for line in article_lines:
+                    c.drawString(col_desc, desc_y, line)
+                    desc_y -= 0.4*cm
+            
+            # Beschreibung normal zeichnen
+            if description_lines:
+                c.setFont("Helvetica", 9)
+                for line in description_lines:
+                    c.drawString(col_desc, desc_y, line)
+                    desc_y -= 0.4*cm
+            
+            # Font für andere Spalten zurücksetzen
+            c.setFont("Helvetica", 9)
+            
+            # Andere Spalten auf der ersten Zeile der Position - Preise rechtsbündig
+            c.drawRightString(col_price + 3*cm, current_y, format_currency_de(position.price_net))  # Rechtsbündig in Preis-Spalte
+            
+            # Menge/Einheit kombiniert - nur anzeigen wenn Einheit vorhanden, sonst nur Menge
+            quantity_text = f"{position.quantity:.1f}"
+            if position.unit and position.unit.strip():
+                quantity_unit_text = f"{quantity_text} {position.unit}"
+            else:
+                quantity_unit_text = quantity_text
+            c.drawRightString(col_qty_unit + 3*cm, current_y, quantity_unit_text)  # Rechtsbündig in Menge/Einheit-Spalte
+            
+            c.drawRightString(self.width - self.margin, current_y, format_currency_de(position.line_total_net))  # Rechtsbündig am rechten Rand
+            
+            # Für Gesamtsumme und MwSt-Zusammenfassung
+            total_net += position.line_total_net
+            
+            # MwSt nur berechnen wenn calculate_vat aktiviert ist
+            if hasattr(invoice, 'calculate_vat') and invoice.calculate_vat:
+                vat_rate = position.vat_rate
+                if vat_rate not in vat_summary:
+                    vat_summary[vat_rate] = {'net': 0, 'vat': 0}
+                vat_summary[vat_rate]['net'] += position.line_total_net
+                vat_summary[vat_rate]['vat'] += position.line_total_net * vat_rate / 100
+            
+            # Y-Position für nächste Position berechnen (mindestens eine Zeile)
+            total_lines = len(article_lines) + len(description_lines)
+            lines_used = max(1, total_lines)
+            y_pos = current_y - (lines_used * 0.4*cm)  # Abstand zwischen Positionen
+        
+        # Summen-Bereich - direkt nach letzter Position
+        # Kein zusätzlicher Abstand nach letzter Position
+        
+        # Einfache Linie vor "Summe netto" über die gesamte Seitenbreite
+        c.setLineWidth(0.5)
+        c.line(self.margin, y_pos, self.width - self.margin, y_pos)
+        y_pos -= 0.4*cm  # Weniger Abstand nach Strich
+        
+        # Zwischensumme netto (rechts ausgerichtet) - gleiche Schriftgröße wie Tabelle
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(self.margin, y_pos, "Summe netto:")
+        c.drawRightString(self.width - self.margin, y_pos, format_currency_de(total_net))
+        y_pos -= 0.4*cm  # Weniger Abstand zwischen Zeilen
+        
+        # MwSt nur anzeigen wenn calculate_vat aktiviert ist
+        total_vat = 0
+        if hasattr(invoice, 'calculate_vat') and invoice.calculate_vat:
+            # MwSt aufgeschlüsselt (rechts ausgerichtet) - gleiche Schriftgröße wie Tabelle
+            c.setFont("Helvetica", 9)
+            for vat_rate, amounts in vat_summary.items():
+                c.drawString(self.margin, y_pos, f"zzgl. {vat_rate:.1f}% MwSt.:")
+                c.drawRightString(self.width - self.margin, y_pos, format_currency_de(amounts['vat']))
+                total_vat += amounts['vat']
+                y_pos -= 0.2*cm  # Weniger Abstand zwischen MwSt-Zeilen
+        
+        # Doppelte Linie vor Gesamtsumme über die gesamte Seitenbreite
+        y_pos -= 0.05*cm  # Noch weniger Abstand vor Doppelstrich - näher an MwSt.
+        c.setLineWidth(1)
+        c.line(self.margin, y_pos, self.width - self.margin, y_pos)
+        c.line(self.margin, y_pos - 0.1*cm, self.width - self.margin, y_pos - 0.1*cm)
+        y_pos -= 0.5*cm  # Weniger Abstand zwischen Doppelstrich und Gesamtsumme
+        
+        # Gesamtsumme brutto (rechts ausgerichtet) - größere Schriftgröße
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(self.margin, y_pos, "Gesamtsumme:")
+        c.drawRightString(self.width - self.margin, y_pos, format_currency_de(total_net + total_vat))
+        
+        # Steuerhinweis bei fehlender MwSt.-Ausweisung
+        if hasattr(invoice, 'calculate_vat') and not invoice.calculate_vat:
+            y_pos -= 0.8*cm
+            c.setFont("Helvetica", 9)
+            c.drawString(self.margin, y_pos, "Steuerschuldnerschaft des Leistungsempfängers gemäß § 19 Abs. 1a UStG.")
+        
+        # Schlusstext aus Eingabe oder Standard-Abschlusstext
+        y_pos -= 2*cm
+        c.setFont("Helvetica", 10)
+        
+        if hasattr(invoice, 'closing_text') and invoice.closing_text:
+            # Überschrift für benutzerdefinierten Schlusstext
+            c.setFont("Helvetica-Bold", 11)
+            c.setFillColor(colors.HexColor('#CC5500'))  # Corporate Orange
+            c.drawString(self.margin, y_pos, "Sonstiges:")
+            c.setFillColor(colors.black)  # Zurück zu schwarz
+            y_pos -= 0.7*cm
+            
+            # Benutzerdefinierter Schlusstext
+            c.setFont("Helvetica", 10)
+            
+            # Erst explizite Zeilenumbrüche respektieren, dann lange Zeilen umbrechen
+            lines = []
+            for paragraph in invoice.closing_text.split('\n'):
+                paragraph = paragraph.strip()
+                if not paragraph:
+                    lines.append("")  # Leere Zeile für Absätze
+                    continue
+                    
+                # Text umbrechen falls zu lang
+                if len(paragraph) > 70:
+                    words = paragraph.split()
+                    current_line = ""
+                    for word in words:
+                        if len(current_line + " " + word) <= 70:
+                            current_line += " " + word if current_line else word
+                        else:
+                            lines.append(current_line)
+                            current_line = word
+                    if current_line:
+                        lines.append(current_line)
+                else:
+                    lines.append(paragraph)
+            
+            # Zeilen zeichnen
+            for line in lines:
+                if line.strip():  # Nur nicht-leere Zeilen zeichnen
+                    c.drawString(self.margin, y_pos, line.strip())
+                y_pos -= 0.5*cm
+        else:
+            # Standard-Abschlusstext
+            closing_text = [
+                "Wir hoffen, den Auftrag zu Ihrer Zufriedenheit ausgeführt zu haben und verbleiben",
+                "mit freundlichen Grüßen,",
+                "Ihr InnSAN Team"
+            ]
+            
+            for line in closing_text:
+                c.drawString(self.margin, y_pos, line)
+                y_pos -= 0.5*cm
+        
+        # Footer auf der ersten Seite anzeigen
+        self._setup_footer(c)
+        
+        # Neue Seite für Zahlungsbedingungen
+        c.showPage()
+        self._setup_header(c)
+        
+        # Zahlungsbedingungen
+        y_pos = self.height - 6*cm
+        c.setFont("Helvetica-Bold", 12)
+        c.setFillColor(colors.HexColor('#CC5500'))
+        c.drawString(self.margin, y_pos, "Zahlungsbedingungen")
+        c.setFillColor(colors.black)
+        
+        y_pos -= 0.8*cm
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(self.margin, y_pos, "Zahlungskondition:")
+        y_pos -= 0.5*cm
+        
+        c.setFont("Helvetica", 10)
+        payment_terms = [
+            f"Die Rechnung ist sofort nach Erhalt ohne Abzug fällig.",
+            f"Fälligkeitsdatum: {invoice.due_date.strftime('%d.%m.%Y') if invoice.due_date else 'nicht angegeben'}",
+            "",
+            "Bei Zahlungsverzug werden Verzugszinsen in der Höhe von 9,2% p.a. verrechnet.",
+            "Gerichtsstand ist Wien."
+        ]
+        
+        for line in payment_terms:
+            c.drawString(self.margin, y_pos, line)
+            y_pos -= 0.5*cm
     
     def _get_company_data(self):
         """Lädt Firmendaten aus den Einstellungen"""

@@ -10,7 +10,7 @@ from werkzeug.utils import secure_filename
 
 # Lokale Imports
 from config import Config
-from models import db, Customer, Quote, QuoteItem, QuoteSubItem, Supplier, CompanySettings, QuoteRejection, Order, SupplierOrder, SupplierOrderItem, WorkInstruction, AcquisitionChannel, PositionTemplate, PositionTemplateSubItem, Invoice, InvoiceReminder
+from models import db, Customer, Quote, QuoteItem, QuoteSubItem, Supplier, CompanySettings, QuoteRejection, Order, SupplierOrder, SupplierOrderItem, WorkInstruction, AcquisitionChannel, PositionTemplate, PositionTemplateSubItem, Invoice, InvoiceReminder, Article, InvoicePosition
 from flask_migrate import Migrate
 from forms import CustomerForm, QuoteForm, SupplierForm, SettingsForm, QuoteRejectionForm, SupplierOrderUpdateForm, OrderForm, OrderUpdateForm, AcquisitionChannelForm, CustomerWorkflowForm, AppointmentForm
 from utils import get_default_hourly_rate, generate_quote_number, load_position_templates, load_suppliers, update_quote_total, safe_float_conversion, parse_quantity_from_text
@@ -50,9 +50,7 @@ def safe_float_conversion_strict(value, default=0.0):
     
     try:
         result = float(value)
-        # Validiere dass es eine gültige positive Zahl ist (für Stunden/Preise)
-        if result < 0:
-            return default
+        # Negative Werte sind jetzt erlaubt für Rabatte/Discounts
         return result
     except (ValueError, TypeError):
         return default
@@ -109,7 +107,7 @@ def create_app():
                 print("🔧 Initialisiere Railway-Datenbank...")
                 
                 from models import (LoginAdmin, Customer, Quote, QuoteItem, QuoteSubItem, 
-                                  Supplier, CompanySettings, AcquisitionChannel)
+                                  Supplier, CompanySettings, AcquisitionChannel, Article, InvoicePosition)
                 db.create_all()
                 
                 # Standard-Admin erstellen
@@ -765,6 +763,7 @@ def register_routes(app):
                     valid_until=form.valid_until.data,
                     include_additional_info=form.include_additional_info.data,
                     markup_percentage=form.markup_percentage.data,
+                    discount_percentage=form.discount_percentage.data,
                     status='Entwurf',
                     total_amount=0.0
                 )
@@ -794,7 +793,7 @@ def register_routes(app):
             flash('Angenommene Angebote können nicht mehr bearbeitet werden!', 'warning')
             return redirect(url_for('view_quote', id=id))
         
-        suppliers = Supplier.query.all()
+        suppliers = Supplier.query.order_by(Supplier.name).all()
         work_steps = get_work_steps()
         return render_template('quote_edit.html', quote=quote, suppliers=suppliers, work_steps=work_steps)
     
@@ -964,10 +963,10 @@ def register_routes(app):
             flash('Angenommene Angebote können nicht mehr bearbeitet werden!', 'warning')
             return redirect(url_for('view_quote', id=id))
         
-        # Alle verfügbaren Positionsvorlagen laden
-        templates = PositionTemplate.query.all()
-        # Lieferanten für Dropdown laden
-        suppliers = Supplier.query.all()
+        # Alle verfügbaren Positionsvorlagen laden - sortiert nach Reihenfolge
+        templates = PositionTemplate.query.order_by(PositionTemplate.sort_order, PositionTemplate.id).all()
+        # Lieferanten für Dropdown laden - alphabetisch sortiert
+        suppliers = Supplier.query.order_by(Supplier.name).all()
         return render_template('quote_template_selector.html', quote=quote, templates=templates, suppliers=suppliers)
 
     @app.route('/quotes/<int:id>/add_template', methods=['POST'])
@@ -1061,8 +1060,14 @@ def register_routes(app):
                     quote_subitem.quantity = subitem_data.get('quantity', '1')
                     quote_subitem.unit_price = float(subitem_data.get('base_price', 0))
                 
+                # Aktualisiere den berechneten Preis für alle Typen
+                quote_subitem.update_price()
+                
                 db.session.add(quote_subitem)
                 sub_position += 1
+            
+            # Aktualisiere den Gesamtpreis der Hauptposition basierend auf den Unterpositionen
+            quote_item.update_price()
             
             db.session.commit()
             quote.update_total()
@@ -1127,6 +1132,10 @@ def register_routes(app):
             return redirect(url_for('view_order', order_id=quote.order.id))
         
         form = OrderForm()
+        
+        # Kundenbetreuer aus Kundendaten vorausfüllen
+        if request.method == 'GET' and not form.project_manager.data:
+            form.project_manager.data = quote.customer.customer_manager or 'Kundenbetreuer'
         
         if request.method == 'GET':
             # Zeige Formular für Realisierungszeitraum
@@ -1279,7 +1288,7 @@ def register_routes(app):
     @app.route('/suppliers')
     @login_required
     def suppliers():
-        suppliers = Supplier.query.all()
+        suppliers = Supplier.query.order_by(Supplier.name).all()
         return render_template('suppliers.html', suppliers=suppliers)
     
     @app.route('/supplier/new', methods=['GET', 'POST'])
@@ -1343,7 +1352,7 @@ def register_routes(app):
     @app.route('/stammdaten')
     @login_required
     def stammdaten():
-        suppliers = Supplier.query.all()
+        suppliers = Supplier.query.order_by(Supplier.name).all()
         current_hourly_rate = get_default_hourly_rate()
         categories = db.session.query(Supplier.category).filter(
             Supplier.category.isnot(None)
@@ -1353,9 +1362,9 @@ def register_routes(app):
         # Akquisekanäle laden
         acquisition_channels = AcquisitionChannel.query.all()
 
-        # PositionTemplates laden
+        # PositionTemplates laden - sortiert nach Reihenfolge
         from models import PositionTemplate
-        templates = PositionTemplate.query.all()
+        templates = PositionTemplate.query.order_by(PositionTemplate.sort_order, PositionTemplate.id).all()
 
         return render_template('stammdaten.html', 
                              suppliers=suppliers, 
@@ -1728,7 +1737,7 @@ def get_work_step_by_category_and_name(category, name):
             quantity = safe_float_conversion(request.form.get('quantity'), 1.0)
             unit_price = safe_float_conversion(request.form.get('unit_price'), 0.0)
             
-            if description and quantity > 0 and unit_price >= 0:
+            if description and quantity > 0:
                 total_price = unit_price * quantity
                 
                 quote_item = QuoteItem(
@@ -1776,7 +1785,8 @@ def get_work_step_by_category_and_name(category, name):
             include_additional_info = request.form.get('include_additional_info') == 'on'
             show_subitem_prices = request.form.get('show_subitem_prices') == 'on'
             price_display_mode = request.form.get('price_display_mode', 'standard')  # Neues Feld
-            markup_percentage = safe_float_conversion(request.form.get('markup_percentage'), 15.0)
+            markup_percentage = safe_float_conversion(request.form.get('markup_percentage'), 0.0)
+            discount_percentage = safe_float_conversion(request.form.get('discount_percentage'), 0.0)
             
             # Neue PDF-Zusatzinformationen
             leistungsumfang = request.form.get('leistungsumfang', '')
@@ -1794,6 +1804,7 @@ def get_work_step_by_category_and_name(category, name):
             quote.show_subitem_prices = show_subitem_prices  # Kompatibilität beibehalten
             quote.price_display_mode = price_display_mode  # Neues Feld speichern
             quote.markup_percentage = markup_percentage
+            quote.discount_percentage = discount_percentage
             
             # PDF-Zusatzinformationen speichern - leere Felder als "<keine>" speichern
             quote.leistungsumfang = leistungsumfang.strip() if leistungsumfang.strip() else '<keine>'
@@ -1835,7 +1846,7 @@ def get_work_step_by_category_and_name(category, name):
                     unit_price = safe_float_conversion(request.form.get('unit_price'), 0.0)
                     position_number = request.form.get('position_number', type=int)
 
-                    if description and quantity > 0 and unit_price >= 0:
+                    if description and quantity > 0:
                         item.description = description
                         item.quantity = quantity
                         item.unit_price = unit_price
@@ -1938,7 +1949,7 @@ def get_work_step_by_category_and_name(category, name):
             return redirect(url_for('edit_quote', id=id) + f'#position-{item_id}')
 
         # GET Request - Bearbeitungsformular anzeigen
-        suppliers = Supplier.query.all()
+        suppliers = Supplier.query.order_by(Supplier.name).all()
         work_steps = get_work_steps()
         return render_template(
             'quote_item_edit.html',
@@ -2213,6 +2224,10 @@ def get_work_step_by_category_and_name(category, name):
             return redirect(url_for('edit_order', order_id=quote.order.id))
         
         form = OrderForm()
+        
+        # Kundenbetreuer aus Kundendaten vorausfüllen
+        if not form.project_manager.data:
+            form.project_manager.data = quote.customer.customer_manager or 'Kundenbetreuer'
         
         if form.validate_on_submit():
             try:
@@ -2630,10 +2645,17 @@ def get_work_step_by_category_and_name(category, name):
             if order.quote.customer and order.quote.customer.city:
                 installation_location = order.quote.customer.city
             
+            # Lade Installationsleistungen aus dem Angebot
+            installation_services = ""
+            if order.quote and order.quote.installationsleistungen:
+                installation_services = order.quote.installationsleistungen
+            else:
+                installation_services = ""
+            
             # Neue Arbeitsanweisung erstellen
             work_instruction = WorkInstruction(
                 order_id=order.id,
-                created_by='System',  # Hier könnte später ein Benutzer-System integriert werden
+                created_by=installation_services,  # Installationsleistungen aus Angebot
                 status='Erstellt',
                 priority='Normal',
                 # Automatische Vorschläge basierend auf dem Auftrag
@@ -2779,10 +2801,15 @@ def get_work_step_by_category_and_name(category, name):
             if order.quote.customer and order.quote.customer.city:
                 installation_location = order.quote.customer.city
             
+            # Lade Installationsleistungen aus dem Angebot
+            installation_services = ""
+            if order.quote and order.quote.installationsleistungen:
+                installation_services = order.quote.installationsleistungen
+            
             # Neue Arbeitsanweisung erstellen (aber noch nicht speichern)
             work_instruction = WorkInstruction(
                 order_id=order.id,
-                created_by='System',
+                created_by=installation_services,  # Installationsleistungen aus Angebot
                 status='Erstellt',
                 priority='Normal',
                 installation_location=installation_location
@@ -2806,15 +2833,14 @@ def get_work_step_by_category_and_name(category, name):
                 work_instruction.priority = request.form.get('priority', work_instruction.priority)
                 work_instruction.sonstiges = request.form.get('sonstiges', '')  # Updated field name
                 work_instruction.tools_required = request.form.get('tools_required', '')
-                work_instruction.estimated_duration = float(request.form.get('estimated_duration', 0)) if request.form.get('estimated_duration') else None
                 work_instruction.installation_location = request.form.get('installation_location', '')
                 work_instruction.access_requirements = request.form.get('access_requirements', '')
+                work_instruction.created_by = request.form.get('created_by', '')  # Installationsleistungen
                 
                 # Arbeitsschritte und Teile WERDEN JETZT gespeichert
                 # Arbeitsschritte verarbeiten
                 step_descriptions = request.form.getlist('step_description[]')
                 step_notes = request.form.getlist('step_notes[]')
-                step_times = request.form.getlist('step_time[]')
                 
                 work_steps_data = []
                 for i, description in enumerate(step_descriptions):
@@ -2822,8 +2848,7 @@ def get_work_step_by_category_and_name(category, name):
                         work_steps_data.append({
                             'step_number': i + 1,
                             'description': description.strip(),
-                            'notes': step_notes[i].strip() if i < len(step_notes) else '',
-                            'estimated_time': int(step_times[i]) if i < len(step_times) and step_times[i].strip() else 0
+                            'notes': step_notes[i].strip() if i < len(step_notes) else ''
                         })
                 
                 work_instruction.work_steps_data = json.dumps(work_steps_data) if work_steps_data else None
@@ -2972,8 +2997,7 @@ def get_work_step_by_category_and_name(category, name):
                         work_steps.append({
                             'step_number': step_number,
                             'description': sub_item.description,
-                            'notes': '',  # Nicht vorbefüllen
-                            'estimated_time': int(sub_item.hours * 60) if sub_item.hours else 0  # Convert hours to minutes
+                            'notes': ''  # Nicht vorbefüllen
                         })
                         step_number += 1
         
@@ -3143,8 +3167,10 @@ def get_work_step_by_category_and_name(category, name):
                 customer.comments = form.comments.data
                 
                 # Automatische Status-Updates basierend auf Aktionen
-                if form.appointment_date.data and customer.status == '1. Termin vereinbaren':
-                    customer.status = '1. Termin vereinbart'
+                if form.appointment_date.data:
+                    # Status automatisch auf "1. Termin vereinbart" setzen, wenn ein 1. Termin eingetragen wird
+                    if customer.status in ['Neukunde', 'Interessent', '1. Termin vereinbaren', 'Kontakt aufnehmen']:
+                        customer.status = '1. Termin vereinbart'
                 
                 if form.second_appointment_date.data and customer.status == '2. Termin vereinbaren':
                     customer.status = 'Warten auf Rückmeldung'
@@ -3174,8 +3200,8 @@ def get_work_step_by_category_and_name(category, name):
                 customer.appointment_date = form.appointment_date.data
                 customer.appointment_notes = form.appointment_notes.data
                 
-                # Status automatisch auf "1. Termin vereinbart" setzen
-                if customer.status == '1. Termin vereinbaren':
+                # Status automatisch auf "1. Termin vereinbart" setzen, wenn ein 1. Termin eingetragen wird
+                if customer.status in ['Neukunde', 'Interessent', '1. Termin vereinbaren', 'Kontakt aufnehmen']:
                     customer.status = '1. Termin vereinbart'
                 
                 db.session.commit()
@@ -3200,8 +3226,8 @@ def get_work_step_by_category_and_name(category, name):
                     from datetime import datetime
                     customer.appointment_date = datetime.strptime(appointment_date_str, '%Y-%m-%d').date()
                     
-                    # Status automatisch setzen
-                    if customer.status == 'Termin vereinbaren':
+                    # Status automatisch setzen, wenn ein 1. Termin eingetragen wird
+                    if customer.status in ['Neukunde', 'Interessent', '1. Termin vereinbaren', 'Kontakt aufnehmen']:
                         customer.status = '1. Termin vereinbart'
                 else:
                     customer.appointment_date = None
@@ -3253,7 +3279,7 @@ def get_work_step_by_category_and_name(category, name):
     @login_required
     def template_management():
         """Hauptseite für Template-Verwaltung"""
-        templates = PositionTemplate.query.all()
+        templates = PositionTemplate.query.order_by(PositionTemplate.sort_order, PositionTemplate.id).all()
         return render_template('template_management.html', templates=templates)
     
     @app.route('/stammdaten/templates/create', methods=['GET', 'POST'])
@@ -3268,10 +3294,15 @@ def get_work_step_by_category_and_name(category, name):
                 if not name:
                     return jsonify({'success': False, 'message': 'Name ist erforderlich'})
                 
+                # Finde die höchste sort_order und setze neue Template an das Ende
+                max_sort_order = db.session.query(db.func.max(PositionTemplate.sort_order)).scalar() or 0
+                new_sort_order = max_sort_order + 10
+                
                 # Erstelle Template mit Kalkulationsfeldern
                 template = PositionTemplate(
                     name=name,
                     description=description,
+                    sort_order=new_sort_order,
                     enable_length='enable_length' in request.form,
                     enable_width='enable_width' in request.form,
                     enable_height='enable_height' in request.form,
@@ -3318,7 +3349,7 @@ def get_work_step_by_category_and_name(category, name):
                 return redirect(url_for('template_management'))
         
         # GET Request - zeige Formular
-        templates = PositionTemplate.query.all()
+        templates = PositionTemplate.query.order_by(PositionTemplate.sort_order, PositionTemplate.id).all()
         return render_template('template_management.html', templates=templates, title='Neue Vorlage erstellen')
     
     @app.route('/stammdaten/templates/<int:template_id>/duplicate', methods=['POST'])
@@ -3368,6 +3399,54 @@ def get_work_step_by_category_and_name(category, name):
         except Exception as e:
             db.session.rollback()
             return jsonify({'success': False, 'message': f'Fehler beim Löschen: {str(e)}'})
+    
+    @app.route('/stammdaten/templates/<int:template_id>/move_up', methods=['POST'])
+    @login_required
+    def move_template_up(template_id):
+        """Bewegt Template in der Reihenfolge nach oben"""
+        try:
+            template = PositionTemplate.query.get_or_404(template_id)
+            
+            # Finde das Template direkt darüber
+            above_template = PositionTemplate.query.filter(
+                PositionTemplate.sort_order < template.sort_order
+            ).order_by(PositionTemplate.sort_order.desc()).first()
+            
+            if above_template:
+                # Tausche die sort_order Werte
+                template.sort_order, above_template.sort_order = above_template.sort_order, template.sort_order
+                db.session.commit()
+                return jsonify({'success': True, 'message': 'Template nach oben verschoben'})
+            else:
+                return jsonify({'success': False, 'message': 'Template ist bereits an der ersten Position'})
+                
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'message': f'Fehler beim Verschieben: {str(e)}'})
+    
+    @app.route('/stammdaten/templates/<int:template_id>/move_down', methods=['POST'])
+    @login_required
+    def move_template_down(template_id):
+        """Bewegt Template in der Reihenfolge nach unten"""
+        try:
+            template = PositionTemplate.query.get_or_404(template_id)
+            
+            # Finde das Template direkt darunter
+            below_template = PositionTemplate.query.filter(
+                PositionTemplate.sort_order > template.sort_order
+            ).order_by(PositionTemplate.sort_order.asc()).first()
+            
+            if below_template:
+                # Tausche die sort_order Werte
+                template.sort_order, below_template.sort_order = below_template.sort_order, template.sort_order
+                db.session.commit()
+                return jsonify({'success': True, 'message': 'Template nach unten verschoben'})
+            else:
+                return jsonify({'success': False, 'message': 'Template ist bereits an der letzten Position'})
+                
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'message': f'Fehler beim Verschieben: {str(e)}'})
 
 def process_sub_items(form_data):
     """Verarbeitet Unterpositionen aus Formulardaten"""
@@ -3698,7 +3777,7 @@ def new_invoice():
         print(f"JSON data prepared, orders: {len(available_orders_json)}, customers: {len(customers_json)}")
         
         print("Rendering template...")
-        return render_template('create_invoice.html',
+        return render_template('create_invoice_new.html',
                              available_orders=available_orders,
                              customers=customers,
                              available_orders_json=available_orders_json,
@@ -4150,6 +4229,63 @@ def invoice_details(id):
         flash(f'Fehler beim Laden der Rechnungsdetails: {str(e)}', 'error')
         return redirect(url_for('invoices'))
 
+@app.route('/invoices/<int:id>/edit')
+@login_required
+def edit_invoice(id):
+    """Bearbeitet eine bestehende Rechnung"""
+    from models import Invoice, Customer, Order, Quote
+    
+    try:
+        invoice = Invoice.query.get_or_404(id)
+        
+        # Nur nicht verschickte Rechnungen können bearbeitet werden
+        if invoice.status == 'sent':
+            flash('Verschickte Rechnungen können nicht mehr bearbeitet werden.', 'error')
+            return redirect(url_for('invoice_details', id=id))
+        
+        # Alle Kunden für das Dropdown laden
+        customers = Customer.query.order_by(Customer.last_name, Customer.first_name).all()
+        customers_json = json.dumps([{
+            'id': c.id,
+            'name': f"{c.last_name}, {c.first_name}",
+            'full_name': f"{c.salutation} {c.first_name} {c.last_name}",
+            'address': c.address,
+            'city': c.city,
+            'postal_code': c.postal_code,
+            'email': c.email,
+            'phone': c.phone,
+            'uid': c.uid_number
+        } for c in customers])
+        
+        # Aufträge des Kunden laden (falls vorhanden)
+        available_orders = []
+        if invoice.customer_id:
+            # Orders über Quote.customer_id filtern
+            customer_orders = db.session.query(Order).join(Order.quote).filter(
+                Quote.customer_id == invoice.customer_id
+            ).all()
+            available_orders = [{
+                'id': order.id,
+                'quote_number': order.quote.quote_number if order.quote else 'Kein Angebot',
+                'order_number': order.order_number,
+                'total_amount': float(order.total_amount) if order.total_amount else 0,
+                'status': order.status
+            } for order in customer_orders]
+        
+        available_orders_json = json.dumps(available_orders)
+        
+        return render_template('general_invoice.html',
+                             customers=customers,
+                             customers_json=customers_json,
+                             available_orders_json=available_orders_json,
+                             edit_mode=True,
+                             invoice=invoice,
+                             title=f'Rechnung {invoice.invoice_number} bearbeiten')
+        
+    except Exception as e:
+        flash(f'Fehler beim Laden der Rechnung: {str(e)}', 'error')
+        return redirect(url_for('invoices'))
+
 @app.route('/invoices/<int:id>/mark_paid', methods=['POST'])
 @login_required
 def mark_invoice_paid(id):
@@ -4182,49 +4318,37 @@ def mark_invoice_partially_paid(id):
     from models import Invoice
     from datetime import datetime, date
     
-    print(f"DEBUG: mark_partially_paid called for invoice {id}")
-    print(f"DEBUG: Form data: {dict(request.form)}")
-    
     try:
         invoice = Invoice.query.get_or_404(id)
-        print(f"DEBUG: Found invoice {invoice.invoice_number}")
         
         paid_amount_str = request.form.get('paid_amount')
         paid_date_str = request.form.get('paid_date')
         payment_reference = request.form.get('payment_reference', '')
         comment = request.form.get('comment', '')
         
-        print(f"DEBUG: paid_amount_str = {paid_amount_str}")
         
         # Validierung des bezahlten Betrags
         try:
             paid_amount = float(paid_amount_str)
         except (ValueError, TypeError):
-            print(f"DEBUG: Invalid paid amount: {paid_amount_str}")
             return jsonify({'success': False, 'message': 'Ungültiger bezahlter Betrag'})
         
         if paid_amount <= 0:
-            print(f"DEBUG: Paid amount <= 0: {paid_amount}")
             return jsonify({'success': False, 'message': 'Bezahlter Betrag muss größer als 0 sein'})
         
         # Überprüfung: Neuer bezahlter Betrag darf nicht kleiner als der bereits bezahlte Betrag sein
         current_paid = invoice.paid_amount or 0
         if paid_amount < current_paid:
-            print(f"DEBUG: New amount {paid_amount} < current {current_paid}")
             return jsonify({'success': False, 'message': f'Der neue bezahlte Betrag ({paid_amount:.2f}€) kann nicht kleiner sein als der bereits bezahlte Betrag ({current_paid:.2f}€)'})
         
         if paid_amount > invoice.gross_amount:
-            print(f"DEBUG: Paid amount {paid_amount} > gross amount {invoice.gross_amount}")
             return jsonify({'success': False, 'message': f'Bezahlter Betrag kann nicht größer als der Gesamtbetrag ({invoice.gross_amount:.2f}€) sein'})
         
         paid_date = datetime.strptime(paid_date_str, '%Y-%m-%d').date() if paid_date_str else date.today()
         
-        print(f"DEBUG: Calling mark_as_partially_paid with amount {paid_amount}")
         # Verwende die neue Methode
         invoice.mark_as_partially_paid(paid_amount, paid_date, payment_reference, comment)
         db.session.commit()
-        
-        print(f"DEBUG: Successfully updated. New status: {invoice.status}, paid_amount: {invoice.paid_amount}")
         
         if invoice.status == 'bezahlt':
             message = 'Rechnung wurde als vollständig bezahlt markiert'
@@ -4235,9 +4359,6 @@ def mark_invoice_partially_paid(id):
         return jsonify({'success': True, 'message': message})
         
     except Exception as e:
-        print(f"DEBUG: Exception occurred: {str(e)}")
-        import traceback
-        traceback.print_exc()
         db.session.rollback()
         return jsonify({'success': False, 'message': f'Fehler: {str(e)}'})
 
@@ -4246,8 +4367,6 @@ def mark_invoice_partially_paid(id):
 def get_invoice_payment_info(id):
     """API-Endpoint für Zahlungsinformationen einer Rechnung"""
     from models import Invoice
-    
-    print(f"DEBUG: get_invoice_payment_info called for invoice {id}")
     
     try:
         invoice = Invoice.query.get_or_404(id)
@@ -4262,12 +4381,9 @@ def get_invoice_payment_info(id):
             'payment_percentage': invoice.get_payment_percentage()
         }
         
-        print(f"DEBUG: Returning payment info: {result}")
-        
         return jsonify(result)
         
     except Exception as e:
-        print(f"DEBUG: Exception in get_invoice_payment_info: {str(e)}")
         return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/invoices/<int:id>/delete', methods=['DELETE'])
@@ -4609,6 +4725,665 @@ def backup_info(backup_name):
     except Exception as e:
         flash(f'Fehler beim Analysieren des Backups: {str(e)}', 'error')
         return redirect(url_for('backup_manager'))
+
+
+# ===== ARTIKEL-VERWALTUNG ROUTEN =====
+
+@app.route('/articles')
+@login_required
+def articles():
+    """Artikel-Stammdaten Verwaltung"""
+    from models import Article
+    
+    try:
+        articles = Article.query.order_by(Article.name.asc()).all()
+        return render_template('articles.html', articles=articles)
+    except Exception as e:
+        flash(f'Fehler beim Laden der Artikel: {str(e)}', 'error')
+        return redirect(url_for('index'))
+
+@app.route('/article/new', methods=['GET', 'POST'])
+@login_required
+def new_article():
+    """Neuen Artikel erstellen"""
+    from models import Article
+    
+    if request.method == 'POST':
+        try:
+            article = Article(
+                name=request.form['name'],
+                description=request.form.get('description')
+            )
+            db.session.add(article)
+            db.session.commit()
+            flash('Artikel wurde erfolgreich hinzugefügt!', 'success')
+            return redirect(url_for('articles'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Fehler beim Speichern: {str(e)}', 'error')
+    
+    return render_template('article_form.html', title='Neuer Artikel')
+
+@app.route('/article/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_article_form(id):
+    """Artikel bearbeiten"""
+    from models import Article
+    
+    article = Article.query.get_or_404(id)
+    
+    if request.method == 'POST':
+        try:
+            article.name = request.form['name']
+            article.description = request.form.get('description')
+            db.session.commit()
+            flash('Artikel wurde erfolgreich aktualisiert!', 'success')
+            return redirect(url_for('articles'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Fehler beim Speichern: {str(e)}', 'error')
+    
+    return render_template('article_form.html', article=article, title='Artikel bearbeiten')
+
+@app.route('/article/<int:id>/delete')
+@login_required
+def delete_article_form(id):
+    """Artikel löschen"""
+    from models import Article
+    
+    try:
+        article = Article.query.get_or_404(id)
+        db.session.delete(article)
+        db.session.commit()
+        flash('Artikel wurde erfolgreich gelöscht!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Fehler beim Löschen: {str(e)}', 'error')
+    
+    return redirect(url_for('articles'))
+
+@app.route('/api/articles/active')
+@login_required
+def get_active_articles_api():
+    """API-Endpunkt für aktive Artikel (für Dropdown-Listen)"""
+    from models import Article
+    
+    try:
+        articles = Article.query.order_by(Article.name).all()
+        return jsonify([{
+            'id': article.id,
+            'name': article.name,
+            'description': article.description or '',
+            'display_name': article.name,
+            'unit': 'Stk.',  # Default-Einheit
+            'price_net': 0.0,  # Default-Preis
+            'price_gross': 0.0,  # Default-Preis
+            'vat_rate': 20.0  # Standard MwSt.-Satz
+        } for article in articles])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/order/<int:order_id>/invoice-summary')
+@login_required
+def get_order_invoice_summary(order_id):
+    """API-Endpunkt für Auftragsübersicht mit Rechnungsdetails"""
+    from models import Order, Invoice, Quote
+    
+    try:
+        # Auftrag abrufen
+        order = Order.query.get_or_404(order_id)
+        
+        # Zugehöriges Angebot abrufen für total_amount
+        quote = Quote.query.get(order.quote_id) if order.quote_id else None
+        
+        # Alle Rechnungen zu diesem Auftrag abrufen
+        invoices = Invoice.query.filter_by(order_id=order_id).all()
+        
+        # Berechnung der bereits in Rechnung gestellten Beträge
+        total_invoiced = sum(invoice.final_amount or 0 for invoice in invoices 
+                           if invoice.status not in ['Storniert'])
+        
+        # Auftragsdaten für Frontend
+        order_data = {
+            'id': order.id,
+            'order_number': order.order_number,
+            'status': order.status,
+            'created_at': order.created_at.isoformat(),
+            'total_amount': float(quote.total_amount) if quote and quote.total_amount else 0.0,
+            'service_start': order.start_date.isoformat() if order.start_date else None,
+            'service_end': order.end_date.isoformat() if order.end_date else None
+        }
+        
+        # Rechnungsdaten für Frontend
+        invoices_data = []
+        for invoice in invoices:
+            invoices_data.append({
+                'id': invoice.id,
+                'invoice_number': invoice.invoice_number,
+                'invoice_type': invoice.invoice_type,
+                'status': invoice.status,
+                'final_amount': float(invoice.final_amount) if invoice.final_amount else 0.0,
+                'created_at': invoice.created_at.isoformat()
+            })
+        
+        # Zusammenfassung der Beträge
+        summary = {
+            'total_invoiced': float(total_invoiced),
+            'total_invoices': len(invoices),
+            'completed_invoices': len([i for i in invoices if i.status == 'Bezahlt'])
+        }
+        
+        result = {
+            'success': True,
+            'order': order_data,
+            'invoices': invoices_data,
+            'summary': summary
+        }
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/invoices/general/new')
+@login_required
+def new_general_invoice():
+    """Zeigt die neue erweiterte allgemeine Rechnungserstellungsseite an"""
+    from models import Order, Customer
+    
+    try:
+        print("Loading new general invoice page...")
+        
+        # Verfügbare Aufträge holen
+        available_orders = db.session.query(Order).join(Order.quote).filter(
+            Order.status.in_(['Angenommen', 'Geplant', 'In Arbeit', 'Abgeschlossen'])
+        ).order_by(Order.created_at.desc()).all()
+        
+        # Alle Kunden für allgemeine Rechnungen
+        customers = Customer.query.order_by(Customer.last_name, Customer.first_name).all()
+        
+        # JSON-Daten für JavaScript vorbereiten
+        available_orders_json = json.dumps([
+            {
+                "id": order.id,
+                "order_number": order.order_number,
+                "customer_name": order.quote.customer.full_name,
+                "customer_id": order.quote.customer.id,
+                "total_amount": f"{order.quote.total_amount:.2f} €" if order.quote.total_amount else "0,00 €",
+                "display_text": f"{order.order_number} - {order.quote.customer.full_name} ({order.quote.total_amount:.2f} €)" if order.quote.total_amount else f"{order.order_number} - {order.quote.customer.full_name} (0,00 €)",
+                "service_start": order.start_date.isoformat() if order.start_date else "",
+                "service_end": order.end_date.isoformat() if order.end_date else ""
+            }
+            for order in available_orders
+        ])
+        
+        # Kunden-JSON für JavaScript-Suche
+        customers_json = json.dumps([
+            {
+                "id": customer.id,
+                "name": customer.full_name,
+                "display_text": f"{customer.full_name}",
+                "customer_number": customer.customer_number or "",
+                "salutation": customer.salutation or "",
+                "first_name": customer.first_name,
+                "last_name": customer.last_name,
+                "address": customer.address or "",
+                "city": customer.city or "",
+                "postal_code": customer.postal_code or "",
+                "email": customer.email or "",
+                "phone": customer.phone or "",
+                "uid_number": customer.uid_number or ""
+            }
+            for customer in customers
+        ])
+        
+        return render_template('general_invoice.html',
+                             available_orders=available_orders,
+                             customers=customers,
+                             available_orders_json=available_orders_json,
+                             customers_json=customers_json)
+                             
+    except Exception as e:
+        print(f"Error in new_general_invoice: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        flash(f'Fehler beim Laden der Seite: {str(e)}', 'error')
+        return redirect(url_for('invoices'))
+
+@app.route('/invoices/general/create', methods=['POST'])
+@login_required
+def create_general_invoice():
+    """Erstellt eine neue erweiterte allgemeine Rechnung mit Positionen"""
+    from models import Invoice, InvoicePosition, Customer, Order, Article
+    from datetime import datetime, date
+    import json
+    
+    try:
+        print("Creating new general invoice...")
+        
+        # Basis-Daten aus Form
+        customer_id = request.form.get('customer_id')
+        order_id = request.form.get('order_id') if request.form.get('order_id') else None
+        
+        # Kundendetails (editierbar)
+        customer_salutation = request.form.get('customer_salutation')
+        customer_first_name = request.form.get('customer_first_name')
+        customer_last_name = request.form.get('customer_last_name')
+        customer_address = request.form.get('customer_address')
+        customer_city = request.form.get('customer_city')
+        customer_postal_code = request.form.get('customer_postal_code')
+        customer_email = request.form.get('customer_email')
+        customer_phone = request.form.get('customer_phone')
+        customer_uid = request.form.get('customer_uid')  # UID-Nummer hinzufügen
+        
+        # Rechnungsart aus Form
+        invoice_type_choice = request.form.get('invoice_type_choice', 'allgemein')
+        # Mapping der Frontend-Werte auf Backend-Werte
+        invoice_type_mapping = {
+            'allgemein': 'allgemein',
+            'anzahlung': 'anzahlung'
+        }
+        invoice_type = invoice_type_mapping.get(invoice_type_choice, 'allgemein')
+        
+        # Dokumentdetails
+        document_title = request.form.get('document_title')
+        service_description = request.form.get('service_description')
+        closing_text = request.form.get('closing_text')
+        
+        # Leistungszeitraum
+        service_period_start = None
+        service_period_end = None
+        if request.form.get('service_period_start'):
+            service_period_start = datetime.strptime(request.form.get('service_period_start'), '%Y-%m-%d').date()
+        if request.form.get('service_period_end'):
+            service_period_end = datetime.strptime(request.form.get('service_period_end'), '%Y-%m-%d').date()
+        
+        # Zahlungskonditionen
+        due_date = datetime.strptime(request.form.get('due_date'), '%Y-%m-%d').date()
+        calculate_vat = request.form.get('calculate_vat') == 'true'
+        
+        # Positionen verarbeiten
+        positions_data = []
+        total_net = 0.0
+        total_vat = 0.0
+        
+        # Alle positions[X][field] Felder sammeln
+        position_numbers = set()
+        for key in request.form.keys():
+            if key.startswith('positions[') and '][' in key:
+                pos_num = key.split('[')[1].split(']')[0]
+                try:
+                    position_numbers.add(int(pos_num))
+                except ValueError:
+                    continue
+        
+        # Positionen verarbeiten
+        for pos_num in sorted(position_numbers):
+            article_id = request.form.get(f'positions[{pos_num}][article_id]')
+            article_text = request.form.get(f'positions[{pos_num}][article_text]')
+            description = request.form.get(f'positions[{pos_num}][description]')
+            
+            # Sichere Float-Konvertierung
+            def safe_float(value, default=0.0):
+                try:
+                    return float(value) if value and str(value).strip() else default
+                except (ValueError, TypeError):
+                    return default
+            
+            quantity = safe_float(request.form.get(f'positions[{pos_num}][quantity]'))
+            unit = request.form.get(f'positions[{pos_num}][unit]', 'Stk')
+            price_net = safe_float(request.form.get(f'positions[{pos_num}][price_net]'))
+            price_gross = safe_float(request.form.get(f'positions[{pos_num}][price_gross]'))
+            discount_value = safe_float(request.form.get(f'positions[{pos_num}][discount_value]'))
+            discount_type = request.form.get(f'positions[{pos_num}][discount_type]', '€')
+            vat_rate = safe_float(request.form.get(f'positions[{pos_num}][vat_rate]'), 20.0)
+            
+            # Nur Positionen mit gültigen Daten verarbeiten (Menge und Preis dürfen nicht 0 sein)
+            if quantity != 0 and price_net != 0:
+                # Zeilensumme berechnen
+                line_total_net = quantity * price_net
+                
+                # Rabatt anwenden
+                if discount_type == '%':
+                    line_total_net = line_total_net * (1 - discount_value / 100)
+                else:
+                    line_total_net = line_total_net - discount_value
+                
+                # Negative Werte sind für Korrekturen erlaubt
+                line_total_gross = line_total_net * (1 + vat_rate / 100) if calculate_vat else line_total_net
+                
+                positions_data.append({
+                    'position_number': pos_num,
+                    'article_id': int(article_id) if article_id else None,
+                    'article_text': article_text if not article_id else None,
+                    'description': description,
+                    'quantity': quantity,
+                    'unit': unit,
+                    'price_net': price_net,
+                    'price_gross': price_gross,
+                    'discount_value': discount_value,
+                    'discount_type': discount_type,
+                    'vat_rate': vat_rate,
+                    'line_total_net': line_total_net,
+                    'line_total_gross': line_total_gross
+                })
+                
+                total_net += line_total_net
+                if calculate_vat:
+                    total_vat += line_total_net * (vat_rate / 100)
+        
+        if not positions_data:
+            flash('Fehler: Keine gültigen Positionen gefunden!', 'error')
+            return redirect(request.referrer)
+        
+        total_gross = total_net + total_vat
+        
+        # Rechnungsnummer generieren
+        current_year = datetime.now().year
+        last_invoice = Invoice.query.filter(
+            Invoice.invoice_number.like(f'R-{current_year}-%')
+        ).order_by(Invoice.invoice_number.desc()).first()
+        
+        if last_invoice:
+            last_number = int(last_invoice.invoice_number.split('-')[-1])
+            invoice_number = f"R-{current_year}-{last_number + 1:03d}"
+        else:
+            invoice_number = f"R-{current_year}-001"
+        
+        # Rechnung erstellen
+        invoice = Invoice(
+            invoice_number=invoice_number,
+            customer_id=customer_id,
+            order_id=order_id,
+            invoice_type=invoice_type,  # Verwendet den gewählten Typ
+            percentage=100.0,  # Vollrechnung
+            base_amount=total_net,
+            invoice_amount=total_net,
+            final_amount=total_net,
+            vat_rate=20.0,  # Standard, kann per Position überschrieben werden
+            vat_amount=total_vat,
+            gross_amount=total_gross,
+            due_date=due_date,
+            service_description=service_description,
+            
+            # Neue Felder für erweiterte allgemeine Rechnungen
+            document_title=document_title,
+            service_period_start=service_period_start,
+            service_period_end=service_period_end,
+            closing_text=closing_text,
+            calculate_vat=calculate_vat,
+            
+            # Editierbare Kundendetails
+            customer_salutation=customer_salutation,
+            customer_first_name=customer_first_name,
+            customer_last_name=customer_last_name,
+            customer_address=customer_address,
+            customer_city=customer_city,
+            customer_postal_code=customer_postal_code,
+            customer_email=customer_email,
+            customer_phone=customer_phone,
+            customer_uid=customer_uid  # UID-Nummer hinzufügen
+        )
+        
+        db.session.add(invoice)
+        db.session.flush()  # Um die ID zu bekommen
+        
+        # Positionen erstellen
+        for pos_data in positions_data:
+            position = InvoicePosition(
+                invoice_id=invoice.id,
+                position_number=pos_data['position_number'],
+                article_id=pos_data['article_id'],
+                article_text=pos_data['article_text'],
+                description=pos_data['description'],
+                quantity=pos_data['quantity'],
+                unit=pos_data['unit'],
+                price_net=pos_data['price_net'],
+                price_gross=pos_data['price_gross'],
+                discount_value=pos_data['discount_value'],
+                discount_type=pos_data['discount_type'],
+                vat_rate=pos_data['vat_rate'],
+                line_total_net=pos_data['line_total_net'],
+                line_total_gross=pos_data['line_total_gross']
+            )
+            db.session.add(position)
+        
+        db.session.commit()
+        
+        flash(f'Allgemeine Rechnung {invoice_number} erfolgreich erstellt!', 'success')
+        return redirect(url_for('invoice_details', id=invoice.id))
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error creating general invoice: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        flash(f'Fehler beim Erstellen der Rechnung: {str(e)}', 'error')
+        
+        # Formulardaten für erneute Anzeige vorbereiten
+        from models import Customer, Order, Article
+        customers = Customer.query.all()
+        customers_json = json.dumps([{
+            'id': c.id, 'first_name': c.first_name, 'last_name': c.last_name,
+            'customer_number': c.customer_number or '', 'salutation': c.salutation, 
+            'address': c.address, 'city': c.city, 'postal_code': c.postal_code, 
+            'email': c.email, 'phone': c.phone
+        } for c in customers])
+        
+        available_orders = Order.query.filter_by(status='confirmed').all()
+        available_orders_json = json.dumps([{
+            'id': o.id, 'order_number': o.order_number,
+            'customer_name': f"{o.customer.first_name} {o.customer.last_name}" if o.customer else "Unbekannt",
+            'quote_id': o.quote_id, 'total_amount': float(o.quote.total_amount) if o.quote else 0.0
+        } for o in available_orders])
+        
+        articles = Article.query.all()
+        articles_json = json.dumps([{
+            'id': a.id, 'name': a.name, 'description': a.description,
+            'display_name': a.name  # Nur Name als Anzeigename
+        } for a in articles])
+        
+        # Template mit Formulardaten rendern
+        return render_template('general_invoice.html',
+                             customers_json=customers_json,
+                             available_orders_json=available_orders_json,
+                             articles_json=articles_json,
+                             form_data=dict(request.form))
+
+
+@app.route('/invoices/<int:id>/update', methods=['POST'])
+@login_required
+def update_general_invoice(id):
+    """Aktualisiert eine bestehende allgemeine Rechnung"""
+    from models import Invoice, InvoicePosition, Customer, Order, Article
+    from datetime import datetime, date
+    import json
+    
+    try:
+        invoice = Invoice.query.get_or_404(id)
+        
+        # Nur nicht verschickte Rechnungen können bearbeitet werden
+        if invoice.status == 'sent':
+            flash('Verschickte Rechnungen können nicht mehr bearbeitet werden.', 'error')
+            return redirect(url_for('invoice_details', id=id))
+        
+        # Alte Positionen löschen
+        InvoicePosition.query.filter_by(invoice_id=invoice.id).delete()
+        
+        # Kundendetails aktualisieren (editierbar)
+        invoice.customer_id = request.form.get('customer_id')
+        invoice.customer_salutation = request.form.get('customer_salutation')
+        invoice.customer_first_name = request.form.get('customer_first_name')
+        invoice.customer_last_name = request.form.get('customer_last_name')
+        invoice.customer_address = request.form.get('customer_address')
+        invoice.customer_city = request.form.get('customer_city')
+        invoice.customer_postal_code = request.form.get('customer_postal_code')
+        invoice.customer_email = request.form.get('customer_email')
+        invoice.customer_phone = request.form.get('customer_phone')
+        invoice.customer_uid = request.form.get('customer_uid')
+        
+        # Rechnungsart aus Form
+        invoice_type_choice = request.form.get('invoice_type_choice', 'allgemein')
+        invoice_type_mapping = {
+            'allgemein': 'allgemein',
+            'anzahlung': 'anzahlung'
+        }
+        invoice.invoice_type = invoice_type_mapping.get(invoice_type_choice, 'allgemein')
+        
+        # Dokumentdetails
+        invoice.document_title = request.form.get('document_title')
+        invoice.service_description = request.form.get('service_description')
+        invoice.closing_text = request.form.get('closing_text')
+        
+        # Leistungszeitraum
+        if request.form.get('service_period_start'):
+            invoice.service_period_start = datetime.strptime(request.form.get('service_period_start'), '%Y-%m-%d').date()
+        if request.form.get('service_period_end'):
+            invoice.service_period_end = datetime.strptime(request.form.get('service_period_end'), '%Y-%m-%d').date()
+        
+        # Zahlungskonditionen
+        invoice.due_date = datetime.strptime(request.form.get('due_date'), '%Y-%m-%d').date()
+        calculate_vat = request.form.get('calculate_vat') == 'true'
+        
+        # Positionen verarbeiten (gleiche Logik wie bei create_general_invoice)
+        position_numbers = set()
+        for key in request.form.keys():
+            if key.startswith('positions[') and '][' in key:
+                pos_num = key.split('[')[1].split(']')[0]
+                try:
+                    position_numbers.add(int(pos_num))
+                except ValueError:
+                    continue
+        
+        total_net = 0.0
+        total_vat = 0.0
+        
+        # Positionen verarbeiten
+        for pos_num in sorted(position_numbers):
+            article_id = request.form.get(f'positions[{pos_num}][article_id]')
+            article_text = request.form.get(f'positions[{pos_num}][article_text]')
+            description = request.form.get(f'positions[{pos_num}][description]')
+            
+            # Sichere Float-Konvertierung
+            def safe_float(value, default=0.0):
+                try:
+                    return float(value) if value and str(value).strip() else default
+                except (ValueError, TypeError):
+                    return default
+            
+            quantity = safe_float(request.form.get(f'positions[{pos_num}][quantity]'))
+            unit = request.form.get(f'positions[{pos_num}][unit]', 'Stk')
+            price_net = safe_float(request.form.get(f'positions[{pos_num}][price_net]'))
+            price_gross = safe_float(request.form.get(f'positions[{pos_num}][price_gross]'))
+            discount_value = safe_float(request.form.get(f'positions[{pos_num}][discount_value]'))
+            discount_type = request.form.get(f'positions[{pos_num}][discount_type]', '€')
+            vat_rate = safe_float(request.form.get(f'positions[{pos_num}][vat_rate]'), 20.0)
+            
+            # Nur Positionen mit gültigen Daten verarbeiten
+            if quantity != 0 and price_net != 0:
+                # Zeilensumme berechnen
+                line_total_net = quantity * price_net
+                
+                # Rabatt anwenden
+                if discount_type == '%':
+                    line_total_net = line_total_net * (1 - discount_value / 100)
+                else:
+                    line_total_net = line_total_net - discount_value
+                
+                line_total_gross = line_total_net * (1 + vat_rate / 100) if calculate_vat else line_total_net
+                
+                # Neue Position erstellen
+                position = InvoicePosition(
+                    invoice_id=invoice.id,
+                    position_number=pos_num,
+                    article_id=int(article_id) if article_id else None,
+                    article_text=article_text if not article_id else None,
+                    description=description,
+                    quantity=quantity,
+                    unit=unit,
+                    price_net=price_net,
+                    price_gross=price_gross,
+                    discount_value=discount_value,
+                    discount_type=discount_type,
+                    vat_rate=vat_rate,
+                    line_total_net=line_total_net,
+                    line_total_gross=line_total_gross
+                )
+                db.session.add(position)
+                
+                total_net += line_total_net
+                if calculate_vat:
+                    total_vat += line_total_net * (vat_rate / 100)
+        
+        # Rechnungsbeträge aktualisieren
+        total_gross = total_net + total_vat
+        invoice.base_amount = total_net
+        invoice.invoice_amount = total_net
+        invoice.final_amount = total_net
+        invoice.vat_amount = total_vat
+        invoice.gross_amount = total_gross
+        
+        db.session.commit()
+        flash(f'Rechnung {invoice.invoice_number} wurde erfolgreich aktualisiert!', 'success')
+        return redirect(url_for('invoice_details', id=invoice.id))
+        
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Fehler beim Aktualisieren der Rechnung: {str(e)}', 'error')
+        return redirect(url_for('edit_invoice', id=id))
+
+
+@app.route('/api/invoices/existing')
+@login_required
+def get_existing_invoices_api():
+    """API-Endpunkt für bestehende Rechnungen eines Kunden/Auftrags"""
+    from models import Invoice
+    
+    try:
+        customer_id = request.args.get('customer_id')
+        order_id = request.args.get('order_id')
+        
+        query = Invoice.query
+        
+        if order_id:
+            # Rechnungen für spezifischen Auftrag
+            query = query.filter_by(order_id=order_id)
+        elif customer_id:
+            # Alle Rechnungen für Kunden
+            query = query.filter_by(customer_id=customer_id)
+        else:
+            return jsonify({'error': 'customer_id oder order_id erforderlich'}), 400
+        
+        invoices = query.order_by(Invoice.created_at.desc()).all()
+        
+        invoices_data = []
+        total_amount = 0.0
+        
+        for invoice in invoices:
+            invoices_data.append({
+                'id': invoice.id,
+                'invoice_number': invoice.invoice_number,
+                'invoice_type': invoice.invoice_type,
+                'final_amount': float(invoice.final_amount),
+                'status': invoice.status,
+                'created_at': invoice.created_at.isoformat()
+            })
+            total_amount += float(invoice.final_amount)
+        
+        return jsonify({
+            'invoices': invoices_data,
+            'total_amount': total_amount,
+            'count': len(invoices_data)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 if __name__ == '__main__':
     # Cloud-Hosting-Erkennung - nur für Railway, nicht für lokale Entwicklung

@@ -6,7 +6,7 @@ templates_admin = Blueprint('templates_admin', __name__)
 # List all templates
 @templates_admin.route('/admin/templates')
 def list_templates():
-    templates = PositionTemplate.query.all()
+    templates = PositionTemplate.query.order_by(PositionTemplate.sort_order, PositionTemplate.id).all()
     return render_template('admin/list_templates.html', templates=templates)
 
 # Add new template

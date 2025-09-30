@@ -16,6 +16,7 @@ class CustomerForm(FlaskForm):
     last_name = StringField('Nachname *', validators=[DataRequired()])
     email = StringField('E-Mail *', validators=[DataRequired(), Email()])
     phone = StringField('Telefon', validators=[Optional()])
+    uid_number = StringField('UID-Nummer', validators=[Optional()])
     address = TextAreaField('Adresse', validators=[Optional()])
     city = StringField('Stadt', validators=[Optional()])
     postal_code = StringField('PLZ', validators=[Optional()])
@@ -36,6 +37,7 @@ class QuoteForm(FlaskForm):
                            default=lambda: date.today() + timedelta(days=90))
     include_additional_info = BooleanField('Zusätzliche Informationen einschließen', default=True)
     markup_percentage = FloatField('Aufschlag (%)', validators=[DataRequired(), NumberRange(min=0, max=100)], default=15.0)
+    discount_percentage = FloatField('Rabatt (%)', validators=[Optional(), NumberRange(min=0, max=100)], default=0.0)
     submit = SubmitField('Angebot erstellen')
 
 class QuoteItemForm(FlaskForm):
@@ -83,8 +85,7 @@ class OrderForm(FlaskForm):
                           default=lambda: date.today() + timedelta(days=56))
     end_date = DateField('Projektende', validators=[],
                         default=lambda: date.today() + timedelta(days=59))
-    project_manager = StringField('Projektleiter', validators=[Optional()],
-                                 default='Michael Holasek')
+    project_manager = StringField('Projektleiter', validators=[Optional()])
     notes = TextAreaField('Projektnotizen', validators=[Optional()],
                          render_kw={"rows": 4, "placeholder": "Besondere Anweisungen oder Hinweise für die Ausführung..."})
     submit = SubmitField('Auftrag erstellen')

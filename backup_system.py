@@ -15,7 +15,9 @@ from openpyxl.styles import Font, PatternFill
 from models import (db, Customer, Quote, QuoteItem, QuoteSubItem, Order, Invoice, 
                    Supplier, SupplierOrder, SupplierOrderItem, PositionTemplate, 
                    AcquisitionChannel, CompanySettings, WorkInstruction, 
-                   InvoiceReminder, QuoteRejection, PositionTemplateSubItem, LoginAdmin)
+                   InvoiceReminder, QuoteRejection, PositionTemplateSubItem,
+                   Article, InvoicePosition)
+# LoginAdmin bewusst NICHT importiert - Login-Daten bleiben bei Wiederherstellung unverändert
 
 class DatabaseBackup:
     def __init__(self):
@@ -42,7 +44,7 @@ class DatabaseBackup:
             if customers:
                 ws = wb.create_sheet("Kunden")
                 headers = ['ID', 'Anrede', 'Vorname', 'Nachname', 'Email', 'Telefon', 'Adresse', 
-                          'PLZ', 'Stadt', 'Kundenbetreuer', 'Status', 'Akquisekanal', 'Detaillierter Akquisekanal', 
+                          'PLZ', 'Stadt', 'UID-Nummer', 'Kundenbetreuer', 'Status', 'Akquisekanal', 'Detaillierter Akquisekanal', 
                           '1. Termin', '1. Termin Notizen', '2. Termin', '2. Termin Notizen', 'Kommentare', 'Erstellt']
                 ws.append(headers)
                 
@@ -63,6 +65,7 @@ class DatabaseBackup:
                         customer.address or '',
                         customer.postal_code or '',
                         customer.city or '',
+                        customer.uid_number or '',
                         customer.customer_manager or '',
                         customer.status or '',
                         customer.acquisition_channel.name if customer.acquisition_channel else '',
@@ -256,7 +259,7 @@ class DatabaseBackup:
                     ])
             
             # 7. Lieferanten-Sheet
-            suppliers = Supplier.query.all()
+            suppliers = Supplier.query.order_by(Supplier.name).all()
             if suppliers:
                 ws = wb.create_sheet("Lieferanten")
                 headers = ['ID', 'Name', 'Kategorie', 'Kontaktperson', 'Email', 'Telefon', 'Adresse', 'Notizen']
@@ -283,7 +286,7 @@ class DatabaseBackup:
             if supplier_orders:
                 ws = wb.create_sheet("Lieferantenbestellungen")
                 headers = ['ID', 'Auftrag_ID', 'Angebot_ID', 'Lieferant', 'Bestelldatum', 'Bestätigungsdatum', 
-                          'Liefertermin', 'Status', 'Notizen', 'Erstellt', 'Aktualisiert']
+                          'Liefertermin', 'Status', 'Notizen']
                 ws.append(headers)
                 
                 for cell in ws[1]:
@@ -301,16 +304,15 @@ class DatabaseBackup:
                         supplier_order.delivery_date if supplier_order.delivery_date else '',
                         supplier_order.status or '',
                         supplier_order.notes or '',
-                        supplier_order.created_at if supplier_order.created_at else '',
-                        supplier_order.updated_at if supplier_order.updated_at else ''
+                        supplier_order.order_date if supplier_order.order_date else ''
                     ])
             
             # 9. Lieferantenbestellpositionen-Sheet
             supplier_order_items = SupplierOrderItem.query.all()
             if supplier_order_items:
                 ws = wb.create_sheet("Lieferantenbestellpositionen")
-                headers = ['ID', 'Bestellung_ID', 'QuoteSubItem_ID', 'Beschreibung', 'Teilenummer', 
-                          'Menge', 'Lieferant', 'Notizen', 'Erstellt', 'Aktualisiert']
+                headers = ['ID', 'Bestellung_ID', 'Unter_Nr', 'Beschreibung', 'Teilenummer', 
+                          'Menge', 'QuoteSubItem_ID']
                 ws.append(headers)
                 
                 for cell in ws[1]:
@@ -321,14 +323,11 @@ class DatabaseBackup:
                     ws.append([
                         item.id,
                         item.supplier_order_id or '',
-                        item.quote_sub_item_id or '',
+                        item.sub_number or '',
                         item.description or '',
                         item.part_number or '',
                         item.quantity or 1,
-                        item.supplier_name or '',
-                        item.notes or '',
-                        item.created_at if item.created_at else '',
-                        item.updated_at if item.updated_at else ''
+                        item.quote_sub_item_id or ''
                     ])
             
             # 8. Positionsvorlagen-Sheet
@@ -573,24 +572,57 @@ class DatabaseBackup:
                         subitem.price if subitem.price else 0
                     ])
             
-            # 17. Admin-Benutzer-Sheet (ohne Passwörter aus Sicherheitsgründen)
-            admin_users = LoginAdmin.query.all()
-            if admin_users:
-                ws = wb.create_sheet("Admin_Benutzer")
-                headers = ['ID', 'Benutzername', 'Ist_Aktiv', 'Erstellt', 'Letzter_Login']
+            # 17. Admin-Benutzer werden aus Sicherheitsgründen NICHT im Backup gespeichert
+            # Login-Daten bleiben bei Wiederherstellung unverändert
+            
+            # 18. Artikel-Sheet
+            articles = Article.query.all()
+            if articles:
+                ws = wb.create_sheet("Artikel")
+                headers = ['ID', 'Name', 'Beschreibung']
                 ws.append(headers)
                 
                 for cell in ws[1]:
                     cell.font = header_font
                     cell.fill = header_fill
                 
-                for user in admin_users:
+                for article in articles:
                     ws.append([
-                        user.login_id,
-                        user.login_username or '',
-                        user.login_is_active,
-                        user.login_created_at if user.login_created_at else '',
-                        user.login_last_login if user.login_last_login else ''
+                        article.id,
+                        article.name or '',
+                        article.description or ''
+                    ])
+            
+            # 19. Rechnungspositionen-Sheet
+            invoice_positions = InvoicePosition.query.all()
+            if invoice_positions:
+                ws = wb.create_sheet("Rechnungspositionen")
+                headers = ['ID', 'Rechnung_ID', 'Position_Nr', 'Artikel_ID', 'Artikel_Text', 'Beschreibung', 
+                          'Menge', 'Einheit', 'Preis_Netto', 'Preis_Brutto', 'Rabatt_Wert', 'Rabatt_Typ', 
+                          'Zeilensumme_Netto', 'Zeilensumme_Brutto', 'MwSt_Satz']
+                ws.append(headers)
+                
+                for cell in ws[1]:
+                    cell.font = header_font
+                    cell.fill = header_fill
+                
+                for position in invoice_positions:
+                    ws.append([
+                        position.id,
+                        position.invoice_id,
+                        position.position_number,
+                        position.article_id or '',
+                        position.article_text or '',
+                        position.description or '',
+                        position.quantity if position.quantity else 0,
+                        position.unit or '',
+                        position.price_net if position.price_net else 0,
+                        position.price_gross if position.price_gross else 0,
+                        position.discount_value if position.discount_value else 0,
+                        position.discount_type or '',
+                        position.line_total_net if position.line_total_net else 0,
+                        position.line_total_gross if position.line_total_gross else 0,
+                        position.vat_rate if position.vat_rate else 0
                     ])
             
             # Info-Sheet
@@ -626,6 +658,37 @@ class DatabaseBackup:
             
             return excel_buffer, f'backup_error_{timestamp}.xlsx'
     
+    def save_backup_to_disk(self, buffer, filename):
+        """Speichert ein Backup-Buffer als physische Datei im backups-Ordner"""
+        try:
+            file_path = os.path.join(self.backup_dir, filename)
+            with open(file_path, 'wb') as f:
+                f.write(buffer.getvalue())
+            print(f"✓ Backup gespeichert: {file_path}")
+            return file_path
+        except Exception as e:
+            print(f"Fehler beim Speichern der Backup-Datei: {e}")
+            return None
+
+    def create_complete_backup(self):
+        """Erstellt Excel- und SQLite-Backup und speichert beide als Dateien"""
+        print("Erstelle vollständiges Backup...")
+        
+        # Excel-Backup erstellen und speichern
+        excel_buffer, excel_filename = self.create_excel_backup()
+        if excel_buffer:
+            excel_path = self.save_backup_to_disk(excel_buffer, excel_filename)
+        
+        # SQLite-Backup erstellen und speichern
+        sqlite_buffer, sqlite_filename = self.create_sqlite_backup()
+        if sqlite_buffer:
+            sqlite_path = self.save_backup_to_disk(sqlite_buffer, sqlite_filename)
+        
+        return {
+            'excel': {'buffer': excel_buffer, 'filename': excel_filename, 'path': excel_path if excel_buffer else None},
+            'sqlite': {'buffer': sqlite_buffer, 'filename': sqlite_filename, 'path': sqlite_path if sqlite_buffer else None}
+        }
+
     def create_sqlite_backup(self):
         """Erstellt eine SQLite-Datenbank - entweder als Kopie (lokal) oder Export (PostgreSQL)"""
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -645,11 +708,12 @@ class DatabaseBackup:
                     break
             
             if source_db:
-                # Lokale SQLite-Datei kopieren
-                db_buffer = BytesIO()
-                with open(source_db, 'rb') as f:
-                    db_buffer.write(f.read())
-                db_buffer.seek(0)
+                # Lokale SQLite-Datei - erstelle gefilterte Kopie OHNE login_admins
+                print("Lokale SQLite erkannt - erstelle gefilterte Kopie ohne Login-Daten...")
+                db_buffer = self._create_filtered_sqlite_copy(source_db)
+                if not db_buffer:
+                    print("Fehler beim Erstellen der gefilterten Kopie!")
+                    return None, None
             else:
                 # PostgreSQL (Railway) - neue SQLite-Datei aus den Daten erstellen
                 print("PostgreSQL erkannt - erstelle SQLite-Export...")
@@ -665,6 +729,68 @@ class DatabaseBackup:
             print(f"Fehler beim SQLite-Backup: {e}")
             return None, None
     
+    def _create_filtered_sqlite_copy(self, source_db_path):
+        """Erstellt eine gefilterte SQLite-Kopie OHNE login_admins Tabelle"""
+        try:
+            # Temporäre SQLite-Datei erstellen
+            db_buffer = BytesIO()
+            
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as temp_file:
+                temp_db_path = temp_file.name
+            
+            # Neue SQLite-Verbindung für gefilterte Kopie
+            dest_conn = sqlite3.connect(temp_db_path)
+            dest_cursor = dest_conn.cursor()
+            
+            # Original-DB öffnen
+            source_conn = sqlite3.connect(source_db_path)
+            source_cursor = source_conn.cursor()
+            
+            # Alle Tabellen AUSSER login_admins kopieren
+            source_cursor.execute("SELECT name, sql FROM sqlite_master WHERE type='table'")
+            tables = source_cursor.fetchall()
+            
+            excluded_tables = ['login_admins']  # Admin-Tabellen ausschließen
+            
+            for table_name, create_sql in tables:
+                if table_name not in excluded_tables and not table_name.startswith('sqlite_'):
+                    # Tabelle erstellen
+                    dest_cursor.execute(create_sql)
+                    
+                    # Daten kopieren
+                    source_cursor.execute(f'SELECT * FROM `{table_name}`')
+                    rows = source_cursor.fetchall()
+                    
+                    if rows:
+                        # Column count ermitteln
+                        source_cursor.execute(f'PRAGMA table_info(`{table_name}`)')
+                        columns = source_cursor.fetchall()
+                        placeholders = ','.join(['?' for _ in columns])
+                        
+                        dest_cursor.executemany(f'INSERT INTO `{table_name}` VALUES ({placeholders})', rows)
+            
+            source_conn.close()
+            dest_conn.commit()
+            dest_conn.close()
+            
+            # Datei in BytesIO laden
+            with open(temp_db_path, 'rb') as f:
+                db_buffer.write(f.read())
+            db_buffer.seek(0)
+            
+            # Temporäre Datei löschen
+            os.unlink(temp_db_path)
+            
+            print("✅ Gefilterte SQLite-Kopie erstellt (ohne login_admins)")
+            return db_buffer
+            
+        except Exception as e:
+            print(f"Fehler beim Erstellen der gefilterten Kopie: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
     def _create_sqlite_from_postgresql(self):
         """Erstellt eine SQLite-Datei aus PostgreSQL-Daten"""
         try:
@@ -717,6 +843,7 @@ class DatabaseBackup:
             address TEXT,
             city VARCHAR(100),
             postal_code VARCHAR(10),
+            uid_number VARCHAR(20),
             customer_manager VARCHAR(100),
             acquisition_channel_id INTEGER,
             detailed_acquisition_channel TEXT,
@@ -840,6 +967,9 @@ class DatabaseBackup:
             updated_at DATETIME
         );
         
+        -- login_admins Tabelle wird bewusst NICHT erstellt
+        -- Login-Daten bleiben bei Wiederherstellung unverändert
+        
         CREATE TABLE supplier_order (
             id INTEGER PRIMARY KEY,
             order_id INTEGER,
@@ -849,23 +979,45 @@ class DatabaseBackup:
             confirmation_date DATE,
             delivery_date DATE,
             status VARCHAR(50) DEFAULT 'Noch nicht bestellt',
-            notes TEXT,
-            created_at DATETIME,
-            updated_at DATETIME
+            notes TEXT
         );
         
         CREATE TABLE supplier_order_item (
             id INTEGER PRIMARY KEY,
             supplier_order_id INTEGER NOT NULL,
-            quote_sub_item_id INTEGER,
+            sub_number VARCHAR(10) NOT NULL,
             description TEXT NOT NULL,
-            part_number VARCHAR(255),
-            quantity INTEGER NOT NULL DEFAULT 1,
-            supplier_name VARCHAR(255),
-            notes TEXT,
-            created_at DATETIME,
-            updated_at DATETIME,
-            FOREIGN KEY (supplier_order_id) REFERENCES supplier_order (id) ON DELETE CASCADE
+            part_number VARCHAR(100),
+            quantity VARCHAR(50) DEFAULT '1',
+            quote_sub_item_id INTEGER,
+            FOREIGN KEY (supplier_order_id) REFERENCES supplier_order (id) ON DELETE CASCADE,
+            FOREIGN KEY (quote_sub_item_id) REFERENCES quote_sub_item (id)
+        );
+        
+        CREATE TABLE article (
+            id INTEGER PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            description TEXT
+        );
+        
+        CREATE TABLE invoice_position (
+            id INTEGER PRIMARY KEY,
+            invoice_id INTEGER NOT NULL,
+            position_number INTEGER NOT NULL,
+            article_id INTEGER,
+            article_text VARCHAR(200),
+            description TEXT,
+            quantity DECIMAL(10,3) DEFAULT 1.0,
+            unit VARCHAR(20) DEFAULT 'Stk',
+            price_net DECIMAL(10,2) NOT NULL,
+            price_gross DECIMAL(10,2) NOT NULL,
+            discount_value DECIMAL(10,2) DEFAULT 0.0,
+            discount_type VARCHAR(10) DEFAULT '€',
+            line_total_net DECIMAL(10,2),
+            line_total_gross DECIMAL(10,2),
+            vat_rate DECIMAL(5,2) DEFAULT 20.0,
+            FOREIGN KEY (invoice_id) REFERENCES invoice (id) ON DELETE CASCADE,
+            FOREIGN KEY (article_id) REFERENCES article (id) ON DELETE SET NULL
         );
         """
         
@@ -882,16 +1034,16 @@ class DatabaseBackup:
             for customer in customers:
                 cursor.execute('''
                     INSERT INTO customer (id, salutation, first_name, last_name, email, phone, 
-                                        address, city, postal_code, customer_manager, 
+                                        address, city, postal_code, uid_number, customer_manager, 
                                         acquisition_channel_id, detailed_acquisition_channel,
                                         status, appointment_date, appointment_notes, 
                                         second_appointment_date, second_appointment_notes, 
                                         comments, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     customer.id, customer.salutation, customer.first_name, customer.last_name,
                     customer.email, customer.phone, customer.address, customer.city,
-                    customer.postal_code, customer.customer_manager, customer.acquisition_channel_id,
+                    customer.postal_code, customer.uid_number, customer.customer_manager, customer.acquisition_channel_id,
                     customer.detailed_acquisition_channel, customer.status, customer.appointment_date,
                     customer.appointment_notes, customer.second_appointment_date, 
                     customer.second_appointment_notes, customer.comments, customer.created_at
@@ -1003,33 +1155,56 @@ class DatabaseBackup:
             supplier_orders = SupplierOrder.query.all()
             for supplier_order in supplier_orders:
                 cursor.execute('''
-                    INSERT INTO supplier_order (id, order_id, quote_id, supplier_name, order_date,
-                                              confirmation_date, delivery_date, status, notes,
-                                              created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO supplier_order (id, order_id, quote_id, supplier_name, order_date, 
+                                              confirmation_date, delivery_date, status, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     supplier_order.id, supplier_order.order_id, supplier_order.quote_id,
                     supplier_order.supplier_name, supplier_order.order_date,
                     supplier_order.confirmation_date, supplier_order.delivery_date,
-                    supplier_order.status, supplier_order.notes, supplier_order.created_at,
-                    supplier_order.updated_at
-                ))
-            
-            # Lieferantenbestellpositionen exportieren
+                    supplier_order.status, supplier_order.notes
+                ))            # Lieferantenbestellpositionen exportieren
             supplier_order_items = SupplierOrderItem.query.all()
             for item in supplier_order_items:
                 cursor.execute('''
-                    INSERT INTO supplier_order_item (id, supplier_order_id, quote_sub_item_id, 
-                                                    description, part_number, quantity, supplier_name,
-                                                    notes, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO supplier_order_item (id, supplier_order_id, sub_number, 
+                                                    description, part_number, quantity, 
+                                                    quote_sub_item_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                 ''', (
-                    item.id, item.supplier_order_id, item.quote_sub_item_id, item.description,
-                    item.part_number, item.quantity, item.supplier_name, item.notes,
-                    item.created_at, item.updated_at
+                    item.id, item.supplier_order_id, item.sub_number, item.description,
+                    item.part_number, item.quantity, item.quote_sub_item_id
                 ))
             
-            print(f"SQLite-Export erfolgreich: {len(customers)} Kunden, {len(quotes)} Angebote, {len(quote_items)} Positionen, {len(quote_sub_items)} Unterpositionen, {len(templates)} Vorlagen, {len(template_subitems)} Vorlagen-Unterpositionen, {len(invoices)} Rechnungen, {len(supplier_orders)} Lieferantenbestellungen, {len(supplier_order_items)} Bestellpositionen")
+            # Artikel exportieren
+            articles = Article.query.all()
+            for article in articles:
+                cursor.execute('''
+                    INSERT INTO article (id, name, description)
+                    VALUES (?, ?, ?)
+                ''', (
+                    article.id, article.name, article.description
+                ))
+            
+            # Rechnungspositionen exportieren
+            invoice_positions = InvoicePosition.query.all()
+            for position in invoice_positions:
+                cursor.execute('''
+                    INSERT INTO invoice_position (id, invoice_id, position_number, article_id, 
+                                                article_text, description, quantity, unit, 
+                                                price_net, price_gross, discount_value, 
+                                                discount_type, line_total_net, line_total_gross, 
+                                                vat_rate)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    position.id, position.invoice_id, position.position_number, position.article_id,
+                    position.article_text, position.description, position.quantity, position.unit,
+                    position.price_net, position.price_gross, position.discount_value, 
+                    position.discount_type, position.line_total_net, position.line_total_gross,
+                    position.vat_rate
+                ))
+            
+            print(f"SQLite-Export erfolgreich: {len(customers)} Kunden, {len(quotes)} Angebote, {len(quote_items)} Positionen, {len(quote_sub_items)} Unterpositionen, {len(templates)} Vorlagen, {len(template_subitems)} Vorlagen-Unterpositionen, {len(invoices)} Rechnungen, {len(articles)} Artikel, {len(invoice_positions)} Rechnungspositionen, {len(supplier_orders)} Lieferantenbestellungen, {len(supplier_order_items)} Bestellpositionen")
             
         except Exception as e:
             print(f"Fehler beim Datenexport: {e}")

@@ -19,6 +19,7 @@ class Customer(db.Model):
     address = db.Column(db.Text)
     city = db.Column(db.String(100))
     postal_code = db.Column(db.String(10))
+    uid_number = db.Column(db.String(20))  # UID-Nummer (optional)
     customer_manager = db.Column(db.String(100))  # Kundenbetreuer (optional)
     acquisition_channel_id = db.Column(db.Integer, db.ForeignKey('acquisition_channel.id'))  # Akquisekanal
     detailed_acquisition_channel = db.Column(db.Text)  # Detaillierter Akquisekanal (Textfeld)
@@ -81,6 +82,11 @@ class Customer(db.Model):
             return True
         
         return False
+    
+    @property
+    def customer_number(self):
+        """Gibt die Kundennummer als 5-stellige Zahl zurück (ID + 10000)"""
+        return f"{self.id + 10000}"
 
 class Quote(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -97,6 +103,7 @@ class Quote(db.Model):
     # Alte Kompatibilität beibehalten (deprecated, wird durch price_display_mode ersetzt)
     show_subitem_prices = db.Column(db.Boolean, default=False)  # Preistransparenz Unterpositionen
     markup_percentage = db.Column(db.Float, default=15.0)  # Aufschlag in Prozent (Standard: 15%)
+    discount_percentage = db.Column(db.Float, default=0.0)  # Rabatt in Prozent (Standard: 0%)
     
     # Editierbare Zusatzinformationen für PDF
     leistungsumfang = db.Column(db.Text, default='• Demontage der bestehenden Produkte inklusive Entsorgung\n• Montage der im Angebot angeführten Produkte\n• Anschluss an bestehendes Gebäudeleitungssystem im unmittelbaren Umbaubereich ab Badezimmer oder in der Dusche\n• Diverse Ausgleichs- und Abdichtungsarbeiten')
@@ -124,16 +131,27 @@ class Quote(db.Model):
         return base_total
     
     def calculate_total(self):
-        """Berechnet die Gesamtsumme aller Positionen mit Aufschlag"""
+        """Berechnet die Gesamtsumme aller Positionen mit Aufschlag und abzüglich Rabatt"""
         net_total = self.calculate_net_total()
         markup_amount = self.calculate_markup_amount()
-        return net_total + markup_amount
+        total_with_markup = net_total + markup_amount
+        discount_amount = self.calculate_discount_amount()
+        return total_with_markup - discount_amount
     
     def calculate_markup_amount(self):
         """Berechnet den Aufschlagsbetrag basierend auf der echten Nettosumme"""
         net_total = self.calculate_net_total()
         if self.markup_percentage and self.markup_percentage > 0:
             return net_total * (self.markup_percentage / 100)
+        return 0.0
+    
+    def calculate_discount_amount(self):
+        """Berechnet den Rabattbetrag basierend auf der Summe inklusive Aufschlag"""
+        net_total = self.calculate_net_total()
+        markup_amount = self.calculate_markup_amount()
+        total_with_markup = net_total + markup_amount
+        if self.discount_percentage and self.discount_percentage > 0:
+            return total_with_markup * (self.discount_percentage / 100)
         return 0.0
     
     def update_total(self):
@@ -247,6 +265,7 @@ class PositionTemplate(db.Model):
     name = db.Column(db.String(128), nullable=False)
     # category = db.Column(db.String(64))  # Kategorie (UmbauWanneZurDusche, etc.) - REMOVED
     description = db.Column(db.Text)  # Beschreibung der Vorlage
+    sort_order = db.Column(db.Integer, default=0)  # Sortierreihenfolge
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -619,6 +638,25 @@ class Invoice(db.Model):
     paid_amount = db.Column(db.Float, default=0.0)  # Bereits bezahlter Betrag
     payment_comment = db.Column(db.Text, nullable=True)  # Kommentar zur Teilzahlung
     service_description = db.Column(db.Text, nullable=True)  # Leistungsbeschreibung für allgemeine Rechnungen
+    
+    # Neue Felder für erweiterte allgemeine Rechnungen
+    document_title = db.Column(db.String(255))  # Dokumentbezeichnung für PDF-Header
+    service_period_start = db.Column(db.Date, nullable=True)  # Leistungszeitraum von
+    service_period_end = db.Column(db.Date, nullable=True)  # Leistungszeitraum bis
+    closing_text = db.Column(db.Text, nullable=True)  # Schlusstext
+    calculate_vat = db.Column(db.Boolean, default=True)  # USt verrechnen oder nicht
+    
+    # Kundendetails (editierbar für allgemeine Rechnungen)
+    customer_salutation = db.Column(db.String(100))
+    customer_first_name = db.Column(db.String(100))
+    customer_last_name = db.Column(db.String(100))
+    customer_address = db.Column(db.Text)
+    customer_city = db.Column(db.String(100))
+    customer_postal_code = db.Column(db.String(10))
+    customer_email = db.Column(db.String(120))
+    customer_phone = db.Column(db.String(20))
+    customer_uid = db.Column(db.String(20))  # UID-Nummer
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -843,6 +881,55 @@ class Invoice(db.Model):
     def get_vat_total(self):
         """MwSt.-Gesamtsumme ist vat_amount"""
         return self.vat_amount or 0.0
+    
+    def to_dict(self):
+        """Konvertiert die Rechnung zu einem Dictionary für JSON-Serialisierung"""
+        result = {
+            'id': self.id,
+            'invoice_number': self.invoice_number,
+            'customer_id': self.customer_id,
+            'order_id': self.order_id,
+            'invoice_type': self.invoice_type,
+            'customer_salutation': self.customer_salutation,
+            'customer_first_name': self.customer_first_name,
+            'customer_last_name': self.customer_last_name,
+            'customer_address': self.customer_address,
+            'customer_city': self.customer_city,
+            'customer_postal_code': self.customer_postal_code,
+            'customer_email': self.customer_email,
+            'customer_phone': self.customer_phone,
+            'customer_uid': self.customer_uid,
+            'document_title': self.document_title,
+            'service_description': self.service_description,
+            'closing_text': self.closing_text,
+            'service_period_start': self.service_period_start.isoformat() if self.service_period_start else None,
+            'service_period_end': self.service_period_end.isoformat() if self.service_period_end else None,
+            'due_date': self.due_date.isoformat() if self.due_date else None,
+            'calculate_vat': self.calculate_vat,
+            'status': self.status,
+            'positions': []
+        }
+        
+        # Positionen hinzufügen
+        if hasattr(self, 'positions'):
+            for position in self.positions:
+                result['positions'].append({
+                    'position_number': position.position_number,
+                    'article_id': position.article_id,
+                    'article_text': position.article_text,
+                    'description': position.description,
+                    'quantity': position.quantity,
+                    'unit': position.unit,
+                    'price_net': position.price_net,
+                    'price_gross': position.price_gross,
+                    'discount_value': position.discount_value,
+                    'discount_type': position.discount_type,
+                    'vat_rate': position.vat_rate,
+                    'line_total_net': position.line_total_net,
+                    'line_total_gross': position.line_total_gross
+                })
+        
+        return result
 
 
 class LoginAdmin(db.Model):
@@ -941,3 +1028,81 @@ class InvoiceReminder(db.Model):
     
     def __repr__(self):
         return f'<InvoiceReminder {self.reminder_type} for Order {self.order_id}>'
+
+
+class Article(db.Model):
+    """Model für Artikel-Stammdaten"""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)  # Artikelname
+    description = db.Column(db.Text)  # Artikelbeschreibung
+    
+    def __repr__(self):
+        return f'<Article {self.name}>'
+    
+    @property
+    def display_name(self):
+        """Für Dropdown-Anzeige: Name"""
+        return self.name
+
+
+class InvoicePosition(db.Model):
+    """Model für Rechnungspositionen"""
+    id = db.Column(db.Integer, primary_key=True)
+    invoice_id = db.Column(db.Integer, db.ForeignKey('invoice.id'), nullable=False)
+    position_number = db.Column(db.Integer, nullable=False)  # Positionsnummer
+    
+    # Artikel-Referenz oder Freitext
+    article_id = db.Column(db.Integer, db.ForeignKey('article.id'), nullable=True)
+    article_text = db.Column(db.String(200))  # Freitext wenn kein Artikel gewählt
+    description = db.Column(db.Text)  # Positionsbeschreibung
+    
+    # Mengen und Preise
+    quantity = db.Column(db.Numeric(10, 3), default=1.0)  # Menge
+    unit = db.Column(db.String(20), default='Stk')  # Einheit
+    price_net = db.Column(db.Numeric(10, 2), nullable=False)  # Einzelpreis netto
+    price_gross = db.Column(db.Numeric(10, 2), nullable=False)  # Einzelpreis brutto
+    
+    # Rabatt
+    discount_value = db.Column(db.Numeric(10, 2), default=0.0)  # Rabattwert
+    discount_type = db.Column(db.String(10), default='€')  # '%' oder '€'
+    
+    # Berechnete Werte
+    line_total_net = db.Column(db.Numeric(10, 2))  # Zeilensumme netto
+    line_total_gross = db.Column(db.Numeric(10, 2))  # Zeilensumme brutto
+    vat_rate = db.Column(db.Numeric(5, 2), default=20.0)  # MwSt-Satz
+    
+    # Beziehungen
+    invoice = db.relationship('Invoice', backref=db.backref('positions', cascade='all, delete-orphan'))
+    article = db.relationship('Article', backref='invoice_positions')
+    
+    def calculate_totals(self):
+        """Berechnet die Zeilensummen unter Berücksichtigung von Rabatten"""
+        if not self.quantity or not self.price_net:
+            return
+            
+        # Basis-Zeilensumme
+        base_total_net = self.quantity * self.price_net
+        
+        # Rabatt anwenden
+        if self.discount_type == '%':
+            discount_amount = base_total_net * (self.discount_value / 100)
+        else:  # €
+            discount_amount = self.discount_value
+            
+        self.line_total_net = base_total_net - discount_amount
+        
+        # Bruttoberechnung
+        if self.vat_rate:
+            self.line_total_gross = self.line_total_net * (1 + self.vat_rate / 100)
+        else:
+            self.line_total_gross = self.line_total_net
+    
+    @property
+    def article_display_text(self):
+        """Text für die Anzeige: Artikel oder Freitext"""
+        if self.article:
+            return self.article.display_name
+        return self.article_text or ""
+    
+    def __repr__(self):
+        return f'<InvoicePosition {self.position_number}: {self.article_display_text}>'

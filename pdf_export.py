@@ -334,7 +334,7 @@ class PDFExporter:
                         # Kompatibilität: Wenn alte Checkbox aktiviert war, verwende 'detailed' Modus
                         display_mode = 'detailed'
                     
-                    if display_mode == 'detailed' and sub_item.price > 0:
+                    if display_mode == 'detailed' and sub_item.price != 0:
                         # Detailliert: Zeige Unterpositionspreise mit Aufschlag - rechtsbündig
                         sub_price_with_markup = sub_item.calculate_price_with_markup()
                         sub_text = f"{sub_item.sub_number} {sub_item.description}"
@@ -360,9 +360,15 @@ class PDFExporter:
     
     def _build_price_summary(self, quote):
         """Erstellt die Preiszusammenfassung"""
-        netto_summe = quote.total_amount or 0
-        ust_betrag = netto_summe * 0.20  # 20% USt
-        brutto_summe = netto_summe + ust_betrag
+        # Berechne detaillierte Preissummen
+        net_total = quote.calculate_net_total()  # Basis ohne Aufschlag
+        markup_amount = quote.calculate_markup_amount()  # Aufschlag
+        total_with_markup = net_total + markup_amount  # Summe mit Aufschlag
+        discount_amount = quote.calculate_discount_amount()  # Rabatt
+        final_total = quote.calculate_total()  # Finale Summe nach Rabatt
+        
+        ust_betrag = final_total * 0.20  # 20% USt auf finale Summe
+        brutto_summe = final_total + ust_betrag
         
         # Hinweis zu Netto-Preisen
         netto_note_style = ParagraphStyle(
@@ -379,27 +385,38 @@ class PDFExporter:
             Paragraph("Alle angegebenen Preise verstehen sich als Nettopreise.", netto_note_style)
         ]
         
-        # Preisaufschlüsselung
-        price_data = [
-            ['', 'Summe Netto:', format_currency_de(netto_summe)],
+        # Preisaufschlüsselung für Kunde - KEINE internen Aufschläge zeigen!
+        price_data = []
+        
+        # Rabatt nur anzeigen, wenn vorhanden
+        if quote.discount_percentage and quote.discount_percentage > 0:
+            # Zeige Summe vor Rabatt, Rabatt und finale Summe
+            price_data.extend([
+                ['', 'Summe Netto:', format_currency_de(total_with_markup)],
+                ['', f'Rabatt ({quote.discount_percentage}%):', f'-{format_currency_de(discount_amount)}'],
+                ['', 'Summe Netto (nach Rabatt):', format_currency_de(final_total)],
+            ])
+        else:
+            # Nur finale Summe anzeigen (enthält bereits Aufschlag)
+            price_data.append(['', 'Summe Netto:', format_currency_de(final_total)])
+        
+        # USt und Brutto immer anzeigen
+        price_data.extend([
             ['', 'USt 20%:', format_currency_de(ust_betrag)],
             ['', 'Gesamtsumme (Brutto):', format_currency_de(brutto_summe)]
-        ]
+        ])
         
         price_table = Table(price_data, colWidths=[6*cm, 7*cm, 4*cm])
         price_table.setStyle(TableStyle([
             ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
             ('ALIGN', (2, 0), (2, -1), 'RIGHT'),
-            ('FONTSIZE', (1, 0), (2, 1), 12),
-            ('FONTNAME', (1, 0), (2, 1), 'Helvetica'),
-            ('FONTSIZE', (1, 2), (2, 2), 12),
-            ('FONTNAME', (1, 2), (2, 2), 'Helvetica-Bold'),
-            ('LINEABOVE', (1, 2), (2, 2), 1, colors.black),
-            ('BACKGROUND', (1, 2), (2, 2), colors.HexColor('#fff3e6')),
+            ('FONTSIZE', (1, 0), (2, -1), 12),
+            ('FONTNAME', (1, 0), (2, -2), 'Helvetica'),
+            ('FONTNAME', (1, -1), (2, -1), 'Helvetica-Bold'),
+            ('LINEABOVE', (1, -1), (2, -1), 1, colors.black),
+            ('BACKGROUND', (1, -1), (2, -1), colors.HexColor('#fff3e6')),
             ('BOTTOMPADDING', (1, 0), (-1, -1), 6),
             ('TOPPADDING', (1, 0), (-1, -1), 6),
-            ('TOPPADDING', (1, 2), (2, 2), 10),
-            ('BOTTOMPADDING', (1, 2), (2, 2), 10),
         ]))
         
         elements.extend([price_table, Spacer(1, 0.5*cm)])
@@ -628,8 +645,7 @@ Die von uns gelieferte, montierte oder sonst übergebene Ware bleibt bis zur vol
             ["Geplantes Ende:", order.end_date.strftime('%d.%m.%Y') if order.end_date else "-"],
             ["Projektleiter:", order.project_manager or "-"],
             ["Status:", order.status],
-            ["Montageort:", work_instruction.installation_location or "-"],
-            ["Geschätzte Dauer:", f"{work_instruction.estimated_duration} Stunden" if work_instruction.estimated_duration else "-"]
+            ["Montageort:", work_instruction.installation_location or "-"]
         ]
         
         project_table = Table(project_data, colWidths=[3*cm, 14*cm])
@@ -642,9 +658,18 @@ Die von uns gelieferte, montierte oder sonst übergebene Ware bleibt bis zur vol
         story.append(Spacer(1, 0.8*cm))
         
         # 2a. Arbeitsanweisungen und Hinweise
-        if work_instruction.sonstiges or work_instruction.tools_required or work_instruction.access_requirements:
+        if work_instruction.sonstiges or work_instruction.tools_required or work_instruction.access_requirements or work_instruction.created_by:
             story.append(Paragraph("2a. ARBEITSANWEISUNGEN UND HINWEISE", self.heading_style))
             story.append(Spacer(1, 0.3*cm))
+            
+            if work_instruction.created_by:
+                story.append(Paragraph("<b>🔧 Installationsleistungen:</b>", self.styles['Normal']))
+                # Add line breaks properly
+                installation_lines = work_instruction.created_by.split('\n')
+                for line in installation_lines:
+                    if line.strip():
+                        story.append(Paragraph(line, self.styles['Normal']))
+                story.append(Spacer(1, 0.3*cm))
             
             if work_instruction.sonstiges:
                 story.append(Paragraph("<b>📄 Sonstiges:</b>", self.styles['Normal']))
@@ -656,7 +681,7 @@ Die von uns gelieferte, montierte oder sonst übergebene Ware bleibt bis zur vol
                 story.append(Spacer(1, 0.3*cm))
             
             if work_instruction.tools_required:
-                story.append(Paragraph("<b>Benötigte Werkzeuge:</b>", self.styles['Normal']))
+                story.append(Paragraph("<b>🔨 Benötigte Werkzeuge:</b>", self.styles['Normal']))
                 tools_lines = work_instruction.tools_required.split('\n')
                 for line in tools_lines:
                     if line.strip():
@@ -664,7 +689,7 @@ Die von uns gelieferte, montierte oder sonst übergebene Ware bleibt bis zur vol
                 story.append(Spacer(1, 0.3*cm))
             
             if work_instruction.access_requirements:
-                story.append(Paragraph("<b>Zugangserfordernisse:</b>", self.styles['Normal']))
+                story.append(Paragraph("<b>🔑 Zugangserfordernisse:</b>", self.styles['Normal']))
                 access_lines = work_instruction.access_requirements.split('\n')
                 for line in access_lines:
                     if line.strip():
@@ -691,8 +716,7 @@ Die von uns gelieferte, montierte oder sonst übergebene Ware bleibt bis zur vol
                         work_steps.append({
                             'step_number': step_number,
                             'description': sub_item.description,
-                            'notes': '',  # Keine automatischen Notizen mehr
-                            'estimated_time': int(sub_item.hours * 60) if sub_item.hours else 0  # Convert hours to minutes
+                            'notes': ''  # Keine automatischen Notizen mehr
                         })
                         step_number += 1
         
@@ -700,16 +724,15 @@ Die von uns gelieferte, montierte oder sonst übergebene Ware bleibt bis zur vol
             story.append(Paragraph("2b. ARBEITSSCHRITTE", self.heading_style))
             story.append(Spacer(1, 0.3*cm))
             
-            work_steps_data = [["Nr.", "Beschreibung", "Notizen", "Zeit (Min)"]]
+            work_steps_data = [["Nr.", "Beschreibung", "Notizen"]]
             for step in work_steps:
                 work_steps_data.append([
                     str(step['step_number']),
                     self._wrap_text_for_table(step['description']),
-                    self._wrap_text_for_table(step['notes'] or "-"),
-                    str(step['estimated_time']) if step['estimated_time'] else "-"
+                    self._wrap_text_for_table(step['notes'] or "-")
                 ])
             
-            work_steps_table = Table(work_steps_data, colWidths=[1.5*cm, 10*cm, 4*cm, 1.5*cm])
+            work_steps_table = Table(work_steps_data, colWidths=[1.5*cm, 10*cm, 4*cm])
             work_steps_table.setStyle(TableStyle([
                 ('FONTSIZE', (0, 0), (-1, -1), 10),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
