@@ -905,6 +905,34 @@ class DatabaseBackup:
             price FLOAT DEFAULT 0.0
         );
         
+        CREATE TABLE "order" (
+            id INTEGER PRIMARY KEY,
+            order_number VARCHAR(50) UNIQUE NOT NULL,
+            quote_id INTEGER,
+            status VARCHAR(50) DEFAULT 'In Bearbeitung',
+            project_manager VARCHAR(100),
+            start_date DATE,
+            completion_date DATE,
+            notes TEXT,
+            created_at DATETIME,
+            FOREIGN KEY (quote_id) REFERENCES quote (id) ON DELETE SET NULL
+        );
+        
+        CREATE TABLE work_instruction (
+            id INTEGER PRIMARY KEY,
+            order_id INTEGER NOT NULL,
+            project_overview TEXT,
+            project_goals TEXT,
+            work_steps TEXT,
+            materials_equipment TEXT,
+            safety_notes TEXT,
+            quality_standards TEXT,
+            special_notes TEXT,
+            created_at DATETIME,
+            updated_at DATETIME,
+            FOREIGN KEY (order_id) REFERENCES "order" (id) ON DELETE CASCADE
+        );
+        
         CREATE TABLE position_templates (
             id INTEGER PRIMARY KEY,
             name VARCHAR(128) NOT NULL,
@@ -1153,6 +1181,42 @@ class DatabaseBackup:
                     getattr(invoice, 'payment_comment', None)
                 ))
             
+            # Bestellungen exportieren
+            orders = Order.query.all()
+            for order in orders:
+                cursor.execute('''
+                    INSERT INTO "order" (id, order_number, quote_id, status, project_manager,
+                                       start_date, completion_date, notes, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    order.id, order.order_number, order.quote_id, order.status,
+                    order.project_manager, order.start_date, order.end_date,
+                    order.notes, order.created_at
+                ))
+            
+            # Arbeitsanweisungen exportieren
+            try:
+                work_instructions = WorkInstruction.query.all()
+                for wi in work_instructions:
+                    cursor.execute('''
+                        INSERT INTO work_instruction (id, order_id, project_overview, project_goals,
+                                                    work_steps, materials_equipment, safety_notes,
+                                                    quality_standards, special_notes, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        wi.id, wi.order_id, 
+                        getattr(wi, 'sonstiges', ''),  # Verwende sonstiges als project_overview
+                        getattr(wi, 'installation_location', ''),  # Verwende location als goals
+                        getattr(wi, 'tools_required', ''),  # Werkzeuge als work_steps
+                        getattr(wi, 'access_requirements', ''),  # Access als materials
+                        getattr(wi, 'sonstiges', ''),  # Sonstiges als safety_notes
+                        getattr(wi, 'completion_notes', ''),  # Notes als quality_standards
+                        getattr(wi, 'sonstiges', ''),  # Sonstiges als special_notes
+                        wi.created_at, wi.updated_at
+                    ))
+            except Exception as e:
+                print(f"WorkInstruction Export-Fehler: {e}")
+            
             # Lieferantenbestellungen exportieren
             supplier_orders = SupplierOrder.query.all()
             for supplier_order in supplier_orders:
@@ -1211,7 +1275,11 @@ class DatabaseBackup:
                     float(position.vat_rate) if position.vat_rate else 20.0
                 ))
             
-            print(f"SQLite-Export erfolgreich: {len(customers)} Kunden, {len(quotes)} Angebote, {len(quote_items)} Positionen, {len(quote_sub_items)} Unterpositionen, {len(templates)} Vorlagen, {len(template_subitems)} Vorlagen-Unterpositionen, {len(invoices)} Rechnungen, {len(articles)} Artikel, {len(invoice_positions)} Rechnungspositionen, {len(supplier_orders)} Lieferantenbestellungen, {len(supplier_order_items)} Bestellpositionen")
+            # Zähle exportierte Daten
+            order_count = len(orders) if 'orders' in locals() else 0
+            wi_count = len(work_instructions) if 'work_instructions' in locals() else 0
+            
+            print(f"SQLite-Export erfolgreich: {len(customers)} Kunden, {len(quotes)} Angebote, {len(quote_items)} Positionen, {len(quote_sub_items)} Unterpositionen, {len(templates)} Vorlagen, {len(template_subitems)} Vorlagen-Unterpositionen, {order_count} Bestellungen, {wi_count} Arbeitsanweisungen, {len(invoices)} Rechnungen, {len(articles)} Artikel, {len(invoice_positions)} Rechnungspositionen, {len(supplier_orders)} Lieferantenbestellungen, {len(supplier_order_items)} Bestellpositionen")
             
         except Exception as e:
             print(f"Fehler beim Datenexport: {e}")
