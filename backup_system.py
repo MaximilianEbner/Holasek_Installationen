@@ -960,11 +960,11 @@ class DatabaseBackup:
             paid_date DATE,
             payment_reference VARCHAR(100),
             comments TEXT,
-            paid_amount FLOAT DEFAULT 0.0,
-            payment_comment TEXT,
             service_description TEXT,
             created_at DATETIME,
-            updated_at DATETIME
+            updated_at DATETIME,
+            paid_amount FLOAT DEFAULT 0.0,
+            payment_comment TEXT
         );
         
         -- login_admins Tabelle wird bewusst NICHT erstellt
@@ -1132,13 +1132,14 @@ class DatabaseBackup:
             # Rechnungen exportieren
             invoices = Invoice.query.all()
             for invoice in invoices:
+                # Basis-Felder die sicher existieren
                 cursor.execute('''
                     INSERT INTO invoice (id, invoice_number, order_id, customer_id, invoice_type,
                                        percentage, base_amount, invoice_amount, previous_payments,
                                        final_amount, vat_rate, vat_amount, gross_amount,
                                        project_name, due_date, payment_terms, status, paid_date,
-                                       payment_reference, comments, paid_amount, payment_comment,
-                                       service_description, created_at, updated_at)
+                                       payment_reference, comments, service_description, created_at, 
+                                       updated_at, paid_amount, payment_comment)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     invoice.id, invoice.invoice_number, invoice.order_id, invoice.customer_id,
@@ -1146,9 +1147,10 @@ class DatabaseBackup:
                     invoice.invoice_amount, invoice.previous_payments, invoice.final_amount,
                     invoice.vat_rate, invoice.vat_amount, invoice.gross_amount, invoice.project_name,
                     invoice.due_date, invoice.payment_terms, invoice.status, invoice.paid_date,
-                    invoice.payment_reference, invoice.comments, invoice.paid_amount,
-                    invoice.payment_comment, invoice.service_description, invoice.created_at,
-                    invoice.updated_at
+                    invoice.payment_reference, invoice.comments, invoice.service_description, 
+                    invoice.created_at, invoice.updated_at, 
+                    getattr(invoice, 'paid_amount', 0.0),
+                    getattr(invoice, 'payment_comment', None)
                 ))
             
             # Lieferantenbestellungen exportieren
@@ -1198,10 +1200,15 @@ class DatabaseBackup:
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     position.id, position.invoice_id, position.position_number, position.article_id,
-                    position.article_text, position.description, position.quantity, position.unit,
-                    position.price_net, position.price_gross, position.discount_value, 
-                    position.discount_type, position.line_total_net, position.line_total_gross,
-                    position.vat_rate
+                    position.article_text, position.description, 
+                    float(position.quantity) if position.quantity else 0.0, position.unit,
+                    float(position.price_net) if position.price_net else 0.0, 
+                    float(position.price_gross) if position.price_gross else 0.0, 
+                    float(position.discount_value) if position.discount_value else 0.0, 
+                    position.discount_type, 
+                    float(position.line_total_net) if position.line_total_net else 0.0, 
+                    float(position.line_total_gross) if position.line_total_gross else 0.0,
+                    float(position.vat_rate) if position.vat_rate else 20.0
                 ))
             
             print(f"SQLite-Export erfolgreich: {len(customers)} Kunden, {len(quotes)} Angebote, {len(quote_items)} Positionen, {len(quote_sub_items)} Unterpositionen, {len(templates)} Vorlagen, {len(template_subitems)} Vorlagen-Unterpositionen, {len(invoices)} Rechnungen, {len(articles)} Artikel, {len(invoice_positions)} Rechnungspositionen, {len(supplier_orders)} Lieferantenbestellungen, {len(supplier_order_items)} Bestellpositionen")
