@@ -62,13 +62,6 @@
                                            placeholder="Wo findet die Installation statt?">
                                 </div>
                             </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="estimated_duration" class="form-label">Geschätzte Dauer (Stunden)</label>
-                                    <input type="number" class="form-control" id="estimated_duration" name="estimated_duration" 
-                                           value="{{ work_instruction.estimated_duration or '' }}" min="0" step="0.5" 
-                                           placeholder="Geschätzte Arbeitszeit">
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -80,6 +73,16 @@
                         <h5 class="mb-0"><i class="fas fa-tasks"></i> Arbeitsbeschreibung</h5>
                     </div>
                     <div class="card-body">
+                        <div class="mb-3">
+                            <label for="created_by" class="form-label">
+                                <i class="fas fa-clipboard-check"></i> Installationsleistungen
+                                <small class="text-muted">(aus Angebot)</small>
+                            </label>
+                            <textarea class="form-control" id="created_by" name="created_by" rows="4" 
+                                      placeholder="Detaillierte Installationsleistungen...">{{ work_instruction.created_by if work_instruction.created_by and work_instruction.created_by != 'System' else (order.quote.installationsleistungen if order.quote else '') }}</textarea>
+                            <small class="form-text text-muted">Diese Informationen werden im PDF-Export angezeigt.</small>
+                        </div>
+                        
                         <div class="mb-3">
                             <label for="sonstiges" class="form-label">
                                 <i class="fas fa-clipboard-list"></i> Sonstiges
@@ -106,7 +109,6 @@
                                         <th style="width: 50px;">Nr.</th>
                                         <th>Beschreibung</th>
                                         <th style="width: 200px;">Notizen</th>
-                                        <th style="width: 100px;">Zeit (Min)</th>
                                         <th style="width: 80px;">Aktionen</th>
                                     </tr>
                                 </thead>
@@ -116,7 +118,6 @@
                                         <td><span class="step-number">{{ step.step_number }}</span></td>
                                         <td><input type="text" class="form-control" name="step_description[]" value="{{ step.description }}" placeholder="Beschreibung des Arbeitsschritts"></td>
                                         <td><input type="text" class="form-control" name="step_notes[]" value="{{ step.notes or '' }}" placeholder="Notizen"></td>
-                                        <td><input type="number" class="form-control" name="step_time[]" value="{{ step.estimated_time or '' }}" min="0" placeholder="Min"></td>
                                         <td>
                                             <button type="button" class="btn btn-sm btn-danger" onclick="removeWorkStep(this)">
                                                 <i class="fas fa-trash"></i>
@@ -129,7 +130,6 @@
                                         <td><span class="step-number">1</span></td>
                                         <td><input type="text" class="form-control" name="step_description[]" placeholder="Beschreibung des Arbeitsschritts"></td>
                                         <td><input type="text" class="form-control" name="step_notes[]" placeholder="Notizen"></td>
-                                        <td><input type="number" class="form-control" name="step_time[]" min="0" placeholder="Min"></td>
                                         <td>
                                             <button type="button" class="btn btn-sm btn-danger" onclick="removeWorkStep(this)">
                                                 <i class="fas fa-trash"></i>
@@ -395,7 +395,6 @@ function addWorkStep() {
         <td><span class="step-number">${rowCount}</span></td>
         <td><input type="text" class="form-control" name="step_description[]" placeholder="Beschreibung des Arbeitsschritts"></td>
         <td><input type="text" class="form-control" name="step_notes[]" placeholder="Notizen"></td>
-        <td><input type="number" class="form-control" name="step_time[]" min="0" placeholder="Min"></td>
         <td>
             <button type="button" class="btn btn-sm btn-danger" onclick="removeWorkStep(this)">
                 <i class="fas fa-trash"></i>

@@ -13,7 +13,7 @@
 
 <div class="row mt-4">
     <!-- Lieferanten-Verwaltung -->
-    <div class="col-md-6">
+    <div class="col-md-4">
         <div class="card h-100">
             <div class="card-header bg-success text-white">
                 <h5 class="card-title mb-0">
@@ -41,8 +41,33 @@
         </div>
     </div>
 
+    <!-- Artikel-Verwaltung -->
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header bg-success text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-box-seam"></i> Artikel
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text">Verwalten Sie Ihre Artikel-Stammdaten mit Namen und Beschreibungen.</p>
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('articles') }}" class="btn btn-primary">
+                        <i class="fas fa-list"></i> Rechungsartikel verwalten
+                    </a>
+                </div>
+            </div>
+            <div class="card-footer text-muted">
+                <small>
+                    <i class="fas fa-info-circle"></i> 
+                    Artikel für Rechnungen und Angebote
+                </small>
+            </div>
+        </div>
+    </div>
+
     <!-- Unternehmenseinstellungen -->
-    <div class="col-md-6">
+    <div class="col-md-4">
         <div class="card h-100">
             <div class="card-header bg-success text-white">
                 <h5 class="card-title mb-0">
@@ -69,7 +94,7 @@
 
 <div class="row mt-4">
     <!-- Positionsvorlagen-Verwaltung -->
-    <div class="col-md-6">
+    <div class="col-md-4">
         <div class="card h-100">
             <div class="card-header bg-success text-white">
                 <h5 class="card-title mb-0">
@@ -94,7 +119,7 @@
     </div>
 
     <!-- Arbeitsschritte-Verwaltung -->
-    <div class="col-md-6">
+    <div class="col-md-4">
         <div class="card h-100">
             <div class="card-header bg-success text-white">
                 <h5 class="card-title mb-0">
@@ -117,11 +142,9 @@
             </div>
         </div>
     </div>
-</div>
 
-<div class="row mt-4">
-    <div class="col-md-6">
-        <!-- Akquisekanal-Verwaltung -->
+    <!-- Akquisekanal-Verwaltung -->
+    <div class="col-md-4">
         <div class="card h-100">
             <div class="card-header bg-success text-white">
                 <h5 class="card-title mb-0">

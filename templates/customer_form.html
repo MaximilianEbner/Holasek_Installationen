@@ -80,6 +80,27 @@
                         </div>
                     </div>
                     
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.uid_number.label(class="form-label") }}
+                            {{ form.uid_number(class="form-control", placeholder="z.B. ATU12345678") }}
+                            {% if form.uid_number.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.uid_number.errors %}
+                                        <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                Umsatzsteuer-Identifikationsnummer (optional, für Unternehmen)
+                            </small>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <!-- Leer lassen für symmetrisches Layout -->
+                        </div>
+                    </div>
+                    
                     <div class="mb-3">
                         {{ form.address.label(class="form-label") }}
                         {{ form.address(class="form-control", rows="3") }}

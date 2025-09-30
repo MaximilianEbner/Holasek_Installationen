@@ -131,7 +131,7 @@
                                             <div class="input-group">
                                                 <input type="number" name="sub_part_price[]" class="form-control" 
                                                        value="{{ sub_item.part_price if sub_item.item_type == 'bestellteil' else '' }}" 
-                                                       min="0" step="0.01" placeholder="0.00" onchange="calculateEditBestellteilPrice(this, {{ loop.index }})">
+                                                       step="0.01" placeholder="0.00" onchange="calculateEditBestellteilPrice(this, {{ loop.index }})">
                                                 <span class="input-group-text">€</span>
                                             </div>
                                         </div>
@@ -198,7 +198,7 @@
                                             <div class="input-group">
                                                 <input type="number" name="sub_unit_price[]" class="form-control" 
                                                        value="{{ sub_item.unit_price if sub_item.item_type == 'sonstiges' else '' }}" 
-                                                       min="0" step="0.01" placeholder="0.00" onchange="calculateEditSonstigesPrice(this)">
+                                                       step="0.01" placeholder="0.00" onchange="calculateEditSonstigesPrice(this)">
                                                 <span class="input-group-text">€</span>
                                             </div>
                                         </div>
@@ -519,7 +519,7 @@ function addEditSubItem() {
                 <label class="form-label">Stückpreis</label>
                 <div class="input-group">
                     <input type="number" name="sub_part_price[]" class="form-control" 
-                           min="0" step="0.01" placeholder="0.00" onchange="calculateEditBestellteilPrice(this, ${index})">
+                           step="0.01" placeholder="0.00" onchange="calculateEditBestellteilPrice(this, ${index})">
                     <span class="input-group-text">€</span>
                 </div>
             </div>
@@ -579,7 +579,7 @@ function addEditSubItem() {
                 <label class="form-label">Einzelpreis</label>
                 <div class="input-group">
                     <input type="number" name="sub_unit_price[]" class="form-control" 
-                           min="0" step="0.01" placeholder="0.00" onchange="calculateEditSonstigesPrice(this)">
+                           step="0.01" placeholder="0.00" onchange="calculateEditSonstigesPrice(this)">
                     <span class="input-group-text">€</span>
                 </div>
             </div>

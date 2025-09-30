@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Installationsbetrieb Holasek{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h1><i class="fas fa-box"></i> {{ title }}</h1>
+            <a href="{{ url_for('articles') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Zurück zur Übersicht
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-edit"></i> Artikel-Daten
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Name *</label>
+                        <input type="text" class="form-control" id="name" name="name" 
+                               value="{{ article.name if article else '' }}" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Beschreibung</label>
+                        <textarea class="form-control" id="description" name="description" rows="4">{{ article.description if article else '' }}</textarea>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('articles') }}" class="btn btn-secondary me-md-2">
+                            <i class="fas fa-times"></i> Abbrechen
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Speichern
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-info-circle"></i> Hinweise
+                </h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li><i class="fas fa-check text-success"></i> <strong>Name:</strong> Eindeutiger Name des Artikels (Pflichtfeld)</li>
+                    <li><i class="fas fa-check text-success"></i> <strong>Beschreibung:</strong> Detaillierte Beschreibung des Artikels (optional)</li>
+                </ul>
+                
+                <div class="alert alert-info mt-3">
+                    <i class="fas fa-lightbulb"></i> 
+                    <strong>Tipp:</strong> Verwenden Sie aussagekräftige Namen und Beschreibungen, 
+                    um Artikel später leicht wiederzufinden.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

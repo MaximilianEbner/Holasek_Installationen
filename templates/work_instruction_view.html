@@ -50,9 +50,6 @@
                             {% endif %}
                         </div>
                         <div class="col-md-6">
-                            {% if work_instruction.estimated_duration %}
-                            <p><strong>Geschätzte Dauer:</strong> {{ work_instruction.estimated_duration }} Stunden</p>
-                            {% endif %}
                             {% if work_instruction.installation_location %}
                             <p><strong>Montageort:</strong> {{ work_instruction.installation_location }}</p>
                             {% endif %}
@@ -187,7 +184,6 @@
                                     <th style="width: 50px;">Nr.</th>
                                     <th>Beschreibung</th>
                                     <th>Notizen</th>
-                                    <th style="width: 100px;">Zeit (Min)</th>
                                     <th style="width: 80px;">Status</th>
                                 </tr>
                             </thead>
@@ -197,7 +193,6 @@
                                     <td><strong>{{ step.step_number }}</strong></td>
                                     <td>{{ step.description }}</td>
                                     <td>{{ step.notes or '-' }}</td>
-                                    <td>{{ step.estimated_time or '-' }}</td>
                                     <td>
                                         {% if step.is_completed %}
                                         <span class="badge bg-success">

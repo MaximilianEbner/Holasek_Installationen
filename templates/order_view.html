@@ -374,6 +374,10 @@
                                class="btn btn-sm btn-outline-primary">
                                 <i class="fas fa-eye"></i> Anzeigen
                             </a>
+                            <a href="{{ url_for('edit_work_instruction', order_id=order.id) }}" 
+                               class="btn btn-sm btn-outline-warning">
+                                <i class="fas fa-edit"></i> Bearbeiten
+                            </a>
                             <a href="{{ url_for('export_work_instruction_pdf', order_id=order.id) }}" 
                                class="btn btn-sm btn-outline-success">
                                 <i class="fas fa-file-pdf"></i> PDF

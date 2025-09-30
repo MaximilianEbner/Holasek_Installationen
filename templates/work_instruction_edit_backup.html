@@ -56,13 +56,6 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label for="estimated_duration" class="form-label">Geschätzte Dauer (Stunden)</label>
-                                    <input type="number" class="form-control" id="estimated_duration" name="estimated_duration" 
-                                           value="{{ work_instruction.estimated_duration or '' }}" min="0" step="0.5">
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
                                     <label for="installation_location" class="form-label">Montageort</label>
                                     <input type="text" class="form-control" id="installation_location" name="installation_location" 
                                            value="{{ work_instruction.installation_location or '' }}" placeholder="z.B. Badezimmer, Küche">

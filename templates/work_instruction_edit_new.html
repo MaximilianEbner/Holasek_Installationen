@@ -62,13 +62,6 @@
                                            placeholder="Wo findet die Installation statt?">
                                 </div>
                             </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="estimated_duration" class="form-label">Geschätzte Dauer (Stunden)</label>
-                                    <input type="number" class="form-control" id="estimated_duration" name="estimated_duration" 
-                                           value="{{ work_instruction.estimated_duration or '' }}" min="0" step="0.5" 
-                                           placeholder="Geschätzte Arbeitszeit">
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -106,7 +99,6 @@
                                         <th style="width: 50px;">Nr.</th>
                                         <th>Beschreibung</th>
                                         <th style="width: 200px;">Notizen</th>
-                                        <th style="width: 100px;">Zeit (Min)</th>
                                         <th style="width: 80px;">Aktionen</th>
                                     </tr>
                                 </thead>
@@ -116,7 +108,6 @@
                                         <td><span class="step-number">{{ step.step_number }}</span></td>
                                         <td><input type="text" class="form-control" name="step_description[]" value="{{ step.description }}" placeholder="Beschreibung des Arbeitsschritts"></td>
                                         <td><input type="text" class="form-control" name="step_notes[]" value="{{ step.notes or '' }}" placeholder="Notizen"></td>
-                                        <td><input type="number" class="form-control" name="step_time[]" value="{{ step.estimated_time or '' }}" min="0" placeholder="Min"></td>
                                         <td>
                                             <button type="button" class="btn btn-sm btn-danger" onclick="removeWorkStep(this)">
                                                 <i class="fas fa-trash"></i>

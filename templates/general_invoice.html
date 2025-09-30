@@ -1,0 +1,1629 @@
+{% extends "base.html" %}
+
+{% block title %}Neue Allgemeine Rechnung{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Hauptstile */
+.invoice-wizard {
+    max-width: 1400px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+    overflow: hidden;
+}
+
+.wizard-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2rem;
+    text-align: center;
+}
+
+.wizard-header h1 {
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 300;
+}
+
+.form-container {
+    padding: 3rem 2rem;
+}
+
+.form-section {
+    background: #f8f9fb;
+    border: 1px solid #e1e5e9;
+    border-radius: 12px;
+    padding: 2.5rem;
+    margin-bottom: 2.5rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+.form-section.highlight {
+    border-color: #667eea;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+    background: #f7f8ff;
+}
+
+.section-title {
+    font-size: 1.3em;
+    font-weight: 600;
+    color: #2d3748;
+    margin-bottom: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e1e5e9;
+}
+
+.section-title i {
+    color: #667eea;
+    font-size: 1.4em;
+}
+
+/* Positionstabelle */
+.positions-table {
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.positions-table table {
+    width: 100%;
+    margin: 0;
+}
+
+.positions-table th {
+    background: #667eea;
+    color: white;
+    padding: 1rem 0.75rem;
+    font-size: 0.95em;
+    text-align: center;
+    border: none;
+    font-weight: 600;
+}
+
+.positions-table td {
+    padding: 1rem 0.75rem;
+    border-bottom: 1px solid #e1e5e9;
+    vertical-align: middle;
+}
+
+.positions-table tbody tr:hover {
+    background: #f8f9fa;
+}
+
+.positions-table input,
+.positions-table select,
+.positions-table textarea {
+    border: 2px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9em;
+    width: 100%;
+    transition: all 0.2s ease;
+}
+
+.positions-table input:focus,
+.positions-table select:focus,
+.positions-table textarea:focus {
+    border-color: #667eea;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.position-number {
+    background: #f8f9fb;
+    border: none !important;
+    text-align: center;
+    font-weight: bold;
+    color: #667eea;
+}
+
+.btn-add-position {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    border: none;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    margin-top: 1.5rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(40, 167, 69, 0.2);
+}
+
+.btn-add-position:hover {
+    background: linear-gradient(135deg, #218838 0%, #1ea085 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+}
+
+.btn-remove-position {
+    background: #dc3545;
+    border: none;
+    color: white;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    font-size: 0.85em;
+    transition: all 0.2s ease;
+}
+
+.btn-remove-position:hover {
+    background: #c82333;
+    transform: scale(1.05);
+}
+
+/* Rechnungssumme */
+.invoice-totals {
+    background: linear-gradient(135deg, #f8f9fb 0%, #e8f4fd 100%);
+    border: 2px solid #667eea;
+    border-radius: 12px;
+    padding: 2rem;
+    margin-top: 2rem;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+}
+
+.total-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    font-size: 1.1em;
+    padding: 0.5rem 0;
+}
+
+.total-row.final {
+    font-weight: bold;
+    font-size: 1.4em;
+    color: #667eea;
+    border-top: 3px solid #667eea;
+    padding-top: 1rem;
+    margin-top: 1.5rem;
+    background: rgba(102, 126, 234, 0.05);
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.customer-info {
+    background: #e8f4fd;
+    border-left: 4px solid #17a2b8;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 0 8px 8px 0;
+}
+
+.existing-invoices {
+    background: #fff3cd;
+    border-left: 4px solid #ffc107;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 0 8px 8px 0;
+}
+
+.btn-primary-custom {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    border-radius: 6px;
+    padding: 0.75rem 1.5rem;
+    color: white;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.btn-primary-custom:hover {
+    background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+/* Verbesserte Abstände für Formularfelder */
+.form-section .row {
+    margin-bottom: 1.5rem;
+}
+
+.form-section .row:last-child {
+    margin-bottom: 0;
+}
+
+.form-section .form-label {
+    font-weight: 600;
+    color: #4a5568;
+    margin-bottom: 0.75rem;
+    font-size: 0.95em;
+}
+
+.form-section .form-control {
+    padding: 0.75rem 1rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 0.95em;
+    transition: all 0.2s ease;
+}
+
+.form-section .form-control:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    outline: none;
+}
+
+/* Spezielle Abstände für verschiedene Sektionen */
+.form-section .col-md-6,
+.form-section .col-md-3,
+.form-section .col-md-4 {
+    margin-bottom: 1.25rem;
+}
+
+.alert-info-custom {
+    background: #e8f4fd;
+    border: 1px solid #bee5eb;
+    color: #0c5460;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="invoice-wizard">
+        <div class="wizard-header">
+            <h1><i class="bi bi-receipt"></i> Neue Allgemeine Rechnung</h1>
+            <p>Flexible Rechnungserstellung mit Positionsverwaltung</p>
+        </div>
+        
+        <div class="form-container">
+            <form id="generalInvoiceForm" action="{% if edit_mode %}{{ url_for('update_general_invoice', id=invoice.id) }}{% else %}{{ url_for('create_general_invoice') }}{% endif %}" method="POST">
+                
+                <!-- Kundenauswahl -->
+                <div class="form-section">
+                    <div class="section-title">
+                        <i class="bi bi-person-circle"></i>
+                        Kunde und Auftrag auswählen
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            {% if edit_mode %}
+                            <!-- Bearbeitungsmodus: Kunde ist nicht änderbar -->
+                            <label class="form-label">Kunde</label>
+                            <div class="form-control-plaintext border rounded p-2 bg-light">
+                                <strong id="customer_display_name">{{ invoice.customer_salutation }} {{ invoice.customer_first_name }} {{ invoice.customer_last_name }}</strong>
+                                <br><small class="text-muted" id="customer_display_details">{{ invoice.customer_address }}, {{ invoice.customer_postal_code }} {{ invoice.customer_city }}</small>
+                            </div>
+                            <input type="hidden" name="customer_id" id="customer_id" value="{{ invoice.customer_id }}">
+                            {% else %}
+                            <!-- Erstellungsmodus: Kunde ist auswählbar -->
+                            <label for="customer_search" class="form-label">Kunde *</label>
+                            <div class="position-relative">
+                                <input type="text" id="customer_search" class="form-control" 
+                                       placeholder="Kundenname eingeben..." 
+                                       autocomplete="off" required>
+                                <input type="hidden" name="customer_id" id="customer_id">
+                                <div id="customer_dropdown" class="position-absolute w-100" 
+                                     style="max-height: 300px; overflow-y: auto; z-index: 1050; display: none; background: white; border: 1px solid #ced4da; border-radius: 0.375rem;">
+                                    {% for customer in customers %}
+                                    <div class="dropdown-item" style="padding: 0.5rem 1rem; border-bottom: 1px solid #f8f9fa; cursor: pointer;"
+                                         data-id="{{ customer.id }}"
+                                         data-name="{{ customer.full_name }}"
+                                         data-customernumber="{{ customer.customer_number or '' }}"
+                                         data-address="{{ customer.address or '' }}"
+                                         data-city="{{ customer.city or '' }}"
+                                         data-postal="{{ customer.postal_code or '' }}"
+                                         data-email="{{ customer.email or '' }}"
+                                         data-phone="{{ customer.phone or '' }}"
+                                         data-uid="{{ customer.uid_number or '' }}"
+                                         data-salutation="{{ customer.salutation or '' }}"
+                                         data-firstname="{{ customer.first_name }}"
+                                         data-lastname="{{ customer.last_name }}">
+                                        {{ customer.full_name }}
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            {% if edit_mode %}
+                            <!-- Bearbeitungsmodus: Auftrag ist nicht änderbar -->
+                            <label class="form-label">Zugehöriger Auftrag</label>
+                            <div class="form-control-plaintext border rounded p-2 bg-light">
+                                {% if invoice.order %}
+                                <strong>{{ invoice.order.order_number }}</strong>
+                                <br><small class="text-muted">{{ invoice.order.quote.customer.full_name if invoice.order.quote else 'Kein Angebot' }}</small>
+                                {% else %}
+                                <span class="text-muted">Freie Rechnung (kein Auftrag)</span>
+                                {% endif %}
+                            </div>
+                            <input type="hidden" name="order_id" id="order_select" value="{{ invoice.order_id or '' }}">
+                            {% else %}
+                            <!-- Erstellungsmodus: Auftrag ist auswählbar -->
+                            <label for="order_select" class="form-label">Zugehöriger Auftrag (optional)</label>
+                            <select name="order_id" id="order_select" class="form-select">
+                                <option value="">Kein Auftrag - freie Rechnung</option>
+                            </select>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Kundendetails (editierbar) -->
+                <div class="form-section" id="customer-details" style="display: none;">
+                    <div class="section-title">
+                        <i class="bi bi-card-text"></i>
+                        Rechnungsadresse (bearbeitbar)
+                    </div>
+                    
+                    <div class="customer-info" id="existing-invoices-info" style="display: none;">
+                        <!-- Wird per JavaScript gefüllt -->
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-2">
+                            <label for="customer_salutation" class="form-label">Anrede</label>
+                            <select name="customer_salutation" id="customer_salutation" class="form-select">
+                                <option value="">-</option>
+                                <option value="Herr" {{ 'selected' if form_data and form_data.customer_salutation == 'Herr' else '' }}>Herr</option>
+                                <option value="Frau" {{ 'selected' if form_data and form_data.customer_salutation == 'Frau' else '' }}>Frau</option>
+                                <option value="Familie" {{ 'selected' if form_data and form_data.customer_salutation == 'Familie' else '' }}>Familie</option>
+                                <option value="Firma" {{ 'selected' if form_data and form_data.customer_salutation == 'Firma' else '' }}>Firma</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="customer_number" class="form-label">Kundennummer</label>
+                            <input type="text" name="customer_number" id="customer_number" class="form-control" readonly
+                                   value="{{ form_data.customer_number if form_data else '' }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="customer_first_name" class="form-label">Vorname *</label>
+                            <input type="text" name="customer_first_name" id="customer_first_name" class="form-control" 
+                                   value="{{ form_data.customer_first_name if form_data else '' }}" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="customer_last_name" class="form-label">Nachname *</label>
+                            <input type="text" name="customer_last_name" id="customer_last_name" class="form-control" 
+                                   value="{{ form_data.customer_last_name if form_data else '' }}" required>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-8">
+                            <label for="customer_address" class="form-label">Adresse</label>
+                            <textarea name="customer_address" id="customer_address" class="form-control" rows="2">{{ form_data.customer_address if form_data else '' }}</textarea>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="customer_postal_code" class="form-label">PLZ</label>
+                            <input type="text" name="customer_postal_code" id="customer_postal_code" class="form-control" 
+                                   value="{{ form_data.customer_postal_code if form_data else '' }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="customer_city" class="form-label">Stadt</label>
+                            <input type="text" name="customer_city" id="customer_city" class="form-control">
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label for="customer_email" class="form-label">E-Mail</label>
+                            <input type="email" name="customer_email" id="customer_email" class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="customer_phone" class="form-label">Telefon</label>
+                            <input type="text" name="customer_phone" id="customer_phone" class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="customer_uid" class="form-label">UID-Nummer</label>
+                            <input type="text" name="customer_uid" id="customer_uid" class="form-control" 
+                                   placeholder="z.B. ATU12345678">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Auftragsübersicht (wird nach Auftragsauswahl angezeigt) -->
+                <div class="form-section" id="order-summary" style="display: none;">
+                    <div class="section-title">
+                        <i class="bi bi-clipboard-data"></i>
+                        Auftragsübersicht und bereits verechnete Beträge
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="customer-info">
+                                <h6><i class="bi bi-info-circle"></i> Auftragsinformationen</h6>
+                                <div id="order-info-display">
+                                    <!-- Wird per JavaScript gefüllt -->
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="existing-invoices">
+                                <h6><i class="bi bi-receipt"></i> Bereits verrechnet</h6>
+                                <div id="existing-invoices-display">
+                                    <!-- Wird per JavaScript gefüllt -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <div class="alert alert-info-custom">
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <strong>Auftragssumme gesamt (netto):</strong><br>
+                                        <span id="order-total-amount" class="fs-5 text-primary">0,00 €</span>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong>Bereits verrechnet (netto):</strong><br>
+                                        <span id="order-invoiced-amount" class="fs-5 text-warning">0,00 €</span>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong>Noch zu verrechnen (netto):</strong><br>
+                                        <span id="order-remaining-amount" class="fs-5 text-success">0,00 €</span>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong>Verrechnet (%):</strong><br>
+                                        <span id="order-percentage-invoiced" class="fs-5 text-info">0%</span>
+                                    </div>
+                                </div>
+                                <!-- Anzahlungsinformation - nur bei Anzahlungsrechnungen sichtbar -->
+                                <div class="row mt-2" id="anzahlung-info" style="display: none;">
+                                    <div class="col-md-12">
+                                        <div class="alert alert-warning">
+                                            <strong><i class="bi bi-info-circle"></i> Anzahlungsrechnung (30%):</strong><br>
+                                            <span id="anzahlung-amount" class="fs-5 text-dark">0,00 €</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rechnungsart-Auswahl (wird nach Auftragsauswahl angezeigt) -->
+                <div class="form-section" id="invoice-type-selection" style="display: none;">
+                    <div class="section-title">
+                        <i class="bi bi-file-earmark-text"></i>
+                        Rechnungsart auswählen
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-12">
+                            <label for="invoice_type_choice" class="form-label">Art der Rechnung *</label>
+                            <select name="invoice_type_choice" id="invoice_type_choice" class="form-select">
+                                <option value="allgemein">Rechnung (Standard)</option>
+                                <option value="anzahlung">Anzahlungsrechnung (30% der Auftragssumme)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dokumentdetails -->
+                <div class="form-section">
+                    <div class="section-title">
+                        <i class="bi bi-file-text"></i>
+                        Dokumentdetails
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label for="document_title" class="form-label">Dokumentbezeichnung (PDF-Header) *</label>
+                            <input type="text" name="document_title" id="document_title" 
+                                   class="form-control" value="RECHNUNG" 
+                                   placeholder="z.B. Rechnung für Dienstleistungen" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="service_period_start" class="form-label">Leistungszeitraum von</label>
+                            <input type="date" name="service_period_start" id="service_period_start" class="form-control">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="service_period_end" class="form-label">Leistungszeitraum bis</label>
+                            <input type="date" name="service_period_end" id="service_period_end" class="form-control">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="service_description" class="form-label">Leistungsbeschreibung</label>
+                        <textarea name="service_description" id="service_description" 
+                                  class="form-control" rows="3" 
+                                  placeholder="Allgemeine Beschreibung der erbrachten Leistungen..."></textarea>
+                    </div>
+                </div>
+
+                <!-- Positionsverwaltung -->
+                <div class="form-section">
+                    <div class="section-title">
+                        <i class="bi bi-list-ol"></i>
+                        Rechnungspositionen
+                    </div>
+                    
+                    <div class="positions-table">
+                        <table id="positions-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 60px;">Pos.</th>
+                                    <th style="width: 200px;">Artikel</th>
+                                    <th style="width: 250px;">Beschreibung</th>
+                                    <th style="width: 80px;">Menge</th>
+                                    <th style="width: 80px;">Einheit</th>
+                                    <th style="width: 100px;">Preis netto</th>
+                                    <th style="width: 100px;">Preis brutto</th>
+                                    <th style="width: 80px;">Rabatt</th>
+                                    <th style="width: 60px;">Art</th>
+                                    <th style="width: 100px;">Summe netto</th>
+                                    <th style="width: 100px;">Summe brutto</th>
+                                    <th style="width: 50px;">-</th>
+                                </tr>
+                            </thead>
+                            <tbody id="positions-tbody">
+                                <!-- Erste Position wird per JavaScript hinzugefügt -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <button type="button" class="btn btn-add-position" onclick="addPosition()">
+                        <i class="bi bi-plus-circle"></i> Position hinzufügen
+                    </button>
+                </div>
+
+                <!-- Rechnungssumme -->
+                <div class="invoice-totals">
+                    <div class="section-title">
+                        <i class="bi bi-calculator"></i>
+                        Rechnungssumme
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label for="calculate_vat" class="form-label">Umsatzsteuer</label>
+                            <select name="calculate_vat" id="calculate_vat" class="form-select" onchange="calculateTotals()">
+                                <option value="true">USt verrechnen</option>
+                                <option value="false">USt nicht verrechnen</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <div id="totals-display">
+                                <div class="total-row">
+                                    <span>Nettosumme:</span>
+                                    <span id="net-total">0,00 €</span>
+                                </div>
+                                <div class="total-row">
+                                    <span>MwSt. (20%):</span>
+                                    <span id="vat-total">0,00 €</span>
+                                </div>
+                                <div class="total-row final">
+                                    <span>Gesamtsumme:</span>
+                                    <span id="gross-total">0,00 €</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Zahlungskonditionen -->
+                <div class="form-section">
+                    <div class="section-title">
+                        <i class="bi bi-calendar-check"></i>
+                        Zahlungskonditionen
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label for="due_date" class="form-label">Fälligkeitsdatum *</label>
+                            <input type="date" name="due_date" id="due_date" class="form-control" required>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Schlusstext -->
+                <div class="form-section">
+                    <div class="section-title">
+                        <i class="bi bi-chat-text"></i>
+                        Schlusstext
+                    </div>
+                    
+                    <textarea name="closing_text" id="closing_text" class="form-control" rows="3"
+                              placeholder="Zusätzliche Hinweise oder Zahlungsinformationen..."></textarea>
+                </div>
+
+                <!-- Aktionen -->
+                <div class="form-section">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <a href="{{ url_for('invoices') }}" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Abbrechen
+                        </a>
+                        <button type="submit" class="btn btn-primary-custom">
+                            <i class="bi bi-check-circle"></i> Rechnung erstellen
+                        </button>
+                    </div>
+                </div>
+
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden Daten für JavaScript -->
+<script>
+const customers = {{ customers_json|safe }};
+const availableOrders = {{ available_orders_json|safe }};
+let availableArticles = [];
+let positionCounter = 0;
+
+// Artikel laden
+fetch('/api/articles/active')
+    .then(response => response.json())
+    .then(data => {
+        availableArticles = data;
+        {% if not edit_mode %}
+        addPosition(); // Erste Position hinzufügen nur im Erstellungsmodus
+        {% else %}
+        // Im Edit-Modus: Rechnungsdaten laden nachdem Artikel verfügbar sind
+        loadInvoiceDataForEditing();
+        {% endif %}
+    })
+    .catch(error => console.error('Fehler beim Laden der Artikel:', error));
+
+// Initialisierung bei Seitenload
+document.addEventListener('DOMContentLoaded', function() {
+    // Fälligkeitsdatum auf heute setzen
+    updateDueDate();
+    
+    // Event Listeners
+    document.getElementById('calculate_vat').addEventListener('change', calculateTotals);
+});
+
+// DOM bereit
+document.addEventListener('DOMContentLoaded', function() {
+    // Kundensuche initialisieren
+    initCustomerSearch();
+    // Erste Position wird nach dem Laden der Artikel hinzugefügt
+});
+
+/**
+ * Kundensuche initialisieren
+ */
+function initCustomerSearch() {
+    const customerSearch = document.getElementById('customer_search');
+    const customerDropdown = document.getElementById('customer_dropdown');
+    const customerIdInput = document.getElementById('customer_id');
+    const dropdownItems = customerDropdown.querySelectorAll('.dropdown-item');
+
+    // Textfeld Eingabe
+    customerSearch.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        let visibleItems = 0;
+
+        dropdownItems.forEach(item => {
+            const customerName = item.textContent.toLowerCase();
+            if (customerName.includes(searchTerm)) {
+                item.style.display = 'block';
+                visibleItems++;
+            } else {
+                item.style.display = 'none';
+            }
+        });
+
+        // Dropdown anzeigen/verstecken
+        if (searchTerm.length > 0 && visibleItems > 0) {
+            customerDropdown.style.display = 'block';
+        } else {
+            customerDropdown.style.display = 'none';
+        }
+    });
+
+    // Klick auf Dropdown-Item
+    dropdownItems.forEach(item => {
+        item.addEventListener('click', function() {
+            customerSearch.value = this.textContent;
+            customerIdInput.value = this.dataset.id;
+            customerDropdown.style.display = 'none';
+            
+            // Kundendetails füllen
+            fillCustomerDetails(this);
+            
+            // Aufträge für diesen Kunden laden
+            loadCustomerOrders(this.dataset.id);
+            
+            // Kundendetails anzeigen
+            document.getElementById('customer-details').style.display = 'block';
+        });
+        
+        // Hover-Effekt
+        item.addEventListener('mouseenter', function() {
+            this.style.backgroundColor = '#f8f9fa';
+        });
+        
+        item.addEventListener('mouseleave', function() {
+            this.style.backgroundColor = 'white';
+        });
+    });
+
+    // Klick außerhalb schließt Dropdown
+    document.addEventListener('click', function(e) {
+        if (!customerSearch.contains(e.target) && !customerDropdown.contains(e.target)) {
+            customerDropdown.style.display = 'none';
+        }
+    });
+}
+
+/**
+ * Kundendetails in Formular füllen
+ */
+function fillCustomerDetails(selectedItem) {
+    document.getElementById('customer_salutation').value = selectedItem.dataset.salutation || '';
+    document.getElementById('customer_number').value = selectedItem.dataset.customernumber || '';
+    document.getElementById('customer_first_name').value = selectedItem.dataset.firstname || '';
+    document.getElementById('customer_last_name').value = selectedItem.dataset.lastname || '';
+    document.getElementById('customer_address').value = selectedItem.dataset.address || '';
+    document.getElementById('customer_city').value = selectedItem.dataset.city || '';
+    document.getElementById('customer_postal_code').value = selectedItem.dataset.postal || '';
+    document.getElementById('customer_email').value = selectedItem.dataset.email || '';
+    document.getElementById('customer_phone').value = selectedItem.dataset.phone || '';
+    document.getElementById('customer_uid').value = selectedItem.dataset.uid || '';
+}
+
+/**
+ * Aufträge für Kunden laden
+ */
+function loadCustomerOrders(customerId) {
+    const orderSelect = document.getElementById('order_select');
+    orderSelect.innerHTML = '<option value="">Kein Auftrag - freie Rechnung</option>';
+    
+    // Filter verfügbare Aufträge nach Kunde
+    const customerOrders = availableOrders.filter(order => order.customer_id == customerId);
+    
+    customerOrders.forEach(order => {
+        const option = document.createElement('option');
+        option.value = order.id;
+        option.textContent = order.display_text;
+        option.dataset.serviceStart = order.service_start || '';
+        option.dataset.serviceEnd = order.service_end || '';
+        orderSelect.appendChild(option);
+    });
+    
+    // Event Listener für Auftragsauswahl
+    orderSelect.addEventListener('change', onOrderChange);
+}
+
+/**
+ * Auftragsauswahl geändert
+ */
+function onOrderChange() {
+    const orderSelect = document.getElementById('order_select');
+    const selectedOption = orderSelect.options[orderSelect.selectedIndex];
+    const orderSummary = document.getElementById('order-summary');
+    const invoiceTypeSelection = document.getElementById('invoice-type-selection');
+    
+    if (orderSelect.value) {
+        // Leistungszeitraum aus Auftrag laden
+        document.getElementById('service_period_start').value = selectedOption.dataset.serviceStart || '';
+        document.getElementById('service_period_end').value = selectedOption.dataset.serviceEnd || '';
+        
+        // Auftragsübersicht anzeigen und laden
+        orderSummary.style.display = 'block';
+        loadOrderSummary(orderSelect.value);
+        
+        // Rechnungsart-Auswahl anzeigen
+        invoiceTypeSelection.style.display = 'block';
+    } else {
+        // Auftragsübersicht verstecken
+        orderSummary.style.display = 'none';
+        
+        // Rechnungsart-Auswahl verstecken
+        invoiceTypeSelection.style.display = 'none';
+    }
+}
+
+/**
+ * Event Listener für Rechnungsart-Auswahl
+ */
+document.addEventListener('DOMContentLoaded', function() {
+    const invoiceTypeChoice = document.getElementById('invoice_type_choice');
+    const documentTitleField = document.getElementById('document_title');
+    
+    // Event Listener für Rechnungsart-Änderung
+    if (invoiceTypeChoice) {
+        invoiceTypeChoice.addEventListener('change', function() {
+            const anzahlungInfo = document.getElementById('anzahlung-info');
+            
+            if (this.value === 'anzahlung') {
+                // Anzahlungsrechnung gewählt
+                documentTitleField.value = 'ANZAHLUNG';
+                if (anzahlungInfo) anzahlungInfo.style.display = 'block';
+                updateAnzahlungDisplay();
+                updateAnzahlungCalculation();
+            } else {
+                // Standard Rechnung
+                documentTitleField.value = 'RECHNUNG';
+                if (anzahlungInfo) anzahlungInfo.style.display = 'none';
+                resetToOriginalAmounts();
+            }
+        });
+    }
+});
+
+/**
+ * Anzahlungsanzeige im UI aktualisieren
+ */
+function updateAnzahlungDisplay() {
+    const orderTotalElement = document.getElementById('order-total-amount');
+    const anzahlungAmountElement = document.getElementById('anzahlung-amount');
+    
+    if (orderTotalElement && orderTotalElement.dataset.originalAmount && anzahlungAmountElement) {
+        const originalAmount = parseFloat(orderTotalElement.dataset.originalAmount);
+        const anzahlungAmount = originalAmount * 0.30; // 30% Anzahlung
+        anzahlungAmountElement.textContent = `${anzahlungAmount.toFixed(2).replace('.', ',')} €`;
+    }
+}
+
+/**
+ * Berechnung für Anzahlungsrechnung aktualisieren
+ */
+function updateAnzahlungCalculation() {
+    const percentage = 30; // Feste 30% Anzahlung
+    const isAnzahlung = document.getElementById('invoice_type_choice').value === 'anzahlung';
+    
+    // Prüfen ob alle Zeilen geladen sind
+    const rows = document.querySelectorAll('#invoice-items tbody tr');
+    if (rows.length === 0) return;
+    
+    let totalNet = 0;
+    let totalTax = 0;
+    
+    rows.forEach(row => {
+        const positionInput = row.querySelector('.position-anzahl');
+        const unitPriceInput = row.querySelector('.position-einzelpreis');
+        const netAmountCell = row.querySelector('.position-nettopreis');
+        const taxAmountCell = row.querySelector('.position-steuer');
+        const grossAmountCell = row.querySelector('.position-bruttopreis');
+        
+        if (!positionInput || !unitPriceInput) return;
+        
+        let originalQuantity, originalUnitPrice;
+        
+        if (isAnzahlung) {
+            // Ursprüngliche Werte aus data-Attributen laden oder aktuelle Werte speichern
+            if (!positionInput.dataset.originalQuantity) {
+                positionInput.dataset.originalQuantity = positionInput.value;
+                positionInput.dataset.originalUnitPrice = unitPriceInput.value;
+            }
+            originalQuantity = parseFloat(positionInput.dataset.originalQuantity) || 0;
+            originalUnitPrice = parseFloat(positionInput.dataset.originalUnitPrice) || 0;
+            
+            // Anzahlung berechnen
+            const anzahlungAmount = (originalQuantity * originalUnitPrice * percentage) / 100;
+            
+            // Menge auf 1 setzen und Einzelpreis anpassen
+            positionInput.value = 1;
+            unitPriceInput.value = anzahlungAmount.toFixed(2);
+        } else {
+            // Zurück zu ursprünglichen Werten
+            if (positionInput.dataset.originalQuantity) {
+                positionInput.value = positionInput.dataset.originalQuantity;
+                unitPriceInput.value = positionInput.dataset.originalUnitPrice;
+            }
+            originalQuantity = parseFloat(positionInput.value) || 0;
+            originalUnitPrice = parseFloat(unitPriceInput.value) || 0;
+        }
+        
+        // Berechnungen für aktuelle Werte
+        const currentQuantity = parseFloat(positionInput.value) || 0;
+        const currentUnitPrice = parseFloat(unitPriceInput.value) || 0;
+        const netAmount = currentQuantity * currentUnitPrice;
+        const taxAmount = netAmount * 0.19; // 19% MwSt
+        const grossAmount = netAmount + taxAmount;
+        
+        // Anzeige aktualisieren
+        if (netAmountCell) netAmountCell.textContent = netAmount.toFixed(2) + ' €';
+        if (taxAmountCell) taxAmountCell.textContent = taxAmount.toFixed(2) + ' €';
+        if (grossAmountCell) grossAmountCell.textContent = grossAmount.toFixed(2) + ' €';
+        
+        totalNet += netAmount;
+        totalTax += taxAmount;
+    });
+    
+    // Gesamtsummen aktualisieren
+    calculateTotals();
+}
+
+/**
+ * Zu ursprünglichen Beträgen zurückkehren
+ */
+function resetToOriginalAmounts() {
+    const rows = document.querySelectorAll('#invoice-items tbody tr');
+    let totalNet = 0;
+    let totalTax = 0;
+    
+    rows.forEach(row => {
+        const positionInput = row.querySelector('.position-anzahl');
+        const unitPriceInput = row.querySelector('.position-einzelpreis');
+        const netAmountCell = row.querySelector('.position-nettopreis');
+        const taxAmountCell = row.querySelector('.position-steuer');
+        const grossAmountCell = row.querySelector('.position-bruttopreis');
+        
+        if (positionInput && unitPriceInput) {
+            // Zu ursprünglichen Werten zurückkehren falls gespeichert
+            if (positionInput.dataset.originalQuantity && unitPriceInput.dataset.originalUnitPrice) {
+                positionInput.value = positionInput.dataset.originalQuantity;
+                unitPriceInput.value = unitPriceInput.dataset.originalUnitPrice;
+            }
+            
+            // Berechnungen für ursprüngliche Werte
+            const quantity = parseFloat(positionInput.value) || 0;
+            const unitPrice = parseFloat(unitPriceInput.value) || 0;
+            const netAmount = quantity * unitPrice;
+            const taxAmount = netAmount * 0.19;
+            const grossAmount = netAmount + taxAmount;
+            
+            // Anzeige aktualisieren
+            if (netAmountCell) netAmountCell.textContent = netAmount.toFixed(2) + ' €';
+            if (taxAmountCell) taxAmountCell.textContent = taxAmount.toFixed(2) + ' €';
+            if (grossAmountCell) grossAmountCell.textContent = grossAmount.toFixed(2) + ' €';
+            
+            totalNet += netAmount;
+            totalTax += taxAmount;
+        }
+    });
+    
+    // Gesamtsummen aktualisieren
+    calculateTotals();
+}
+
+/**
+ * Bestehende Rechnungen für Kunden/Auftrag prüfen
+ */
+function checkExistingInvoices(customerId, orderId = null) {
+    const url = orderId ? 
+        `/api/invoices/existing?customer_id=${customerId}&order_id=${orderId}` : 
+        `/api/invoices/existing?customer_id=${customerId}`;
+        
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            const infoDiv = document.getElementById('existing-invoices-info');
+            if (data.invoices && data.invoices.length > 0) {
+                let html = '<h6><i class="bi bi-exclamation-triangle"></i> Bestehende Rechnungen:</h6><ul>';
+                data.invoices.forEach(invoice => {
+                    html += `<li>${invoice.invoice_number} - ${invoice.invoice_type} - ${invoice.final_amount.toFixed(2)} € (${invoice.status})</li>`;
+                });
+                html += '</ul>';
+                if (data.total_amount > 0) {
+                    html += `<p><strong>Bereits in Rechnung gestellt: ${data.total_amount.toFixed(2)} €</strong></p>`;
+                }
+                infoDiv.innerHTML = html;
+                infoDiv.style.display = 'block';
+            } else {
+                infoDiv.style.display = 'none';
+            }
+        })
+        .catch(error => console.error('Fehler beim Laden bestehender Rechnungen:', error));
+}
+
+/**
+ * Neue Position hinzufügen
+ */
+function addPosition() {
+    positionCounter++;
+    const tbody = document.getElementById('positions-tbody');
+    const row = document.createElement('tr');
+    row.id = `position-${positionCounter}`;
+    row.innerHTML = `
+        <td>
+            <input type="text" class="form-control position-number" value="${positionCounter}" readonly>
+            <input type="hidden" name="positions[${positionCounter}][position_number]" value="${positionCounter}">
+        </td>
+        <td>
+            <select name="positions[${positionCounter}][article_id]" class="form-select article-select" 
+                    onchange="onArticleChange(${positionCounter})">
+                <option value="">Freitext</option>
+                ${availableArticles.map(article => 
+                    `<option value="${article.id}" 
+                             data-description="${article.description || ''}">
+                        ${article.display_name}
+                    </option>`
+                ).join('')}
+            </select>
+            <input type="text" name="positions[${positionCounter}][article_text]" 
+                   class="form-control mt-1" placeholder="Freitext-Artikel" style="display: block;">
+        </td>
+        <td>
+            <textarea name="positions[${positionCounter}][description]" class="form-control" rows="2"
+                      placeholder="Beschreibung der Position..."></textarea>
+        </td>
+        <td>
+            <input type="number" name="positions[${positionCounter}][quantity]" class="form-control" 
+                   value="1.0" step="0.1" onchange="calculateRowTotal(${positionCounter})">
+        </td>
+        <td>
+            <input type="text" name="positions[${positionCounter}][unit]" class="form-control" 
+                   value="" maxlength="6" placeholder="Einheit">
+        </td>
+        <td>
+            <input type="number" name="positions[${positionCounter}][price_net]" class="form-control" 
+                   step="0.01" placeholder="0.00" onchange="calculateGrossFromNet(${positionCounter})">
+        </td>
+        <td>
+            <input type="number" name="positions[${positionCounter}][price_gross]" class="form-control" 
+                   step="0.01" placeholder="0.00" onchange="calculateNetFromGross(${positionCounter})">
+        </td>
+        <td>
+            <input type="number" name="positions[${positionCounter}][discount_value]" class="form-control" 
+                   step="0.01" placeholder="0.00" onchange="calculateRowTotal(${positionCounter})">
+        </td>
+        <td>
+            <select name="positions[${positionCounter}][discount_type]" class="form-select" onchange="calculateRowTotal(${positionCounter})">
+                <option value="€">€</option>
+                <option value="%">%</option>
+            </select>
+        </td>
+        <td>
+            <input type="text" class="form-control row-total-net" readonly value="0,00 €">
+            <input type="hidden" name="positions[${positionCounter}][line_total_net]" value="0">
+        </td>
+        <td>
+            <input type="text" class="form-control row-total-gross" readonly value="0,00 €">
+            <input type="hidden" name="positions[${positionCounter}][line_total_gross]" value="0">
+        </td>
+        <td>
+            <button type="button" class="btn btn-remove-position" onclick="removePosition(${positionCounter})">
+                <i class="bi bi-trash"></i>
+            </button>
+            <input type="hidden" name="positions[${positionCounter}][vat_rate]" value="20">
+        </td>
+    `;
+    tbody.appendChild(row);
+    calculateTotals();
+}
+
+/**
+ * Position entfernen
+ */
+function removePosition(positionId) {
+    const row = document.getElementById(`position-${positionId}`);
+    if (row) {
+        row.remove();
+        // Positionsnummern neu berechnen
+        renumberPositions();
+        calculateTotals();
+    }
+}
+
+/**
+ * Positionsnummern neu berechnen
+ */
+function renumberPositions() {
+    const tbody = document.getElementById('positions-tbody');
+    const rows = tbody.querySelectorAll('tr');
+    
+    rows.forEach((row, index) => {
+        const newPositionNumber = index + 1;
+        
+        // Positionsnummer im sichtbaren Feld aktualisieren
+        const positionNumberInput = row.querySelector('.position-number');
+        if (positionNumberInput) {
+            positionNumberInput.value = newPositionNumber;
+        }
+        
+        // Hidden Input für Positionsnummer aktualisieren
+        const hiddenPositionInput = row.querySelector('input[name*="[position_number]"]');
+        if (hiddenPositionInput) {
+            hiddenPositionInput.value = newPositionNumber;
+        }
+        
+        // Alle anderen Input-Namen aktualisieren
+        const inputs = row.querySelectorAll('input, select, textarea');
+        inputs.forEach(input => {
+            if (input.name && input.name.includes('positions[')) {
+                // Ersetze die alte Positionsnummer in den Namen
+                input.name = input.name.replace(/positions\[\d+\]/, `positions[${newPositionNumber}]`);
+            }
+        });
+        
+        // Onclick-Handler für Remove-Button aktualisieren
+        const removeButton = row.querySelector('.btn-remove-position');
+        if (removeButton) {
+            removeButton.setAttribute('onclick', `removePosition(${newPositionNumber})`);
+        }
+        
+        // Onchange-Handler aktualisieren
+        const selectElement = row.querySelector('.article-select');
+        if (selectElement) {
+            selectElement.setAttribute('onchange', `onArticleChange(${newPositionNumber})`);
+        }
+        
+        const quantityInput = row.querySelector('input[name*="[quantity]"]');
+        if (quantityInput) {
+            quantityInput.setAttribute('onchange', `calculateRowTotal(${newPositionNumber})`);
+        }
+        
+        const priceNetInput = row.querySelector('input[name*="[price_net]"]');
+        if (priceNetInput) {
+            priceNetInput.setAttribute('onchange', `calculateRowTotal(${newPositionNumber})`);
+        }
+        
+        const priceGrossInput = row.querySelector('input[name*="[price_gross]"]');
+        if (priceGrossInput) {
+            priceGrossInput.setAttribute('onchange', `calculateNetFromGross(${newPositionNumber})`);
+        }
+        
+        const discountInput = row.querySelector('input[name*="[discount_value]"]');
+        if (discountInput) {
+            discountInput.setAttribute('onchange', `calculateRowTotal(${newPositionNumber})`);
+        }
+        
+        const discountTypeSelect = row.querySelector('select[name*="[discount_type]"]');
+        if (discountTypeSelect) {
+            discountTypeSelect.setAttribute('onchange', `calculateRowTotal(${newPositionNumber})`);
+        }
+        
+        // Row-ID aktualisieren
+        row.id = `position-${newPositionNumber}`;
+    });
+    
+    // positionCounter auf die Anzahl der aktuellen Reihen setzen
+    positionCounter = rows.length;
+}
+
+/**
+ * Artikel in Position geändert
+ */
+function onArticleChange(positionId) {
+    const articleSelect = document.querySelector(`select[name="positions[${positionId}][article_id]"]`);
+    const freetextInput = document.querySelector(`input[name="positions[${positionId}][article_text]"]`);
+    const descriptionTextarea = document.querySelector(`textarea[name="positions[${positionId}][description]"]`);
+    const unitInput = document.querySelector(`input[name="positions[${positionId}][unit]"]`);
+    const priceNetInput = document.querySelector(`input[name="positions[${positionId}][price_net]"]`);
+    const priceGrossInput = document.querySelector(`input[name="positions[${positionId}][price_gross]"]`);
+    const vatRateInput = document.querySelector(`input[name="positions[${positionId}][vat_rate]"]`);
+    
+    const selectedOption = articleSelect.options[articleSelect.selectedIndex];
+    
+    if (articleSelect.value) {
+        // Artikel gewählt - Freitext verstecken
+        freetextInput.style.display = 'none';
+        freetextInput.value = '';
+        
+        // Artikeldaten laden (nur Beschreibung)
+        descriptionTextarea.value = selectedOption.dataset.description || '';
+        // Alle anderen Felder bleiben leer für freie Eingabe
+        unitInput.value = '';
+        priceNetInput.value = '';
+        priceGrossInput.value = '';
+        vatRateInput.value = '20';  // Standard MwSt.
+    } else {
+        // Freitext gewählt - Artikel-Daten zurücksetzen
+        freetextInput.style.display = 'block';
+        descriptionTextarea.value = '';
+        unitInput.value = '';
+        priceNetInput.value = '';
+        priceGrossInput.value = '';
+        vatRateInput.value = '20';
+    }
+    
+    calculateRowTotal(positionId);
+}
+
+/**
+ * Bruttopreis aus Nettopreis berechnen
+ */
+function calculateGrossFromNet(positionId) {
+    const priceNetInput = document.querySelector(`input[name="positions[${positionId}][price_net]"]`);
+    const priceGrossInput = document.querySelector(`input[name="positions[${positionId}][price_gross]"]`);
+    const vatRateInput = document.querySelector(`input[name="positions[${positionId}][vat_rate]"]`);
+    
+    const priceNet = parseFloat(priceNetInput.value) || 0;
+    const vatRate = parseFloat(vatRateInput.value) || 20;
+    const priceGross = priceNet * (1 + vatRate / 100);
+    
+    priceGrossInput.value = priceGross.toFixed(2);
+    calculateRowTotal(positionId);
+}
+
+/**
+ * MwSt.-Satz geändert - Bruttopreis neu berechnen
+ */
+function onVatRateChange(positionId) {
+    // Wenn ein Nettopreis vorhanden ist, Bruttopreis neu berechnen
+    const priceNetInput = document.querySelector(`input[name="positions[${positionId}][price_net]"]`);
+    if (priceNetInput.value && priceNetInput.value !== '0') {
+        calculateGrossFromNet(positionId);
+    }
+}
+
+/**
+ * Bruttopreis aus Nettopreis berechnen
+ */
+function calculateGrossFromNet(positionId) {
+    const priceNetInput = document.querySelector(`input[name="positions[${positionId}][price_net]"]`);
+    const priceGrossInput = document.querySelector(`input[name="positions[${positionId}][price_gross]"]`);
+    const vatRateInput = document.querySelector(`input[name="positions[${positionId}][vat_rate]"]`);
+    
+    const priceNet = parseFloat(priceNetInput.value) || 0;
+    const vatRate = parseFloat(vatRateInput.value) || 20;
+    const priceGross = priceNet * (1 + vatRate / 100);
+    
+    priceGrossInput.value = priceGross.toFixed(2);
+    calculateRowTotal(positionId);
+}
+
+/**
+ * Nettopreis aus Bruttopreis berechnen
+ */
+function calculateNetFromGross(positionId) {
+    const priceNetInput = document.querySelector(`input[name="positions[${positionId}][price_net]"]`);
+    const priceGrossInput = document.querySelector(`input[name="positions[${positionId}][price_gross]"]`);
+    const vatRateInput = document.querySelector(`input[name="positions[${positionId}][vat_rate]"]`);
+    
+    const priceGross = parseFloat(priceGrossInput.value) || 0;
+    const vatRate = parseFloat(vatRateInput.value) || 20;
+    const priceNet = priceGross / (1 + vatRate / 100);
+    
+    priceNetInput.value = priceNet.toFixed(2);
+    calculateRowTotal(positionId);
+}
+
+/**
+ * Zeilensumme berechnen
+ */
+function calculateRowTotal(positionId) {
+    const quantityInput = document.querySelector(`input[name="positions[${positionId}][quantity]"]`);
+    const priceNetInput = document.querySelector(`input[name="positions[${positionId}][price_net]"]`);
+    const discountValueInput = document.querySelector(`input[name="positions[${positionId}][discount_value]"]`);
+    const discountTypeSelect = document.querySelector(`select[name="positions[${positionId}][discount_type]"]`);
+    const vatRateInput = document.querySelector(`input[name="positions[${positionId}][vat_rate]"]`);
+    const rowTotalNetDisplay = document.querySelector(`#position-${positionId} .row-total-net`);
+    const rowTotalGrossDisplay = document.querySelector(`#position-${positionId} .row-total-gross`);
+    const lineTotalNetInput = document.querySelector(`input[name="positions[${positionId}][line_total_net]"]`);
+    const lineTotalGrossInput = document.querySelector(`input[name="positions[${positionId}][line_total_gross]"]`);
+    
+    const quantity = parseFloat(quantityInput.value) || 0;
+    const priceNet = parseFloat(priceNetInput.value) || 0;
+    const discountValue = parseFloat(discountValueInput.value) || 0;
+    const discountType = discountTypeSelect.value;
+    const vatRate = parseFloat(vatRateInput.value) || 20;
+    
+    // Basis-Zeilensumme
+    let lineTotalNet = quantity * priceNet;
+    
+    // Rabatt anwenden
+    if (discountType === '%') {
+        lineTotalNet = lineTotalNet * (1 - discountValue / 100);
+    } else {
+        lineTotalNet = lineTotalNet - discountValue;
+    }
+    
+    // Brutto berechnen
+    const lineTotalGross = lineTotalNet * (1 + vatRate / 100);
+    
+    // Werte speichern
+    lineTotalNetInput.value = lineTotalNet.toFixed(2);
+    lineTotalGrossInput.value = lineTotalGross.toFixed(2);
+    
+    // Anzeige aktualisieren
+    rowTotalNetDisplay.value = `${lineTotalNet.toFixed(2)} €`;
+    rowTotalGrossDisplay.value = `${lineTotalGross.toFixed(2)} €`;
+    
+    // Gesamtsumme neu berechnen
+    calculateTotals();
+}
+
+/**
+ * Gesamtsummen berechnen
+ */
+function calculateTotals() {
+    const calculateVat = document.getElementById('calculate_vat').value === 'true';
+    const netTotalDisplay = document.getElementById('net-total');
+    const vatTotalDisplay = document.getElementById('vat-total');
+    const grossTotalDisplay = document.getElementById('gross-total');
+    
+    let totalNet = 0;
+    let totalVat = 0;
+    
+    // Alle Positionssummen addieren
+    document.querySelectorAll('input[name*="[line_total_net]"]').forEach(input => {
+        totalNet += parseFloat(input.value) || 0;
+    });
+    
+    // MwSt berechnen wenn gewünscht
+    if (calculateVat) {
+        document.querySelectorAll('input[name*="[line_total_net]"]').forEach(input => {
+            const positionId = input.name.match(/positions\[(\d+)\]/)[1];
+            const vatRateInput = document.querySelector(`input[name="positions[${positionId}][vat_rate]"]`);
+            const vatRate = parseFloat(vatRateInput.value) || 20;
+            const lineNet = parseFloat(input.value) || 0;
+            totalVat += lineNet * (vatRate / 100);
+        });
+    }
+    
+    const totalGross = totalNet + totalVat;
+    
+    // Anzeige aktualisieren
+    netTotalDisplay.textContent = `${totalNet.toFixed(2)} €`;
+    vatTotalDisplay.textContent = `${totalVat.toFixed(2)} €`;
+    grossTotalDisplay.textContent = `${totalGross.toFixed(2)} €`;
+    
+    // MwSt-Zeile ausblenden wenn nicht berechnet
+    const vatRow = vatTotalDisplay.closest('.total-row');
+    vatRow.style.display = calculateVat ? 'flex' : 'none';
+}
+
+/**
+ * Fälligkeitsdatum auf heute setzen
+ */
+function updateDueDate() {
+    const today = new Date();
+    const dueDateString = today.toISOString().split('T')[0];
+    document.getElementById('due_date').value = dueDateString;
+}
+
+/**
+ * Formular-Validierung vor Submit
+ */
+document.getElementById('generalInvoiceForm').addEventListener('submit', function(e) {
+    const positions = document.querySelectorAll('#positions-tbody tr');
+    
+    if (positions.length === 0) {
+        e.preventDefault();
+        alert('Bitte fügen Sie mindestens eine Position hinzu.');
+        return false;
+    }
+    
+    // Prüfen ob alle Positionen gültige Daten haben
+    let hasValidPosition = false;
+    positions.forEach(row => {
+        const priceNet = row.querySelector('input[name*="[price_net]"]').value;
+        const quantity = row.querySelector('input[name*="[quantity]"]').value;
+        
+        if (parseFloat(priceNet) > 0 && parseFloat(quantity) > 0) {
+            hasValidPosition = true;
+        }
+    });
+    
+    if (!hasValidPosition) {
+        e.preventDefault();
+        alert('Bitte geben Sie für mindestens eine Position gültige Mengen und Preise ein.');
+        return false;
+    }
+    
+    return true;
+});
+
+/**
+ * Auftragsübersicht laden
+ */
+function loadOrderSummary(orderId) {
+    fetch(`/api/order/${orderId}/invoice-summary`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Auftragsinformationen anzeigen
+                displayOrderInfo(data.order);
+                
+                // Bereits verechnete Beträge anzeigen
+                displayExistingInvoices(data.invoices);
+                
+                // Übersicht aktualisieren
+                updateOrderSummary(data.order, data.summary);
+            } else {
+                console.error('Fehler beim Laden der Auftragsübersicht:', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Fehler beim Laden der Auftragsübersicht:', error);
+        });
+}
+
+/**
+ * Auftragsinformationen anzeigen
+ */
+function displayOrderInfo(order) {
+    const orderInfoDisplay = document.getElementById('order-info-display');
+    orderInfoDisplay.innerHTML = `
+        <p><strong>Auftragsnummer:</strong> ${order.order_number}</p>
+        <p><strong>Status:</strong> <span class="badge bg-primary">${order.status}</span></p>
+        <p><strong>Erstellt:</strong> ${new Date(order.created_at).toLocaleDateString('de-DE')}</p>
+        <p><strong>Auftragssumme (netto):</strong> <strong class="text-primary">${order.total_amount.toFixed(2)} €</strong></p>
+        ${order.service_start ? `<p><strong>Leistungszeitraum:</strong> ${new Date(order.service_start).toLocaleDateString('de-DE')} - ${new Date(order.service_end).toLocaleDateString('de-DE')}</p>` : ''}
+    `;
+}
+
+/**
+ * Bestehende Rechnungen anzeigen
+ */
+function displayExistingInvoices(invoices) {
+    const existingInvoicesDisplay = document.getElementById('existing-invoices-display');
+    
+    if (invoices.length === 0) {
+        existingInvoicesDisplay.innerHTML = '<p class="text-muted"><em>Noch keine Rechnungen zu diesem Auftrag erstellt.</em></p>';
+        return;
+    }
+    
+    let html = '<div class="table-responsive"><table class="table table-sm">';
+    html += '<thead><tr><th>Rechnung</th><th>Typ</th><th>Betrag (netto)</th><th>Status</th></tr></thead><tbody>';
+    
+    invoices.forEach(invoice => {
+        const statusBadge = getStatusBadge(invoice.status);
+        html += `
+            <tr>
+                <td><small>${invoice.invoice_number}</small></td>
+                <td><small>${invoice.invoice_type}</small></td>
+                <td><small><strong>${invoice.final_amount.toFixed(2)} €</strong></small></td>
+                <td><small>${statusBadge}</small></td>
+            </tr>
+        `;
+    });
+    
+    html += '</tbody></table></div>';
+    existingInvoicesDisplay.innerHTML = html;
+}
+
+/**
+ * Status-Badge generieren
+ */
+function getStatusBadge(status) {
+    const badges = {
+        'Entwurf': 'bg-secondary',
+        'Versendet': 'bg-primary',
+        'Bezahlt': 'bg-success',
+        'Überfällig': 'bg-danger',
+        'Storniert': 'bg-dark'
+    };
+    
+    const badgeClass = badges[status] || 'bg-secondary';
+    return `<span class="badge ${badgeClass}">${status}</span>`;
+}
+
+/**
+ * Auftragsübersicht aktualisieren
+ */
+function updateOrderSummary(order, summary) {
+    const totalAmount = order.total_amount || 0;
+    const invoicedAmount = summary.total_invoiced || 0;
+    const remainingAmount = totalAmount - invoicedAmount;
+    const percentageInvoiced = totalAmount > 0 ? (invoicedAmount / totalAmount * 100) : 0;
+    
+    // Ursprüngliche Werte in data-Attributen speichern für Anzahlungsberechnung
+    const orderTotalElement = document.getElementById('order-total-amount');
+    const remainingElement = document.getElementById('order-remaining-amount');
+    
+    orderTotalElement.dataset.originalAmount = totalAmount;
+    remainingElement.dataset.originalRemaining = remainingAmount;
+    remainingElement.dataset.invoicedAmount = invoicedAmount;
+    
+    orderTotalElement.textContent = `${totalAmount.toFixed(2)} €`;
+    document.getElementById('order-invoiced-amount').textContent = `${invoicedAmount.toFixed(2)} €`;
+    remainingElement.textContent = `${remainingAmount.toFixed(2)} €`;
+    document.getElementById('order-percentage-invoiced').textContent = `${percentageInvoiced.toFixed(1)}%`;
+    
+    // Anzahlungsanzeige aktualisieren falls Anzahlung gewählt
+    const invoiceTypeChoice = document.getElementById('invoice_type_choice');
+    if (invoiceTypeChoice && invoiceTypeChoice.value === 'anzahlung') {
+        updateAnzahlungDisplay();
+    }
+    
+    // Farbe je nach Fortschritt
+    if (remainingAmount <= 0) {
+        remainingElement.className = 'fs-5 text-danger';
+    } else if (percentageInvoiced > 80) {
+        remainingElement.className = 'fs-5 text-warning';
+    } else {
+        remainingElement.className = 'fs-5 text-success';
+    }
+}
+
+// Bearbeitungsmodus: Rechnungsdaten laden
+{% if edit_mode and invoice %}
+
+function loadInvoiceDataForEditing() {
+    const invoice = {{ invoice.to_dict() | tojson }};
+    
+    console.log('Loading invoice data:', invoice);
+    console.log('Invoice positions:', invoice.positions);
+    
+    // Grunddaten laden
+    document.getElementById('customer_id').value = invoice.customer_id || '';
+    document.getElementById('customer_salutation').value = invoice.customer_salutation || '';
+    document.getElementById('customer_first_name').value = invoice.customer_first_name || '';
+    document.getElementById('customer_last_name').value = invoice.customer_last_name || '';
+    document.getElementById('customer_address').value = invoice.customer_address || '';
+    document.getElementById('customer_city').value = invoice.customer_city || '';
+    document.getElementById('customer_postal_code').value = invoice.customer_postal_code || '';
+    document.getElementById('customer_email').value = invoice.customer_email || '';
+    document.getElementById('customer_phone').value = invoice.customer_phone || '';
+    document.getElementById('customer_uid').value = invoice.customer_uid || '';
+    
+    // Dokumentdetails
+    document.getElementById('document_title').value = invoice.document_title || '';
+    document.getElementById('service_description').value = invoice.service_description || '';
+    document.getElementById('closing_text').value = invoice.closing_text || '';
+    
+    // Rechnungsart
+    document.getElementById('invoice_type_choice').value = invoice.invoice_type || 'allgemein';
+    
+    // Datumsfelder
+    if (invoice.service_period_start) {
+        document.getElementById('service_period_start').value = invoice.service_period_start;
+    }
+    if (invoice.service_period_end) {
+        document.getElementById('service_period_end').value = invoice.service_period_end;
+    }
+    if (invoice.due_date) {
+        document.getElementById('due_date').value = invoice.due_date;
+    }
+    
+    // Positionen laden
+    if (invoice.positions && invoice.positions.length > 0) {
+        console.log('Loading', invoice.positions.length, 'positions');
+        
+        // Bestehende Zeilen löschen (außer der ersten)
+        const tbody = document.querySelector('#positions-tbody');
+        while (tbody.children.length > 1) {
+            tbody.removeChild(tbody.lastChild);
+        }
+        
+        // Positionen laden
+        invoice.positions.forEach((position, index) => {
+            console.log('Loading position', index + 1, ':', position);
+            
+            // Für jede Position eine neue Zeile hinzufügen
+            addPosition();
+            
+            const positionId = positionCounter; // Aktuelle Position ID
+            const row = tbody.children[index];
+            
+            console.log('Position ID:', positionId, 'Row:', row);
+            
+            // Artikel auswählen (Dropdown oder Freitext)
+            const articleSelect = row.querySelector('.article-select');
+            const articleText = row.querySelector('input[name*="[article_text]"]');
+            
+            if (position.article_id) {
+                console.log('Setting article dropdown to:', position.article_id);
+                // Artikel aus Dropdown auswählen
+                articleSelect.value = position.article_id;
+                articleText.style.display = 'none';
+                onArticleChange(positionId);
+            } else {
+                console.log('Using article text:', position.article_text);
+                // Freitext verwenden
+                articleSelect.value = '';
+                articleText.value = position.article_text || '';
+                articleText.style.display = 'block';
+            }
+            
+            // Andere Felder setzen
+            row.querySelector('textarea[name*="[description]"]').value = position.description || '';
+            row.querySelector('input[name*="[quantity]"]').value = position.quantity || '';
+            row.querySelector('input[name*="[unit]"]').value = position.unit || 'Stk';
+            row.querySelector('input[name*="[price_net]"]').value = position.price_net || '';
+            row.querySelector('input[name*="[price_gross]"]').value = position.price_gross || '';
+            row.querySelector('input[name*="[discount_value]"]').value = position.discount_value || '';
+            row.querySelector('select[name*="[discount_type]"]').value = position.discount_type || '€';
+            row.querySelector('input[name*="[vat_rate]"]').value = position.vat_rate || '20';
+            
+            // Berechnungen für diese Position durchführen
+            calculateRowTotal(positionId);
+        });
+        
+        // Gesamtberechnungen aktualisieren
+        calculateTotals();
+    } else {
+        console.log('No positions found in invoice data');
+    }
+    
+    // Rechnungsart-spezifische Anzeigen aktualisieren
+    const invoiceTypeChoice = document.getElementById('invoice_type_choice');
+    if (invoiceTypeChoice.value === 'anzahlung') {
+        document.getElementById('anzahlung-info').style.display = 'block';
+    }
+    
+    // Invoice Type Selection anzeigen
+    document.getElementById('invoice-type-selection').style.display = 'block';
+}
+{% endif %}
+</script>
+{% endblock %}

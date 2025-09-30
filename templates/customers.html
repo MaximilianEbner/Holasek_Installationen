@@ -117,6 +117,16 @@
                         <thead>
                             <tr>
                                 <th>
+                                    <a href="{{ url_for('customers', search=search_query, customer_manager=customer_manager_filter, status=status_filter, sort='id', dir='asc' if sort_by != 'id' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                        Kundennummer
+                                        {% if sort_by == 'id' %}
+                                            <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
                                     <a href="{{ url_for('customers', search=search_query, customer_manager=customer_manager_filter, status=status_filter, sort='last_name', dir='asc' if sort_by != 'last_name' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
                                         Name
                                         {% if sort_by == 'last_name' %}
@@ -158,6 +168,7 @@
                                     </a>
                                 </th>
                                 <th>Akquisekanal</th>
+                                <th>Detaillierter Akquisekanal</th>
                                 <th>Status</th>
                                 <th>Aktionen</th>
                             </tr>
@@ -165,6 +176,9 @@
                         <tbody>
                             {% for customer in customers %}
                             <tr>
+                                <td>
+                                    <strong class="text-primary">{{ customer.customer_number }}</strong>
+                                </td>
                                 <td>
                                     <strong>
                                         {% if customer.salutation %}{{ customer.salutation }} {% endif %}{{ customer.first_name }} {{ customer.last_name }}
@@ -177,6 +191,16 @@
                                 <td>
                                     {% if customer.acquisition_channel %}
                                         <span class="badge bg-info">{{ customer.acquisition_channel.name }}</span>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if customer.detailed_acquisition_channel %}
+                                        <span class="text-muted" title="{{ customer.detailed_acquisition_channel }}">
+                                            {{ customer.detailed_acquisition_channel[:50] }}
+                                            {% if customer.detailed_acquisition_channel|length > 50 %}...{% endif %}
+                                        </span>
                                     {% else %}
                                         -
                                     {% endif %}

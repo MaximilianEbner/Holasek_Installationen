@@ -326,7 +326,7 @@ html {
                                             <div class="input-group input-group-sm">
                                                 <input type="number" class="form-control subitem-base-price" 
                                                        value="{{ subitem.price_per_unit or 0 }}" 
-                                                       step="0.01" min="0"
+                                                       step="0.01"
                                                        data-template-id="{{ template.id }}" data-subitem-index="{{ loop.index0 }}"
                                                        onchange="updateSubItemCalculation(this.dataset.templateId, this.dataset.subitemIndex)">
                                                 <span class="input-group-text">€</span>
@@ -407,7 +407,7 @@ html {
                                             <div class="input-group input-group-sm">
                                                 <input type="number" class="form-control subitem-hourly-rate" 
                                                        value="{{ subitem.hourly_rate or 95 }}" 
-                                                       step="0.01" min="0"
+                                                       step="0.01"
                                                        data-template-id="{{ template.id }}" data-subitem-index="{{ loop.index0 }}"
                                                        onchange="updateSubItemCalculation(this.dataset.templateId, this.dataset.subitemIndex)">
                                                 <span class="input-group-text">€</span>
@@ -809,46 +809,44 @@ function updateSubItemCalculation(templateId, subitemIndex) {
 
 // Unterposition entfernen
 function removeSubItem(templateId, subitemIndex) {
-    if (confirm('Möchten Sie diese Unterposition wirklich entfernen?')) {
-        const subitemRow = document.getElementById(`subitem_${templateId}_${subitemIndex}`);
-        if (subitemRow) {
-            subitemRow.remove();
+    const subitemRow = document.getElementById(`subitem_${templateId}_${subitemIndex}`);
+    if (subitemRow) {
+        subitemRow.remove();
+        
+        // Aktualisiere die Indizes der verbleibenden Unterpositionen
+        const remainingSubitems = document.querySelectorAll(`#subitems_${templateId} .subitem-row`);
+        remainingSubitems.forEach((subitem, newIndex) => {
+            // Aktualisiere ID und data-subitem-index
+            subitem.id = `subitem_${templateId}_${newIndex}`;
+            subitem.setAttribute('data-subitem-index', newIndex);
             
-            // Aktualisiere die Indizes der verbleibenden Unterpositionen
-            const remainingSubitems = document.querySelectorAll(`#subitems_${templateId} .subitem-row`);
-            remainingSubitems.forEach((subitem, newIndex) => {
-                // Aktualisiere ID und data-subitem-index
-                subitem.id = `subitem_${templateId}_${newIndex}`;
-                subitem.setAttribute('data-subitem-index', newIndex);
-                
-                // Aktualisiere onclick-Events
-                const removeBtn = subitem.querySelector('button[onclick*="removeSubItem"]');
-                if (removeBtn) {
-                    removeBtn.setAttribute('onclick', `removeSubItem(${templateId}, ${newIndex})`);
-                }
-                
-                // Aktualisiere onchange-Events
-                const changeElements = subitem.querySelectorAll('[onchange*="updateSubItemCalculation"]');
-                changeElements.forEach(element => {
-                    element.setAttribute('onchange', `updateSubItemCalculation(${templateId}, ${newIndex})`);
-                });
-                
-                // Aktualisiere Preis-Element ID
-                const priceElement = subitem.querySelector('.subitem-calculated-price');
-                if (priceElement) {
-                    priceElement.id = `subitem_price_${templateId}_${newIndex}`;
-                }
-                
-                // Aktualisiere Grundpreis-Element ID
-                const grundpreisElement = document.getElementById(`grundpreis_${templateId}_${parseInt(subitem.dataset.subitemIndex)}`);
-                if (grundpreisElement) {
-                    grundpreisElement.id = `grundpreis_${templateId}_${newIndex}`;
-                }
+            // Aktualisiere onclick-Events
+            const removeBtn = subitem.querySelector('button[onclick*="removeSubItem"]');
+            if (removeBtn) {
+                removeBtn.setAttribute('onclick', `removeSubItem(${templateId}, ${newIndex})`);
+            }
+            
+            // Aktualisiere onchange-Events
+            const changeElements = subitem.querySelectorAll('[onchange*="updateSubItemCalculation"]');
+            changeElements.forEach(element => {
+                element.setAttribute('onchange', `updateSubItemCalculation(${templateId}, ${newIndex})`);
             });
             
-            // Aktualisiere Template-Gesamtpreis
-            updateTemplateTotal(templateId);
-        }
+            // Aktualisiere Preis-Element ID
+            const priceElement = subitem.querySelector('.subitem-calculated-price');
+            if (priceElement) {
+                priceElement.id = `subitem_price_${templateId}_${newIndex}`;
+            }
+            
+            // Aktualisiere Grundpreis-Element ID
+            const grundpreisElement = document.getElementById(`grundpreis_${templateId}_${parseInt(subitem.dataset.subitemIndex)}`);
+            if (grundpreisElement) {
+                grundpreisElement.id = `grundpreis_${templateId}_${newIndex}`;
+            }
+        });
+        
+        // Aktualisiere Template-Gesamtpreis
+        updateTemplateTotal(templateId);
     }
 }
 
@@ -998,8 +996,15 @@ document.addEventListener('keydown', function(e) {
 
 // Navigation Funktionen
 function scrollToTemplate(templateId) {
+    // Verstecke alle Templates
+    document.querySelectorAll('.template-card').forEach(card => {
+        card.style.display = 'none';
+    });
+    
+    // Zeige nur das ausgewählte Template
     const templateElement = document.getElementById(`template_${templateId}`);
     if (templateElement) {
+        templateElement.style.display = 'block';
         templateElement.scrollIntoView({ 
             behavior: 'smooth', 
             block: 'start',
@@ -1017,6 +1022,9 @@ function scrollToTemplate(templateId) {
             item.classList.remove('active');
         });
         document.querySelector(`[data-template-id="${templateId}"]`).classList.add('active');
+        
+        // Aktualisiere Filter-Info
+        updateFilterInfo(1);
     }
 }
 

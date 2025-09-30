@@ -98,9 +98,15 @@
                         <div class="col-6 text-end" id="base-total-display">{{ "%.2f"|format(quote.calculate_net_total()) }} €</div>
                     </div>
                     <div class="row">
-                        <div class="col-6">Aufschlag ({{ quote.markup_percentage or 15 }}%):</div>
+                        <div class="col-6">Aufschlag ({{ quote.markup_percentage if quote.markup_percentage is not none else 15 }}%):</div>
                         <div class="col-6 text-end" id="markup-amount-display">{{ "%.2f"|format(quote.calculate_markup_amount()) }} €</div>
                     </div>
+                    {% if quote.discount_percentage and quote.discount_percentage > 0 %}
+                    <div class="row">
+                        <div class="col-6">Rabatt ({{ quote.discount_percentage }}%):</div>
+                        <div class="col-6 text-end text-danger" id="discount-amount-display">-{{ "%.2f"|format(quote.calculate_discount_amount()) }} €</div>
+                    </div>
+                    {% endif %}
                     <hr class="my-2">
                     <div class="row">
                         <div class="col-6"><strong>Gesamtsumme:</strong></div>
@@ -169,12 +175,25 @@
                             <label class="form-label">Aufschlag *</label>
                             <div class="input-group">
                                 <input type="number" name="markup_percentage" class="form-control" 
-                                       value="{{ quote.markup_percentage or 15 }}" min="0" max="100" step="0.1" 
+                                       value="{{ quote.markup_percentage if quote.markup_percentage is not none else 15 }}" min="0" max="100" step="0.1" 
                                        id="markup-input" onchange="updateMarkupDisplay()" required
                                        {% if quote.status == 'Angenommen' %}readonly{% endif %}>
                                 <span class="input-group-text">%</span>
                             </div>
                             <small class="form-text text-muted">Wird auf alle Positionen aufgeschlagen</small>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Rabatt</label>
+                            <div class="input-group">
+                                <input type="number" name="discount_percentage" class="form-control" 
+                                       value="{{ quote.discount_percentage if quote.discount_percentage is not none else 0 }}" min="0" max="100" step="0.1" 
+                                       id="discount-input" onchange="updateDiscountDisplay()"
+                                       {% if quote.status == 'Angenommen' %}readonly{% endif %}>
+                                <span class="input-group-text">%</span>
+                            </div>
+                            <small class="form-text text-muted">Wird von der Gesamtsumme abgezogen</small>
                         </div>
                     </div>
                     
@@ -400,7 +419,7 @@
                                     <label class="form-label">Einzelpreis *</label>
                                     <div class="input-group">
                                         <input type="number" name="unit_price" class="form-control" 
-                                               min="0" step="0.01" placeholder="0.00" required onchange="calculateSimpleTotal()">
+                                               step="0.01" placeholder="0.00" required onchange="calculateSimpleTotal()">
                                         <span class="input-group-text">€</span>
                                     </div>
                                 </div>
@@ -572,7 +591,7 @@
                                             <label class="form-label">Stückpreis</label>
                                             <div class="input-group">
                                                 <input type="number" name="sub_part_price[]" class="form-control" 
-                                                       min="0" step="0.01" placeholder="0.00" onchange="calculateBestellteilPrice(this, 1)">
+                                                       step="0.01" placeholder="0.00" onchange="calculateBestellteilPrice(this, 1)">
                                                 <span class="input-group-text">€</span>
                                             </div>
                                         </div>
@@ -632,7 +651,7 @@
                                             <label class="form-label">Einzelpreis</label>
                                             <div class="input-group">
                                                 <input type="number" name="sub_unit_price[]" class="form-control" 
-                                                       min="0" step="0.01" placeholder="0.00" onchange="calculateSonstigesPrice(this, 1)">
+                                                       step="0.01" placeholder="0.00" onchange="calculateSonstigesPrice(this, 1)">
                                                 <span class="input-group-text">€</span>
                                             </div>
                                         </div>
@@ -821,11 +840,19 @@
                                 <th></th>
                             </tr>
                             <tr class="table-light">
-                                <th colspan="4" class="text-end">Aufschlag (<span id="footer-markup-percent">{{ quote.markup_percentage or 15 }}</span>%):</th>
+                                <th colspan="4" class="text-end">Aufschlag (<span id="footer-markup-percent">{{ quote.markup_percentage if quote.markup_percentage is not none else 15 }}</span>%):</th>
                                 <th id="footer-markup-amount">{{ "%.2f"|format(quote.calculate_markup_amount()) }} €</th>
                                 <th></th>
                                 <th></th>
                             </tr>
+                            {% if quote.discount_percentage and quote.discount_percentage > 0 %}
+                            <tr class="table-light">
+                                <th colspan="4" class="text-end">Rabatt (<span id="footer-discount-percent">{{ quote.discount_percentage }}</span>%):</th>
+                                <th class="text-danger" id="footer-discount-amount">-{{ "%.2f"|format(quote.calculate_discount_amount()) }} €</th>
+                                <th></th>
+                                <th></th>
+                            </tr>
+                            {% endif %}
                             <tr class="table-success">
                                 <th colspan="4" class="text-end">Gesamtsumme:</th>
                                 <th id="footer-total-amount">{{ "%.2f"|format(quote.calculate_total()) }} €</th>
@@ -889,6 +916,14 @@ if (footerBaseTotal) footerBaseTotal.textContent = netTotal.toFixed(2) + ' €';
 if (footerMarkupPercent) footerMarkupPercent.textContent = markupPercent.toFixed(1);
 if (footerMarkupAmount) footerMarkupAmount.textContent = markupAmount.toFixed(2) + ' €';
 if (footerTotalAmount) footerTotalAmount.textContent = totalAmount.toFixed(2) + ' €';
+}
+
+// Rabattberechnung aktualisieren
+function updateDiscountDisplay() {
+    // Diese Funktion wird nur aufgerufen, wenn der Rabatt geändert wird
+    // Für korrekte Berechnungen ist ein Server-Request nötig
+    // Vorerst deaktiviert - Benutzer muss Seite neu laden oder Angebot speichern
+    console.log('Rabatt geändert - bitte Angebot speichern um aktualisierte Werte zu sehen');
 }
  
 // Angebot speichern
@@ -1201,7 +1236,7 @@ function addSubItem() {
                 <label class="form-label">Stückpreis</label>
                 <div class="input-group">
                     <input type="number" name="sub_part_price[]" class="form-control" 
-                           min="0" step="0.01" placeholder="0.00" onchange="calculateBestellteilPrice(this, ${index})">
+                           step="0.01" placeholder="0.00" onchange="calculateBestellteilPrice(this, ${index})">
                     <span class="input-group-text">€</span>
                 </div>
             </div>
@@ -1261,7 +1296,7 @@ function addSubItem() {
                 <label class="form-label">Einzelpreis</label>
                 <div class="input-group">
                     <input type="number" name="sub_unit_price[]" class="form-control" 
-                           min="0" step="0.01" placeholder="0.00" onchange="calculateSonstigesPrice(this, ${index})">
+                           step="0.01" placeholder="0.00" onchange="calculateSonstigesPrice(this, ${index})">
                     <span class="input-group-text">€</span>
                 </div>
             </div>

@@ -89,7 +89,10 @@
                     <div class="col-md-6">
                         <p><strong>Gesamtsumme:</strong> <span class="h5 text-success">{{ "%.2f"|format(quote.total_amount or 0) }} €</span></p>
                         <p><strong>Anzahl Positionen:</strong> {{ quote.quote_items|length }}</p>
-                        <p><strong>Aufschlag:</strong> {{ quote.markup_percentage or 15 }}%</p>
+                        <p><strong>Aufschlag:</strong> {{ quote.markup_percentage if quote.markup_percentage is not none else 15 }}%</p>
+                        {% if quote.discount_percentage and quote.discount_percentage > 0 %}
+                        <p><strong>Rabatt:</strong> {{ quote.discount_percentage }}%</p>
+                        {% endif %}
                         {% if quote.quote_items %}
                         <p><strong>Durchschnittspreis:</strong> {{ "%.2f"|format((quote.total_amount or 0) / quote.quote_items|length) }} € pro Position</p>
                         {% endif %}
@@ -255,10 +258,17 @@
                                 <th></th>
                             </tr>
                             <tr>
-                                <th colspan="5" class="text-end">Aufschlag ({{ quote.markup_percentage or 15 }}%):</th>
+                                <th colspan="5" class="text-end">Aufschlag ({{ quote.markup_percentage if quote.markup_percentage is not none else 15 }}%):</th>
                                 <th class="text-end">{{ "%.2f"|format(quote.calculate_markup_amount()) }} €</th>
                                 <th></th>
                             </tr>
+                            {% if quote.discount_percentage and quote.discount_percentage > 0 %}
+                            <tr>
+                                <th colspan="5" class="text-end">Rabatt ({{ quote.discount_percentage }}%):</th>
+                                <th class="text-end text-danger">-{{ "%.2f"|format(quote.calculate_discount_amount()) }} €</th>
+                                <th></th>
+                            </tr>
+                            {% endif %}
                             <tr>
                                 <th colspan="5" class="text-end">Summe:</th>
                                 <th class="text-end">{{ "%.2f"|format(quote.calculate_total()) }} €</th>
@@ -319,7 +329,10 @@
                 <h6 class="mb-0"><i class="fas fa-cog"></i> Einstellungen</h6>
             </div>
             <div class="card-body">
-                <p><strong>Aufschlag:</strong> {{ quote.markup_percentage or 15 }}%</p>
+                <p><strong>Aufschlag:</strong> {{ quote.markup_percentage if quote.markup_percentage is not none else 15 }}%</p>
+                {% if quote.discount_percentage and quote.discount_percentage > 0 %}
+                <p><strong>Rabatt:</strong> {{ quote.discount_percentage }}%</p>
+                {% endif %}
                 <p><strong>Zusatzinfos einschließen:</strong> 
                     {% if quote.include_additional_info %}
                     <span class="badge bg-success">Ja</span>
