@@ -376,7 +376,13 @@ def register_routes(app):
     def manage_users():
         """Benutzer-Verwaltungsseite anzeigen"""
         from models import LoginAdmin
-        admins = LoginAdmin.query.all()
+        try:
+            admins = LoginAdmin.query.all()
+        except Exception as e:
+            # Falls keine Login-Tabelle vorhanden (z.B. nach Backup-Wiederherstellung)
+            print(f"Warnung: Login-Tabelle nicht gefunden: {e}")
+            flash('⚠️ Login-Verwaltung nicht verfügbar - Login-Daten sind aus Sicherheitsgründen nicht im Backup enthalten.', 'warning')
+            admins = []
         return render_template('admin_users.html', admins=admins)
     
     @app.route('/admin/users/add', methods=['POST'])

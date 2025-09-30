@@ -185,14 +185,89 @@ class GitHubBackupManager:
                 os.unlink(temp_db_path)
                 return False
             
-            # Neue Datenbank an die richtige Stelle kopieren
-            shutil.move(temp_db_path, current_db)
+            # SICHERE WIEDERHERSTELLUNG: Login-Daten bleiben geschützt
+            success = self._merge_backup_preserving_logins(temp_db_path, current_db)
+            os.unlink(temp_db_path)  # Temporäre Datei löschen
             
-            print(f"Backup erfolgreich als aktuelle SQLite-Datenbank wiederhergestellt!")
-            return True
+            if success:
+                print(f"Backup erfolgreich wiederhergestellt (Login-Daten bleiben geschützt)!")
+                return True
+            else:
+                print(f"Fehler beim sicheren Wiederherstellen!")
+                return False
             
         except Exception as e:
             print(f"Fehler beim SQLite-Restore: {e}")
+            return False
+
+    def _merge_backup_preserving_logins(self, backup_db_path, current_db_path):
+        """Migriert Backup-Daten OHNE Login-Daten zu überschreiben"""
+        try:
+            import sqlite3
+            
+            # Erst vorhandene Login-Daten sichern
+            login_data = None
+            if os.path.exists(current_db_path):
+                current_conn = sqlite3.connect(current_db_path)
+                current_cursor = current_conn.cursor()
+                
+                try:
+                    current_cursor.execute("SELECT * FROM login_admins")
+                    login_data = current_cursor.fetchall()
+                    current_cursor.execute("PRAGMA table_info(login_admins)")
+                    login_columns = [col[1] for col in current_cursor.fetchall()]
+                    print(f"Login-Daten gesichert: {len(login_data)} Benutzer")
+                except sqlite3.Error:
+                    print("Keine bestehenden Login-Daten gefunden")
+                
+                current_conn.close()
+            
+            # Backup-Datenbank an aktuelle Stelle kopieren
+            shutil.copy2(backup_db_path, current_db_path)
+            print("Backup-Daten kopiert")
+            
+            # Login-Daten wiederherstellen falls vorhanden
+            if login_data:
+                restored_conn = sqlite3.connect(current_db_path)
+                restored_cursor = restored_conn.cursor()
+                
+                try:
+                    # Login-Tabelle erstellen falls sie nicht existiert
+                    restored_cursor.execute("""
+                        CREATE TABLE IF NOT EXISTS login_admins (
+                            login_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            login_username VARCHAR(50) UNIQUE NOT NULL,
+                            login_password_hash VARCHAR(255) NOT NULL,
+                            login_created_at DATETIME,
+                            login_last_login DATETIME,
+                            login_is_active INTEGER DEFAULT 1
+                        )
+                    """)
+                    
+                    # Bestehende Login-Daten löschen (falls aus Backup)
+                    restored_cursor.execute("DELETE FROM login_admins")
+                    
+                    # Echte Login-Daten wiederherstellen
+                    placeholders = ', '.join(['?'] * len(login_columns))
+                    insert_sql = f"INSERT INTO login_admins ({', '.join(login_columns)}) VALUES ({placeholders})"
+                    
+                    for row in login_data:
+                        restored_cursor.execute(insert_sql, row)
+                    
+                    restored_conn.commit()
+                    print(f"Login-Daten wiederhergestellt: {len(login_data)} Benutzer")
+                    
+                except sqlite3.Error as e:
+                    print(f"Warnung bei Login-Wiederherstellung: {e}")
+                
+                restored_conn.close()
+            else:
+                print("Keine Login-Daten zum Wiederherstellen")
+            
+            return True
+            
+        except Exception as e:
+            print(f"Fehler beim sicheren Merge: {e}")
             return False
     
     def _restore_to_postgresql(self, backup_data, postgres_url):
