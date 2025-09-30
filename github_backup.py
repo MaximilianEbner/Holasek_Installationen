@@ -260,12 +260,13 @@ class GitHubBackupManager:
             print(f"Gefundene Tabellen in SQLite: {tables}")
             
             # Existierende Daten in PostgreSQL löschen (in korrekter Reihenfolge wegen Foreign Keys)
+            # WICHTIG: login_admins wird NICHT migriert - Login-Daten bleiben geschützt
             delete_order = [
-                'invoice_reminder', 'quote_rejection', 'position_template_sub_item',
-                'supplier_order_item', 'supplier_order', 'quote_sub_item', 'quote_item',
-                'work_instruction', 'invoice', 'order', 'quote', 'customer',
-                'supplier', 'position_template', 'company_settings', 'acquisition_channel',
-                'login_admin'
+                'invoice_reminder', 'quote_rejection', 'position_template_subitems',
+                'supplier_order_item', 'supplier_order', 'quote_sub_item', 'quote_item', 
+                'work_instruction', 'invoice_position', 'invoice', 'article', 'order', 
+                'quote', 'customer', 'supplier', 'position_templates', 'company_settings', 
+                'acquisition_channel'
             ]
             
             print("Lösche existierende PostgreSQL-Daten...")
@@ -280,17 +281,33 @@ class GitHubBackupManager:
             
             pg_conn.commit()
             
-            # Daten von SQLite zu PostgreSQL migrieren
-            for table_name in tables:
+            # Daten von SQLite zu PostgreSQL migrieren (in korrekter Reihenfolge für Foreign Keys)
+            # WICHTIG: login_admins wird bewusst NICHT migriert - Login-Daten bleiben geschützt
+            migration_order = [
+                'company_settings', 'acquisition_channel', 'supplier',
+                'position_templates', 'position_template_subitems', 'customer', 'quote',
+                'quote_item', 'quote_sub_item', 'order', 'article', 'invoice',
+                'invoice_position', 'work_instruction', 'supplier_order', 'supplier_order_item',
+                'invoice_reminder', 'quote_rejection'
+            ]
+            
+            # Erst die Tabellen in definierter Reihenfolge, dann alle anderen
+            tables_to_migrate = []
+            for table in migration_order:
+                if table in tables:
+                    tables_to_migrate.append(table)
+            
+            # Restliche Tabellen hinzufügen (außer login_admins)
+            for table in tables:
+                if table not in tables_to_migrate and table != 'login_admins':
+                    tables_to_migrate.append(table)
+            
+            for table_name in tables_to_migrate:
                 print(f"Migriere Tabelle: {table_name}")
                 
                 try:
-                    # Alle Daten aus SQLite lesen - verwende Anführungszeichen für reservierte Wörter
-                    if table_name.lower() in ['order', 'user', 'group', 'table']:
-                        sqlite_cursor.execute(f'SELECT * FROM "{table_name}"')
-                    else:
-                        sqlite_cursor.execute(f"SELECT * FROM {table_name}")
-                        
+                    # Alle Daten aus SQLite lesen - verwende immer Anführungszeichen für Sicherheit
+                    sqlite_cursor.execute(f'SELECT * FROM "{table_name}"')
                     rows = sqlite_cursor.fetchall()
                     
                     if not rows:
