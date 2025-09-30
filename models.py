@@ -501,7 +501,7 @@ class WorkInstruction(db.Model):
     instruction_number = db.Column(db.String(50), unique=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    created_by = db.Column(db.String(100))  # Wer hat die Anweisung erstellt
+    created_by = db.Column(db.String(5000))  # Wer hat die Anweisung erstellt
     status = db.Column(db.String(20), default='Erstellt')  # Erstellt, In Bearbeitung, Abgeschlossen
     
     # Arbeitsinhalt
