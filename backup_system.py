@@ -830,8 +830,8 @@ class DatabaseBackup:
             return None
     
     def _create_sqlite_schema(self, cursor):
-        """Erstellt das SQLite-Schema basierend auf den Flask-SQLAlchemy Models"""
-        # Vereinfachtes Schema - die wichtigsten Tabellen
+        """Erstellt das SQLite-Schema für alle 19 Excel-Tabellenblätter"""
+        # Vollständiges Schema - alle 19 Tabellen aus Excel-Backup
         schema_sql = """
         CREATE TABLE customer (
             id INTEGER PRIMARY KEY,
@@ -1046,6 +1046,60 @@ class DatabaseBackup:
             vat_rate DECIMAL(5,2) DEFAULT 20.0,
             FOREIGN KEY (invoice_id) REFERENCES invoice (id) ON DELETE CASCADE,
             FOREIGN KEY (article_id) REFERENCES article (id) ON DELETE SET NULL
+        );
+        
+        -- Fehlende Tabellen aus Excel-Backup hinzufügen
+        CREATE TABLE acquisition_channel (
+            id INTEGER PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            description TEXT,
+            is_active BOOLEAN DEFAULT 1,
+            created_at DATETIME
+        );
+        
+        CREATE TABLE company_settings (
+            id INTEGER PRIMARY KEY,
+            setting_key VARCHAR(100) NOT NULL UNIQUE,
+            setting_value TEXT,
+            setting_type VARCHAR(50),
+            description TEXT,
+            updated_at DATETIME
+        );
+        
+        CREATE TABLE supplier (
+            id INTEGER PRIMARY KEY,
+            name VARCHAR(200) NOT NULL,
+            contact_person VARCHAR(100),
+            email VARCHAR(120),
+            phone VARCHAR(20),
+            address TEXT,
+            website VARCHAR(200),
+            notes TEXT,
+            is_active BOOLEAN DEFAULT 1,
+            created_at DATETIME
+        );
+        
+        CREATE TABLE invoice_reminder (
+            id INTEGER PRIMARY KEY,
+            invoice_id INTEGER NOT NULL,
+            reminder_number INTEGER NOT NULL,
+            reminder_date DATE NOT NULL,
+            due_date DATE,
+            reminder_fee DECIMAL(10,2) DEFAULT 0.0,
+            status VARCHAR(20) DEFAULT 'gesendet',
+            notes TEXT,
+            created_at DATETIME,
+            FOREIGN KEY (invoice_id) REFERENCES invoice (id) ON DELETE CASCADE
+        );
+        
+        CREATE TABLE quote_rejection (
+            id INTEGER PRIMARY KEY,
+            quote_id INTEGER NOT NULL,
+            rejection_date DATE NOT NULL,
+            reason TEXT,
+            customer_feedback TEXT,
+            created_at DATETIME,
+            FOREIGN KEY (quote_id) REFERENCES quote (id) ON DELETE CASCADE
         );
         """
         
@@ -1275,11 +1329,95 @@ class DatabaseBackup:
                     float(position.vat_rate) if position.vat_rate else 20.0
                 ))
             
+            # Exportiere zusätzliche Tabellen
+            # Akquisekanäle exportieren
+            try:
+                acquisition_channels = AcquisitionChannel.query.all()
+                for channel in acquisition_channels:
+                    cursor.execute('''
+                        INSERT INTO acquisition_channel (id, name, description, is_active, created_at)
+                        VALUES (?, ?, ?, ?, ?)
+                    ''', (
+                        channel.id, channel.name, channel.description, 
+                        channel.is_active, channel.created_at
+                    ))
+            except Exception as e:
+                print(f"AcquisitionChannel Export-Fehler: {e}")
+                acquisition_channels = []
+            
+            # Firmeneinstellungen exportieren
+            try:
+                company_settings = CompanySettings.query.all()
+                for setting in company_settings:
+                    cursor.execute('''
+                        INSERT INTO company_settings (id, setting_key, setting_value, setting_type, description, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', (
+                        setting.id, setting.setting_name, setting.setting_value,
+                        'string', setting.description, setting.updated_at
+                    ))
+            except Exception as e:
+                print(f"CompanySettings Export-Fehler: {e}")
+                company_settings = []
+            
+            # Lieferanten exportieren
+            try:
+                suppliers = Supplier.query.all()
+                for supplier in suppliers:
+                    cursor.execute('''
+                        INSERT INTO supplier (id, name, contact_person, email, phone, address, website, notes, is_active, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        supplier.id, supplier.name, supplier.contact_person, supplier.email,
+                        supplier.phone, supplier.address, supplier.category, supplier.notes,
+                        True, None
+                    ))
+            except Exception as e:
+                print(f"Supplier Export-Fehler: {e}")
+                suppliers = []
+            
+            # Rechnungs-Reminder exportieren
+            try:
+                invoice_reminders = InvoiceReminder.query.all()
+                for reminder in invoice_reminders:
+                    cursor.execute('''
+                        INSERT INTO invoice_reminder (id, invoice_id, reminder_number, reminder_date, due_date, reminder_fee, status, notes, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        reminder.id, reminder.order_id, 1,
+                        reminder.due_date, reminder.due_date, 
+                        0.0,
+                        'erstellt', reminder.reminder_type, reminder.created_at
+                    ))
+            except Exception as e:
+                print(f"InvoiceReminder Export-Fehler: {e}")
+                invoice_reminders = []
+            
+            # Quote-Rejection exportieren
+            try:
+                quote_rejections = QuoteRejection.query.all()
+                for rejection in quote_rejections:
+                    cursor.execute('''
+                        INSERT INTO quote_rejection (id, quote_id, rejection_date, reason, customer_feedback, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', (
+                        rejection.id, rejection.quote_id, rejection.rejection_date,
+                        rejection.reason, rejection.customer_feedback, rejection.created_at
+                    ))
+            except Exception as e:
+                print(f"QuoteRejection Export-Fehler: {e}")
+                quote_rejections = []
+            
             # Zähle exportierte Daten
             order_count = len(orders) if 'orders' in locals() else 0
             wi_count = len(work_instructions) if 'work_instructions' in locals() else 0
+            ac_count = len(acquisition_channels) if 'acquisition_channels' in locals() else 0
+            cs_count = len(company_settings) if 'company_settings' in locals() else 0
+            sup_count = len(suppliers) if 'suppliers' in locals() else 0
+            ir_count = len(invoice_reminders) if 'invoice_reminders' in locals() else 0
+            qr_count = len(quote_rejections) if 'quote_rejections' in locals() else 0
             
-            print(f"SQLite-Export erfolgreich: {len(customers)} Kunden, {len(quotes)} Angebote, {len(quote_items)} Positionen, {len(quote_sub_items)} Unterpositionen, {len(templates)} Vorlagen, {len(template_subitems)} Vorlagen-Unterpositionen, {order_count} Bestellungen, {wi_count} Arbeitsanweisungen, {len(invoices)} Rechnungen, {len(articles)} Artikel, {len(invoice_positions)} Rechnungspositionen, {len(supplier_orders)} Lieferantenbestellungen, {len(supplier_order_items)} Bestellpositionen")
+            print(f"SQLite-Export erfolgreich: {len(customers)} Kunden, {len(quotes)} Angebote, {len(quote_items)} Positionen, {len(quote_sub_items)} Unterpositionen, {len(templates)} Vorlagen, {len(template_subitems)} Vorlagen-Unterpositionen, {order_count} Bestellungen, {wi_count} Arbeitsanweisungen, {len(invoices)} Rechnungen, {len(articles)} Artikel, {len(invoice_positions)} Rechnungspositionen, {len(supplier_orders)} Lieferantenbestellungen, {len(supplier_order_items)} Bestellpositionen, {ac_count} Akquisekanäle, {cs_count} Einstellungen, {sup_count} Lieferanten, {ir_count} Reminder, {qr_count} Ablehnungen")
             
         except Exception as e:
             print(f"Fehler beim Datenexport: {e}")
