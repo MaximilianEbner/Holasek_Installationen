@@ -213,7 +213,10 @@ class CSVBackupSystem:
                 else:
                     print(f"   ⚠️ {table_name}: CSV-Datei nicht gefunden")
             
-            # PostgreSQL: Alle Triggers wieder aktivieren
+            # Erst alle Daten committen
+            db.session.commit()
+            
+            # PostgreSQL: Alle Triggers wieder aktivieren (nach dem Commit)
             if 'postgresql' in str(db.engine.url):
                 print("🔧 PostgreSQL: Aktiviere alle Triggers wieder...")
                 # Alle Tabellen-Trigger wieder aktivieren
@@ -221,10 +224,13 @@ class CSVBackupSystem:
                     try:
                         table_name = model_class.__tablename__
                         db.session.execute(text(f"ALTER TABLE {table_name} ENABLE TRIGGER ALL;"))
-                    except:
-                        pass  # Ignore errors
-            
-            db.session.commit()
+                    except Exception as trigger_error:
+                        print(f"⚠️ Trigger-Fehler bei {table_name}: {str(trigger_error)}")
+                # Separater Commit für die Trigger-Aktivierung
+                try:
+                    db.session.commit()
+                except:
+                    db.session.rollback()  # Falls Trigger-Aktivierung fehlschlägt
             shutil.rmtree(temp_dir)
             print("=" * 70)
             print(f"✅ Wiederherstellung abgeschlossen: {restored_count} Datensätze insgesamt")
@@ -283,7 +289,10 @@ class CSVBackupSystem:
                 else:
                     print(f"   ⚠️ {table_name}: Excel-Sheet nicht gefunden")
             
-            # PostgreSQL: Alle Triggers wieder aktivieren
+            # Erst alle Daten committen
+            db.session.commit()
+            
+            # PostgreSQL: Alle Triggers wieder aktivieren (nach dem Commit)
             if 'postgresql' in str(db.engine.url):
                 print("🔧 PostgreSQL: Aktiviere alle Triggers wieder...")
                 # Alle Tabellen-Trigger wieder aktivieren
@@ -291,10 +300,13 @@ class CSVBackupSystem:
                     try:
                         table_name = model_class.__tablename__
                         db.session.execute(text(f"ALTER TABLE {table_name} ENABLE TRIGGER ALL;"))
-                    except:
-                        pass  # Ignore errors
-            
-            db.session.commit()
+                    except Exception as trigger_error:
+                        print(f"⚠️ Trigger-Fehler bei {table_name}: {str(trigger_error)}")
+                # Separater Commit für die Trigger-Aktivierung
+                try:
+                    db.session.commit()
+                except:
+                    db.session.rollback()  # Falls Trigger-Aktivierung fehlschlägt
             print("=" * 70)
             print(f"✅ Excel-Wiederherstellung abgeschlossen: {restored_count} Datensätze insgesamt")
             return True
