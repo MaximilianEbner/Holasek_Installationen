@@ -4623,7 +4623,8 @@ def create_invoice_from_reminder(reminder_id):
 @login_required
 def download_backup(format):
     """CSV/Excel Backup Download mit neuem System"""
-    from backup_system import backup_system
+    from backup_system import get_backup_system
+    backup_system = get_backup_system()
     from flask import send_file, flash, redirect, url_for
     
     try:
@@ -4671,7 +4672,8 @@ def backup_manager():
 @login_required
 def upload_backup():
     """Lädt ein Backup hoch und stellt es wieder her"""
-    from backup_system import backup_system
+    from backup_system import get_backup_system
+    backup_system = get_backup_system()
     import tempfile
     import os
     
@@ -4680,33 +4682,53 @@ def upload_backup():
         return redirect(url_for('backup_manager'))
     
     try:
+        print("🔄 Upload-Backup gestartet...")
+        
         if 'backupFile' not in request.files:
+            print("❌ Keine Datei im Request")
             flash('Keine Datei ausgewählt!', 'error')
             return redirect(url_for('backup_manager'))
         
         file = request.files['backupFile']
         if file.filename == '':
+            print("❌ Leerer Dateiname")
             flash('Keine Datei ausgewählt!', 'error')
             return redirect(url_for('backup_manager'))
         
-        # Datei temporär speichern
-        temp_dir = tempfile.mkdtemp()
-        temp_path = os.path.join(temp_dir, file.filename)
-        file.save(temp_path)
+        print(f"📁 Datei erhalten: {file.filename}")
         
-        # Je nach Dateityp wiederherstellen mit detailliertem Debugging
+        # Datei temporär speichern
+        try:
+            temp_dir = tempfile.mkdtemp()
+            temp_path = os.path.join(temp_dir, file.filename)
+            file.save(temp_path)
+            print(f"💾 Datei gespeichert: {temp_path}")
+        except Exception as save_error:
+            print(f"❌ Fehler beim Speichern: {str(save_error)}")
+            flash(f'Fehler beim Speichern der Datei: {str(save_error)}', 'error')
+            return redirect(url_for('backup_manager'))
+        
+        # Je nach Dateityp wiederherstellen
         success = False
         error_details = ""
         
         try:
+            print(f"🔄 Starte Wiederherstellung für: {file.filename}")
             if file.filename.endswith('.zip'):
+                print("📦 ZIP-Wiederherstellung...")
                 success = backup_system.restore_from_csv(temp_path)
             elif file.filename.endswith('.xlsx'):
+                print("📊 Excel-Wiederherstellung...")
                 success = backup_system.restore_from_excel(temp_path)
             else:
+                print("❌ Ungültiges Dateiformat")
                 flash('Ungültiges Dateiformat! Nur .zip und .xlsx werden unterstützt.', 'error')
                 return redirect(url_for('backup_manager'))
+            print(f"✅ Wiederherstellung abgeschlossen: {success}")
         except Exception as restore_error:
+            print(f"❌ Restore-Fehler: {str(restore_error)}")
+            import traceback
+            traceback.print_exc()
             error_details = str(restore_error)
             success = False
         
@@ -4730,6 +4752,9 @@ def upload_backup():
         return redirect(url_for('backup_manager'))
         
     except Exception as e:
+        print(f"❌ Upload-Fehler: {str(e)}")
+        import traceback
+        traceback.print_exc()
         flash(f'Fehler beim Upload: {str(e)}', 'error')
         return redirect(url_for('backup_manager'))
 

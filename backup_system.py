@@ -324,4 +324,9 @@ class CSVBackupSystem:
 
 
 
-backup_system = CSVBackupSystem()
+def get_backup_system():
+    """Lazy loading des Backup-Systems für Railway-Kompatibilität"""
+    return CSVBackupSystem()
+
+# Globale Instanz für Rückwärtskompatibilität
+backup_system = None
