@@ -330,17 +330,64 @@ class CSVBackupSystem:
                 instance = model_class()
                 skip_record = False
                 
-                # Foreign Key Validierung für PostgreSQL
-                if is_postgresql and model_class.__tablename__ == 'invoice_reminder':
-                    # Prüfe ob order_id existiert
-                    order_id = row.get('order_id')
-                    if order_id is not None and not pd.isna(order_id):
-                        from models import Order
-                        existing_order = Order.query.filter_by(id=int(order_id)).first()
-                        if not existing_order:
-                            print(f"⚠️ Überspringe invoice_reminder: order_id {order_id} existiert nicht")
-                            skip_record = True
-                            skipped += 1
+                # Foreign Key Validierung für PostgreSQL - Alle Tabellen mit FK-Constraints
+                if is_postgresql:
+                    table_name = model_class.__tablename__
+                    
+                    # work_instruction -> order_id
+                    if table_name == 'work_instruction':
+                        order_id = row.get('order_id')
+                        if order_id is not None and not pd.isna(order_id):
+                            from models import Order
+                            existing_order = Order.query.filter_by(id=int(order_id)).first()
+                            if not existing_order:
+                                print(f"⚠️ Überspringe work_instruction: order_id {order_id} existiert nicht")
+                                skip_record = True
+                                skipped += 1
+                    
+                    # invoice_reminder -> order_id
+                    elif table_name == 'invoice_reminder':
+                        order_id = row.get('order_id')
+                        if order_id is not None and not pd.isna(order_id):
+                            from models import Order
+                            existing_order = Order.query.filter_by(id=int(order_id)).first()
+                            if not existing_order:
+                                print(f"⚠️ Überspringe invoice_reminder: order_id {order_id} existiert nicht")
+                                skip_record = True
+                                skipped += 1
+                    
+                    # supplier_order_item -> supplier_order_id
+                    elif table_name == 'supplier_order_item':
+                        supplier_order_id = row.get('supplier_order_id')
+                        if supplier_order_id is not None and not pd.isna(supplier_order_id):
+                            from models import SupplierOrder
+                            existing_supplier_order = SupplierOrder.query.filter_by(id=int(supplier_order_id)).first()
+                            if not existing_supplier_order:
+                                print(f"⚠️ Überspringe supplier_order_item: supplier_order_id {supplier_order_id} existiert nicht")
+                                skip_record = True
+                                skipped += 1
+                    
+                    # quote_sub_item -> quote_item_id
+                    elif table_name == 'quote_sub_item':
+                        quote_item_id = row.get('quote_item_id')
+                        if quote_item_id is not None and not pd.isna(quote_item_id):
+                            from models import QuoteItem
+                            existing_quote_item = QuoteItem.query.filter_by(id=int(quote_item_id)).first()
+                            if not existing_quote_item:
+                                print(f"⚠️ Überspringe quote_sub_item: quote_item_id {quote_item_id} existiert nicht")
+                                skip_record = True
+                                skipped += 1
+                    
+                    # invoice_position -> invoice_id
+                    elif table_name == 'invoice_position':
+                        invoice_id = row.get('invoice_id')
+                        if invoice_id is not None and not pd.isna(invoice_id):
+                            from models import Invoice
+                            existing_invoice = Invoice.query.filter_by(id=int(invoice_id)).first()
+                            if not existing_invoice:
+                                print(f"⚠️ Überspringe invoice_position: invoice_id {invoice_id} existiert nicht")
+                                skip_record = True
+                                skipped += 1
                 
                 if skip_record:
                     continue
