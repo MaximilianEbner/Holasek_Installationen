@@ -171,6 +171,12 @@ class CSVBackupSystem:
                     timestamp = metadata.get('backup_timestamp', 'Unbekannt')
                     table_count = metadata.get('total_tables', 0)
                     print(f"📋 Backup-Info: {timestamp} ({table_count} Tabellen)")
+            
+            # PostgreSQL: Foreign Key Constraints temporär deaktivieren
+            if 'postgresql' in str(db.engine.url):
+                print("🔧 PostgreSQL: Deaktiviere Foreign Key Constraints...")
+                db.session.execute(text("SET session_replication_role = replica;"))
+            
             print("🗑️  Lösche bestehende Daten...")
             for model_class in reversed(self.models):
                 try:
@@ -199,6 +205,11 @@ class CSVBackupSystem:
                         print(f"   ✗ Fehler bei {table_name}: {str(e)}")
                 else:
                     print(f"   ⚠️ {table_name}: CSV-Datei nicht gefunden")
+            # PostgreSQL: Foreign Key Constraints wieder aktivieren
+            if 'postgresql' in str(db.engine.url):
+                print("🔧 PostgreSQL: Aktiviere Foreign Key Constraints wieder...")
+                db.session.execute(text("SET session_replication_role = DEFAULT;"))
+            
             db.session.commit()
             shutil.rmtree(temp_dir)
             print("=" * 70)
@@ -217,6 +228,12 @@ class CSVBackupSystem:
         print("=" * 70)
         try:
             xl_file = pd.ExcelFile(excel_file_path)
+            
+            # PostgreSQL: Foreign Key Constraints temporär deaktivieren
+            if 'postgresql' in str(db.engine.url):
+                print("🔧 PostgreSQL: Deaktiviere Foreign Key Constraints...")
+                db.session.execute(text("SET session_replication_role = replica;"))
+            
             print("🗑️  Lösche bestehende Daten...")
             for model_class in reversed(self.models):
                 try:
@@ -244,6 +261,12 @@ class CSVBackupSystem:
                         print(f"   ✗ Fehler bei {table_name}: {str(e)}")
                 else:
                     print(f"   ⚠️ {table_name}: Excel-Sheet nicht gefunden")
+            
+            # PostgreSQL: Foreign Key Constraints wieder aktivieren
+            if 'postgresql' in str(db.engine.url):
+                print("🔧 PostgreSQL: Aktiviere Foreign Key Constraints wieder...")
+                db.session.execute(text("SET session_replication_role = DEFAULT;"))
+            
             db.session.commit()
             print("=" * 70)
             print(f"✅ Excel-Wiederherstellung abgeschlossen: {restored_count} Datensätze insgesamt")
