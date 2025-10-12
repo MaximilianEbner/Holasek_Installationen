@@ -172,10 +172,17 @@ class CSVBackupSystem:
                     table_count = metadata.get('total_tables', 0)
                     print(f"📋 Backup-Info: {timestamp} ({table_count} Tabellen)")
             
-            # PostgreSQL: Foreign Key Constraints temporär deaktivieren
+            # PostgreSQL: Alle Triggers temporär deaktivieren (inklusive FK-Constraints)
             if 'postgresql' in str(db.engine.url):
-                print("🔧 PostgreSQL: Deaktiviere Foreign Key Constraints...")
-                db.session.execute(text("SET session_replication_role = replica;"))
+                print("🔧 PostgreSQL: Deaktiviere alle Triggers...")
+                # Alle Tabellen-Trigger deaktivieren (inkl. Foreign Key Constraints)
+                for model_class in self.models:
+                    try:
+                        table_name = model_class.__tablename__
+                        db.session.execute(text(f"ALTER TABLE {table_name} DISABLE TRIGGER ALL;"))
+                    except:
+                        pass  # Ignore errors for tables that don't exist yet
+                db.session.commit()
             
             print("🗑️  Lösche bestehende Daten...")
             for model_class in reversed(self.models):
@@ -205,10 +212,17 @@ class CSVBackupSystem:
                         print(f"   ✗ Fehler bei {table_name}: {str(e)}")
                 else:
                     print(f"   ⚠️ {table_name}: CSV-Datei nicht gefunden")
-            # PostgreSQL: Foreign Key Constraints wieder aktivieren
+            
+            # PostgreSQL: Alle Triggers wieder aktivieren
             if 'postgresql' in str(db.engine.url):
-                print("🔧 PostgreSQL: Aktiviere Foreign Key Constraints wieder...")
-                db.session.execute(text("SET session_replication_role = DEFAULT;"))
+                print("🔧 PostgreSQL: Aktiviere alle Triggers wieder...")
+                # Alle Tabellen-Trigger wieder aktivieren
+                for model_class in self.models:
+                    try:
+                        table_name = model_class.__tablename__
+                        db.session.execute(text(f"ALTER TABLE {table_name} ENABLE TRIGGER ALL;"))
+                    except:
+                        pass  # Ignore errors
             
             db.session.commit()
             shutil.rmtree(temp_dir)
@@ -229,10 +243,17 @@ class CSVBackupSystem:
         try:
             xl_file = pd.ExcelFile(excel_file_path)
             
-            # PostgreSQL: Foreign Key Constraints temporär deaktivieren
+            # PostgreSQL: Alle Triggers temporär deaktivieren (inklusive FK-Constraints)  
             if 'postgresql' in str(db.engine.url):
-                print("🔧 PostgreSQL: Deaktiviere Foreign Key Constraints...")
-                db.session.execute(text("SET session_replication_role = replica;"))
+                print("🔧 PostgreSQL: Deaktiviere alle Triggers...")
+                # Alle Tabellen-Trigger deaktivieren (inkl. Foreign Key Constraints)
+                for model_class in self.models:
+                    try:
+                        table_name = model_class.__tablename__
+                        db.session.execute(text(f"ALTER TABLE {table_name} DISABLE TRIGGER ALL;"))
+                    except:
+                        pass  # Ignore errors for tables that don't exist yet
+                db.session.commit()
             
             print("🗑️  Lösche bestehende Daten...")
             for model_class in reversed(self.models):
@@ -262,10 +283,16 @@ class CSVBackupSystem:
                 else:
                     print(f"   ⚠️ {table_name}: Excel-Sheet nicht gefunden")
             
-            # PostgreSQL: Foreign Key Constraints wieder aktivieren
+            # PostgreSQL: Alle Triggers wieder aktivieren
             if 'postgresql' in str(db.engine.url):
-                print("🔧 PostgreSQL: Aktiviere Foreign Key Constraints wieder...")
-                db.session.execute(text("SET session_replication_role = DEFAULT;"))
+                print("🔧 PostgreSQL: Aktiviere alle Triggers wieder...")
+                # Alle Tabellen-Trigger wieder aktivieren
+                for model_class in self.models:
+                    try:
+                        table_name = model_class.__tablename__
+                        db.session.execute(text(f"ALTER TABLE {table_name} ENABLE TRIGGER ALL;"))
+                    except:
+                        pass  # Ignore errors
             
             db.session.commit()
             print("=" * 70)
