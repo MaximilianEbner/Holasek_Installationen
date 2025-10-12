@@ -491,8 +491,10 @@ def register_routes(app):
         
         # Automatische Status-Updates für alle Kunden prüfen
         customers_to_update = Customer.query.filter(
-            Customer.status == '1. Termin vereinbart',
-            Customer.appointment_date < db.func.date('now')
+            db.or_(
+                db.and_(Customer.status == '1. Termin vereinbart', Customer.appointment_date < db.func.date('now')),
+                db.and_(Customer.status == '2. Termin vereinbart', Customer.second_appointment_date < db.func.date('now'))
+            )
         ).all()
         
         for customer in customers_to_update:
@@ -561,7 +563,12 @@ def register_routes(app):
         if sort_by != 'last_name':
             query = query.order_by(Customer.last_name.asc())
         
-        customers = query.all()
+        # Paginierung hinzufügen
+        page = request.args.get('page', 1, type=int)
+        customers_paginated = query.paginate(
+            page=page, per_page=30, error_out=False
+        )
+        customers = customers_paginated.items
         
         # Verfügbare Kundenbetreuer für Dropdown sammeln
         customer_managers = db.session.query(Customer.customer_manager)\
@@ -573,7 +580,8 @@ def register_routes(app):
         customer_managers = [manager[0] for manager in customer_managers]
         
         return render_template('customers.html', 
-                             customers=customers, 
+                             customers=customers,
+                             pagination=customers_paginated,
                              search_query=search_query,
                              customer_manager_filter=customer_manager_filter,
                              status_filter=status_filter,
@@ -731,10 +739,16 @@ def register_routes(app):
         else:
             query = query.order_by(sort_column.asc())
         
-        quotes = query.all()
+        # Paginierung hinzufügen
+        page = request.args.get('page', 1, type=int)
+        quotes_paginated = query.paginate(
+            page=page, per_page=30, error_out=False
+        )
+        quotes = quotes_paginated.items
         
         return render_template('quotes.html', 
-                             quotes=quotes, 
+                             quotes=quotes,
+                             pagination=quotes_paginated,
                              search_query=search_query,
                              sort_by=sort_by,
                              sort_dir=sort_dir)
@@ -2208,10 +2222,16 @@ def get_work_step_by_category_and_name(category, name):
         else:
             query = query.order_by(sort_column.asc())
         
-        orders = query.all()
+        # Paginierung hinzufügen
+        page = request.args.get('page', 1, type=int)
+        orders_paginated = query.paginate(
+            page=page, per_page=30, error_out=False
+        )
+        orders = orders_paginated.items
         
         return render_template('orders.html', 
-                             orders=orders, 
+                             orders=orders,
+                             pagination=orders_paginated,
                              search_query=search_query,
                              sort_by=sort_by,
                              sort_dir=sort_dir)
@@ -3179,7 +3199,7 @@ def get_work_step_by_category_and_name(category, name):
                         customer.status = '1. Termin vereinbart'
                 
                 if form.second_appointment_date.data and customer.status == '2. Termin vereinbaren':
-                    customer.status = 'Warten auf Rückmeldung'
+                    customer.status = '2. Termin vereinbart'
                 
                 db.session.commit()
                 flash(f'Workflow-Status wurde von "{old_status}" auf "{customer.status}" aktualisiert!', 'success')
@@ -3249,7 +3269,7 @@ def get_work_step_by_category_and_name(category, name):
                     
                     # Status automatisch setzen
                     if customer.status == '2. Termin vereinbaren':
-                        customer.status = 'Warten auf Rückmeldung'
+                        customer.status = '2. Termin vereinbart'
                 else:
                     customer.second_appointment_date = None
                 
@@ -3665,7 +3685,7 @@ def invoices():
     
     # Pagination
     invoices = query.order_by(Invoice.created_at.desc()).paginate(
-        page=page, per_page=20, error_out=False
+        page=page, per_page=30, error_out=False
     )
     
     # Statistiken für Dashboard
@@ -4602,31 +4622,26 @@ def create_invoice_from_reminder(reminder_id):
 @app.route('/download_backup/<format>')
 @login_required
 def download_backup(format):
-    """Standalone Backup Download - außerhalb der Haupt-App-Struktur"""
-    from backup_system import DatabaseBackup
+    """CSV/Excel Backup Download mit neuem System"""
+    from backup_system import backup_system
     from flask import send_file, flash, redirect, url_for
     
     try:
-        backup_system = DatabaseBackup()
-        
         if format == 'csv':
-            buffer, filename = backup_system.create_csv_backup()
+            backup_path = backup_system.create_csv_backup()
+            filename = os.path.basename(backup_path)
             mimetype = 'application/zip'
         elif format == 'excel':
-            buffer, filename = backup_system.create_excel_backup()
+            backup_path = backup_system.create_excel_backup()
+            filename = os.path.basename(backup_path)
             mimetype = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        elif format == 'sqlite':
-            buffer, filename = backup_system.create_sqlite_backup()
-            if buffer is None:
-                flash('Datenbank-Datei konnte nicht gefunden werden!', 'error')
-                return redirect(url_for('index'))
-            mimetype = 'application/x-sqlite3'
         else:
-            flash('Ungültiges Backup-Format!', 'error')
+            flash('Ungültiges Backup-Format! Unterstützt: CSV, Excel', 'error')
             return redirect(url_for('index'))
         
+        flash(f'Backup erstellt: {filename}', 'success')
         return send_file(
-            buffer,
+            backup_path,
             as_attachment=True,
             download_name=filename,
             mimetype=mimetype
@@ -4640,43 +4655,119 @@ def download_backup(format):
 @app.route('/backup_manager')
 @login_required
 def backup_manager():
-    """GitHub Backup-Manager Interface"""
-    from github_backup import GitHubBackupManager
+    """CSV/Excel Backup-Manager Interface"""
+    from backup_system import backup_system
     
     try:
-        # GitHub Repository aus Umgebungsvariablen oder Config
-        github_repo = os.environ.get('GITHUB_BACKUP_REPO', 'MaximilianEbner/Holasek_Installationen')
-        github_manager = GitHubBackupManager(github_repo)
-        
         # Verfügbare Backups auflisten
-        available_backups = github_manager.list_available_backups()
+        available_backups = backup_system.list_backups()
+        
+        # Datenbankstatistiken
+        db_stats = backup_system.get_database_stats()
         
         return render_template('backup_manager.html', 
                              backups=available_backups,
-                             github_repo=github_repo)
+                             db_stats=db_stats)
         
     except Exception as e:
-        flash(f'Fehler beim Laden der GitHub-Backups: {str(e)}', 'error')
+        flash(f'Fehler beim Laden der Backups: {str(e)}', 'error')
         return redirect(url_for('index'))
 
-
-@app.route('/restore_backup/<backup_name>')
+@app.route('/upload_backup', methods=['POST'])
 @login_required
-def restore_backup(backup_name):
-    """Stellt ein GitHub-Backup wieder her - Railway PostgreSQL kompatibel"""
-    from github_backup import GitHubBackupManager
+def upload_backup():
+    """Lädt ein Backup hoch und stellt es wieder her"""
+    from backup_system import backup_system
+    import tempfile
+    import os
     
     try:
-        github_repo = os.environ.get('GITHUB_BACKUP_REPO', 'MaximilianEbner/Holasek_Installationen')
-        github_manager = GitHubBackupManager(github_repo)
-        
-        # Backup-Informationen abrufen
-        backup_info = github_manager.get_backup_info(backup_name)
-        if not backup_info:
-            flash(f'Backup {backup_name} konnte nicht gefunden oder analysiert werden!', 'error')
+        if 'backupFile' not in request.files:
+            flash('Keine Datei ausgewählt!', 'error')
             return redirect(url_for('backup_manager'))
         
-        print(f"Starte Backup-Wiederherstellung: {backup_name}")
+        file = request.files['backupFile']
+        if file.filename == '':
+            flash('Keine Datei ausgewählt!', 'error')
+            return redirect(url_for('backup_manager'))
+        
+        # Datei temporär speichern
+        temp_dir = tempfile.mkdtemp()
+        temp_path = os.path.join(temp_dir, file.filename)
+        file.save(temp_path)
+        
+        # Je nach Dateityp wiederherstellen mit detailliertem Debugging
+        success = False
+        error_details = ""
+        
+        try:
+            if file.filename.endswith('.zip'):
+                success = backup_system.restore_from_csv(temp_path)
+            elif file.filename.endswith('.xlsx'):
+                success = backup_system.restore_from_excel(temp_path)
+            else:
+                flash('Ungültiges Dateiformat! Nur .zip und .xlsx werden unterstützt.', 'error')
+                return redirect(url_for('backup_manager'))
+        except Exception as restore_error:
+            error_details = str(restore_error)
+            success = False
+        
+        # Aufräumen
+        try:
+            os.remove(temp_path)
+            os.rmdir(temp_dir)
+        except:
+            pass
+        
+        if success:
+            flash(f'✅ Backup "{file.filename}" erfolgreich wiederhergestellt!', 'success')
+            print("🎉 Upload-Restore erfolgreich!")
+        else:
+            error_msg = f'❌ Fehler beim Wiederherstellen von "{file.filename}"!'
+            if error_details:
+                error_msg += f' Details: {error_details}'
+            flash(error_msg, 'error')
+
+        
+        return redirect(url_for('backup_manager'))
+        
+    except Exception as e:
+        flash(f'Fehler beim Upload: {str(e)}', 'error')
+        return redirect(url_for('backup_manager'))
+
+@app.route('/restore_backup/<backup_filename>', methods=['POST'])
+@login_required
+def restore_backup(backup_filename):
+    """Stellt ein lokales Backup wieder her"""
+    from backup_system import backup_system
+    import os
+    
+    try:
+        # Backup-Datei im backups-Ordner suchen
+        backup_path = os.path.join(backup_system.backup_dir, backup_filename)
+        
+        if not os.path.exists(backup_path):
+            flash(f'Backup-Datei "{backup_filename}" nicht gefunden!', 'error')
+            return redirect(url_for('backup_manager'))
+        
+        print(f"Starte Backup-Wiederherstellung: {backup_filename}")
+        
+        # Je nach Dateityp wiederherstellen
+        success = False
+        if backup_filename.endswith('.zip'):
+            success = backup_system.restore_from_csv(backup_path)
+        elif backup_filename.endswith('.xlsx'):
+            success = backup_system.restore_from_excel(backup_path)
+        else:
+            flash(f'Ungültiges Backup-Format: {backup_filename}', 'error')
+            return redirect(url_for('backup_manager'))
+        
+        if success:
+            flash(f'✅ Backup "{backup_filename}" erfolgreich wiederhergestellt!', 'success')
+        else:
+            flash(f'❌ Fehler beim Wiederherstellen von "{backup_filename}"!', 'error')
+        
+        return redirect(url_for('backup_manager'))
         
         # Backup wiederherstellen (automatische Railway PostgreSQL vs lokale SQLite Erkennung)
         success = github_manager.restore_backup(backup_name)

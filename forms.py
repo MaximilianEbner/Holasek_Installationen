@@ -117,6 +117,7 @@ class CustomerWorkflowForm(FlaskForm):
         ('1. Termin vereinbart', '1. Termin vereinbart'),
         ('Angebot erstellen', 'Angebot erstellen'),
         ('2. Termin vereinbaren', '2. Termin vereinbaren'),
+        ('2. Termin vereinbart', '2. Termin vereinbart'),
         ('Warten auf Rückmeldung', 'Warten auf Rückmeldung'),
         ('Kein Interesse', 'Kein Interesse')
     ], validators=[DataRequired()])

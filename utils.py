@@ -67,20 +67,20 @@ def generate_quote_number():
     
     # Finde die höchste Angebotsnummer des aktuellen Jahres
     latest_quote = Quote.query.filter(
-        Quote.quote_number.like(f'ANG-{year}-%')
+        Quote.quote_number.like(f'ANG-{year}_%')
     ).order_by(Quote.quote_number.desc()).first()
     
     if latest_quote:
-        # Extrahiere die Nummer aus dem Format "ANG-YYYY-XXX"
+        # Extrahiere die Nummer aus dem Format "ANG-YYYY_XXX"
         try:
-            last_number = int(latest_quote.quote_number.split('-')[-1])
+            last_number = int(latest_quote.quote_number.split('_')[-1])
             new_number = last_number + 1
         except (ValueError, IndexError):
-            new_number = 1
+            new_number = 111
     else:
-        new_number = 1
+        new_number = 111
     
-    return f'ANG-{year}-{new_number:03d}'
+    return f'ANG-{year}_{new_number}'
 
 def load_position_templates():
     """Lädt Positionsvorlagen aus CSV - DEAKTIVIERT da neues Template-System verwendet wird"""
@@ -284,23 +284,23 @@ def generate_order_number():
     from models import Order
     from datetime import datetime
     
-    # Format: AUF-2025-001
+    # Format: AUF-2025_111
     year = datetime.now().year
-    prefix = f"AUF-{year}-"
+    prefix = f"AUF-{year}_"
     
     # Finde die höchste Nummer für das aktuelle Jahr
     latest_order = Order.query.filter(
-        Order.order_number.like(f"{prefix}%")
+        Order.order_number.like(f"AUF-{year}_%")
     ).order_by(Order.order_number.desc()).first()
     
     if latest_order:
         try:
-            # Extrahiere die letzten 3 Ziffern
-            last_number = int(latest_order.order_number.split('-')[-1])
+            # Extrahiere die Nummer nach dem Unterstrich
+            last_number = int(latest_order.order_number.split('_')[-1])
             new_number = last_number + 1
         except (ValueError, IndexError):
-            new_number = 1
+            new_number = 111
     else:
-        new_number = 1
+        new_number = 111
     
-    return f"{prefix}{new_number:03d}"
+    return f"AUF-{year}_{new_number}"

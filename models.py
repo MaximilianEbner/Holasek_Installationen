@@ -49,6 +49,7 @@ class Customer(db.Model):
             '1. Termin vereinbart': 'bg-info',
             'Angebot erstellen': 'bg-primary',
             '2. Termin vereinbaren': 'bg-warning',
+            '2. Termin vereinbart': 'bg-dark',
             'Warten auf Rückmeldung': 'bg-success',
             'Kein Interesse': 'bg-secondary'
         }
@@ -64,6 +65,8 @@ class Customer(db.Model):
             return 'Angebot basierend auf 1. Termin erstellen'
         elif self.status == '2. Termin vereinbaren':
             return 'Zweiten Termin für Angebotsvorstellung vereinbaren'
+        elif self.status == '2. Termin vereinbart':
+            return 'Zweiten Termin wahrnehmen - Angebot vorstellen'
         elif self.status == 'Warten auf Rückmeldung':
             return 'Auf Kundenentscheidung warten'
         elif self.status == 'Kein Interesse':
@@ -79,6 +82,13 @@ class Customer(db.Model):
             self.appointment_date and 
             self.appointment_date < date.today()):
             self.status = 'Angebot erstellen'
+            return True
+        
+        # Automatisches Update: 2. Termin war gestern -> "Warten auf Rückmeldung"
+        if (self.status == '2. Termin vereinbart' and 
+            self.second_appointment_date and 
+            self.second_appointment_date < date.today()):
+            self.status = 'Warten auf Rückmeldung'
             return True
         
         return False
