@@ -31,10 +31,8 @@ BACKUP_MODELS = [
 ]
 
 class CSVBackupSystem:
-    """Vollständiges CSV/Excel Backup und Restore System"""
+    """Vollständiges CSV/Excel Backup und Restore System - Nur temporäre Dateien"""
     def __init__(self):
-        self.backup_dir = os.path.join(os.path.dirname(__file__), 'backups')
-        os.makedirs(self.backup_dir, exist_ok=True)
         self.models = BACKUP_MODELS
 
     def get_model_data(self, model_class):
@@ -61,10 +59,12 @@ class CSVBackupSystem:
             return [], []
 
     def create_csv_backup(self):
-        """Erstellt CSV-Backup aller Tabellen in einem ZIP-Archiv"""
+        """Erstellt CSV-Backup aller Tabellen in einem ZIP-Archiv als temporäre Datei"""
+        import tempfile
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         backup_filename = f'InnSAN_CSV_Backup_{timestamp}.zip'
-        backup_path = os.path.join(self.backup_dir, backup_filename)
+        # Erstelle temporäre Datei
+        backup_path = os.path.join(tempfile.gettempdir(), backup_filename)
         print(f"🚀 Erstelle CSV-Backup: {backup_filename}")
         print("=" * 60)
         try:
@@ -112,10 +112,12 @@ class CSVBackupSystem:
             raise e
 
     def create_excel_backup(self):
-        """Erstellt Excel-Backup mit allen Tabellen in separaten Sheets"""
+        """Erstellt Excel-Backup mit allen Tabellen in separaten Sheets als temporäre Datei"""
+        import tempfile
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         backup_filename = f'InnSAN_Excel_Backup_{timestamp}.xlsx'
-        backup_path = os.path.join(self.backup_dir, backup_filename)
+        # Erstelle temporäre Datei
+        backup_path = os.path.join(tempfile.gettempdir(), backup_filename)
         print(f"📊 Erstelle Excel-Backup: {backup_filename}")
         print("=" * 60)
         try:
@@ -316,92 +318,9 @@ class CSVBackupSystem:
             print(f"❌ Fehler beim Wiederherstellen von {model_class.__name__}: {str(e)}")
             raise e
 
-    def list_backups(self):
-        """Listet alle verfügbaren Backup-Dateien auf"""
-        try:
-            backups = []
-            if not os.path.exists(self.backup_dir):
-                return backups
-            for filename in os.listdir(self.backup_dir):
-                if filename.endswith(('.zip', '.xlsx')):
-                    file_path = os.path.join(self.backup_dir, filename)
-                    file_stat = os.stat(file_path)
-                    backup_info = {
-                        'filename': filename,
-                        'path': file_path,
-                        'size': file_stat.st_size,
-                        'size_mb': round(file_stat.st_size / (1024 * 1024), 2),
-                        'created': datetime.fromtimestamp(file_stat.st_ctime),
-                        'type': 'ZIP' if filename.endswith('.zip') else 'Excel'
-                    }
-                    backups.append(backup_info)
-            backups.sort(key=lambda x: x['created'], reverse=True)
-            return backups
-        except Exception as e:
-            print(f"Fehler beim Auflisten der Backups: {str(e)}")
-            return []
 
-    def delete_backup(self, filename):
-        """Löscht eine Backup-Datei"""
-        try:
-            file_path = os.path.join(self.backup_dir, filename)
-            if os.path.exists(file_path):
-                os.remove(file_path)
-                print(f"✅ Backup gelöscht: {filename}")
-                return True
-            else:
-                print(f"❌ Backup-Datei nicht gefunden: {filename}")
-                return False
-        except Exception as e:
-            print(f"❌ Fehler beim Löschen des Backups: {str(e)}")
-            return False
 
-    def get_backup_info(self, filename):
-        """Gibt detaillierte Informationen über ein Backup zurück"""
-        try:
-            file_path = os.path.join(self.backup_dir, filename)
-            if not os.path.exists(file_path):
-                return None
-            file_stat = os.stat(file_path)
-            info = {
-                'filename': filename,
-                'size': file_stat.st_size,
-                'size_mb': round(file_stat.st_size / (1024 * 1024), 2),
-                'created': datetime.fromtimestamp(file_stat.st_ctime),
-                'type': 'ZIP' if filename.endswith('.zip') else 'Excel',
-                'tables': []
-            }
-            if filename.endswith('.zip'):
-                try:
-                    with zipfile.ZipFile(file_path, 'r') as zipf:
-                        file_list = zipf.namelist()
-                        csv_files = [f for f in file_list if f.endswith('.csv')]
-                        for csv_file in csv_files:
-                            table_name = csv_file.replace('.csv', '')
-                            info['tables'].append({'name': table_name, 'type': 'CSV'})
-                        if 'backup_metadata.json' in file_list:
-                            metadata_content = zipf.read('backup_metadata.json')
-                            metadata = json.loads(metadata_content.decode('utf-8'))
-                            info['metadata'] = metadata
-                except Exception as e:
-                    print(f"Fehler beim Analysieren der ZIP-Datei: {str(e)}")
-            elif filename.endswith('.xlsx'):
-                try:
-                    xl_file = pd.ExcelFile(file_path)
-                    for sheet_name in xl_file.sheet_names:
-                        if sheet_name != 'Backup_Info':
-                            df = pd.read_excel(file_path, sheet_name=sheet_name)
-                            info['tables'].append({
-                                'name': sheet_name,
-                                'type': 'Excel Sheet',
-                                'records': len(df)
-                            })
-                except Exception as e:
-                    print(f"Fehler beim Analysieren der Excel-Datei: {str(e)}")
-            return info
-        except Exception as e:
-            print(f"Fehler beim Abrufen der Backup-Informationen: {str(e)}")
-            return None
+
 
     def get_database_stats(self):
         """Gibt Statistiken über die aktuelle Datenbank zurück"""
