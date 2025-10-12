@@ -4799,29 +4799,6 @@ def restore_backup(backup_filename):
         return redirect(url_for('backup_manager'))
 
 
-@app.route('/backup_info/<backup_name>')
-@login_required
-def backup_info(backup_name):
-    """Zeigt detaillierte Informationen zu einem Backup"""
-    from github_backup import GitHubBackupManager
-    
-    try:
-        github_repo = os.environ.get('GITHUB_BACKUP_REPO', 'MaximilianEbner/Holasek_Installationen')
-        github_manager = GitHubBackupManager(github_repo)
-        
-        backup_info = github_manager.get_backup_info(backup_name)
-        
-        if not backup_info:
-            flash(f'Backup {backup_name} konnte nicht analysiert werden!', 'error')
-            return redirect(url_for('backup_manager'))
-        
-        return render_template('backup_info.html', 
-                             backup=backup_info,
-                             github_repo=github_repo)
-        
-    except Exception as e:
-        flash(f'Fehler beim Analysieren des Backups: {str(e)}', 'error')
-        return redirect(url_for('backup_manager'))
 
 
 # ===== ARTIKEL-VERWALTUNG ROUTEN =====
