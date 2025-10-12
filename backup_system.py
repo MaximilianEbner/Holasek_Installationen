@@ -322,35 +322,6 @@ class CSVBackupSystem:
 
 
 
-    def get_database_stats(self):
-        """Gibt Statistiken über die aktuelle Datenbank zurück"""
-        try:
-            stats = {
-                'total_records': 0,
-                'tables': [],
-                'timestamp': datetime.now().isoformat()
-            }
-            for model_class in self.models:
-                try:
-                    count = model_class.query.count()
-                    table_info = {
-                        'name': model_class.__tablename__,
-                        'model': model_class.__name__,
-                        'records': count
-                    }
-                    stats['tables'].append(table_info)
-                    stats['total_records'] += count
-                except Exception as e:
-                    print(f"Fehler beim Zählen von {model_class.__name__}: {str(e)}")
-                    stats['tables'].append({
-                        'name': model_class.__tablename__,
-                        'model': model_class.__name__,
-                        'records': 0,
-                        'error': str(e)
-                    })
-            return stats
-        except Exception as e:
-            print(f"Fehler beim Erstellen der Datenbankstatistiken: {str(e)}")
-            return {'total_records': 0, 'tables': [], 'error': str(e)}
+
 
 backup_system = CSVBackupSystem()

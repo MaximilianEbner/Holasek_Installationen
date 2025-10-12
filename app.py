@@ -4656,14 +4656,8 @@ def download_backup(format):
 @login_required
 def backup_manager():
     """CSV/Excel Backup-Manager Interface - nur Download/Upload"""
-    from backup_system import backup_system
-    
-    try:
-        # Nur Datenbankstatistiken für Info
-        db_stats = backup_system.get_database_stats()
-        
-        return render_template('backup_manager.html', 
-                             db_stats=db_stats)
+    try:        
+        return render_template('backup_manager.html')
         
     except Exception as e:
         flash(f'Fehler beim Laden des Backup-Managers: {str(e)}', 'error')
