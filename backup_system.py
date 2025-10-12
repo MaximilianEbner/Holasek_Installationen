@@ -321,8 +321,30 @@ class CSVBackupSystem:
         """Stellt Daten für ein spezifisches Model wieder her"""
         try:
             count = 0
+            skipped = 0
+            
+            # PostgreSQL: Foreign Key Validierung für problematische Tabellen
+            is_postgresql = 'postgresql' in str(db.engine.url)
+            
             for _, row in df.iterrows():
                 instance = model_class()
+                skip_record = False
+                
+                # Foreign Key Validierung für PostgreSQL
+                if is_postgresql and model_class.__tablename__ == 'invoice_reminder':
+                    # Prüfe ob order_id existiert
+                    order_id = row.get('order_id')
+                    if order_id is not None and not pd.isna(order_id):
+                        from models import Order
+                        existing_order = Order.query.filter_by(id=int(order_id)).first()
+                        if not existing_order:
+                            print(f"⚠️ Überspringe invoice_reminder: order_id {order_id} existiert nicht")
+                            skip_record = True
+                            skipped += 1
+                
+                if skip_record:
+                    continue
+                
                 for column in row.index:
                     if hasattr(instance, column):
                         value = row[column]
@@ -375,6 +397,10 @@ class CSVBackupSystem:
                         setattr(instance, column, value)
                 db.session.add(instance)
                 count += 1
+            
+            if skipped > 0:
+                print(f"⚠️ {model_class.__tablename__}: {skipped} Datensätze übersprungen (FK-Konflikte)")
+            
             return count
         except Exception as e:
             print(f"❌ Fehler beim Wiederherstellen von {model_class.__name__}: {str(e)}")
