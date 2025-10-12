@@ -26,9 +26,10 @@ reportlab==4.2.2
 pypdf==4.0.1
 pillow==11.3.0
 
-# Excel Support
+# Excel Support & Data Processing
 openpyxl==3.1.5
 et_xmlfile==2.0.0
+pandas==2.2.2
 
 # Form Validation
 email-validator==2.2.0
