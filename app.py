@@ -4663,13 +4663,17 @@ def backup_manager():
         flash(f'Fehler beim Laden des Backup-Managers: {str(e)}', 'error')
         return redirect(url_for('index'))
 
-@app.route('/upload_backup', methods=['POST'])
+@app.route('/upload_backup', methods=['GET', 'POST'])
 @login_required
 def upload_backup():
     """Lädt ein Backup hoch und stellt es wieder her"""
     from backup_system import backup_system
     import tempfile
     import os
+    
+    # Bei GET-Request zur Backup-Manager-Seite weiterleiten
+    if request.method == 'GET':
+        return redirect(url_for('backup_manager'))
     
     try:
         if 'backupFile' not in request.files:
