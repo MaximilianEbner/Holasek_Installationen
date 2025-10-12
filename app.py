@@ -4656,10 +4656,14 @@ def download_backup(format):
 @login_required
 def backup_manager():
     """CSV/Excel Backup-Manager Interface - nur Download/Upload"""
-    try:        
+    try:
+        print("🔄 Backup-Manager wird geladen...")        
         return render_template('backup_manager.html')
         
     except Exception as e:
+        print(f"❌ Fehler im Backup-Manager: {str(e)}")
+        import traceback
+        traceback.print_exc()
         flash(f'Fehler beim Laden des Backup-Managers: {str(e)}', 'error')
         return redirect(url_for('index'))
 
@@ -4729,65 +4733,7 @@ def upload_backup():
         flash(f'Fehler beim Upload: {str(e)}', 'error')
         return redirect(url_for('backup_manager'))
 
-@app.route('/restore_backup/<backup_filename>', methods=['POST'])
-@login_required
-def restore_backup(backup_filename):
-    """Stellt ein lokales Backup wieder her"""
-    from backup_system import backup_system
-    import os
-    
-    try:
-        # Backup-Datei im backups-Ordner suchen
-        backup_path = os.path.join(backup_system.backup_dir, backup_filename)
-        
-        if not os.path.exists(backup_path):
-            flash(f'Backup-Datei "{backup_filename}" nicht gefunden!', 'error')
-            return redirect(url_for('backup_manager'))
-        
-        print(f"Starte Backup-Wiederherstellung: {backup_filename}")
-        
-        # Je nach Dateityp wiederherstellen
-        success = False
-        if backup_filename.endswith('.zip'):
-            success = backup_system.restore_from_csv(backup_path)
-        elif backup_filename.endswith('.xlsx'):
-            success = backup_system.restore_from_excel(backup_path)
-        else:
-            flash(f'Ungültiges Backup-Format: {backup_filename}', 'error')
-            return redirect(url_for('backup_manager'))
-        
-        if success:
-            flash(f'✅ Backup "{backup_filename}" erfolgreich wiederhergestellt!', 'success')
-        else:
-            flash(f'❌ Fehler beim Wiederherstellen von "{backup_filename}"!', 'error')
-        
-        return redirect(url_for('backup_manager'))
-        
-        # Backup wiederherstellen (automatische Railway PostgreSQL vs lokale SQLite Erkennung)
-        success = github_manager.restore_backup(backup_name)
-        
-        if success:
-            database_type = "PostgreSQL" if os.environ.get('DATABASE_URL') else "SQLite"
-            flash(f'✓ Backup "{backup_name}" erfolgreich in {database_type} wiederhergestellt! '
-                  f'Tabellen: {backup_info["table_count"]}, '
-                  f'Datensätze: {backup_info["total_records"]}', 'success')
-            
-            # Railway-spezifische Hinweise
-            if os.environ.get('DATABASE_URL'):
-                flash('🚀 Railway PostgreSQL: Backup-Wiederherstellung abgeschlossen. '
-                      'Ein App-Neustart kann die Performance optimieren.', 'info')
-            else:
-                flash('💾 Lokale SQLite: Backup erfolgreich wiederhergestellt. '
-                      'Alle Daten sind sofort verfügbar.', 'info')
-        else:
-            flash(f'✗ Fehler beim Wiederherstellen des Backups "{backup_name}"! '
-                  'Prüfen Sie die Logs für Details.', 'error')
-            
-        return redirect(url_for('backup_manager'))
-        
-    except Exception as e:
-        print(f"Exception in restore_backup: {str(e)}")
-        import traceback
+# restore_backup Route entfernt - nur noch upload_backup wird verwendet
         traceback.print_exc()
         flash(f'Unerwarteter Fehler beim Wiederherstellen: {str(e)}', 'error')
         return redirect(url_for('backup_manager'))
