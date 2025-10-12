@@ -4655,22 +4655,18 @@ def download_backup(format):
 @app.route('/backup_manager')
 @login_required
 def backup_manager():
-    """CSV/Excel Backup-Manager Interface"""
+    """CSV/Excel Backup-Manager Interface - nur Download/Upload"""
     from backup_system import backup_system
     
     try:
-        # Verfügbare Backups auflisten
-        available_backups = backup_system.list_backups()
-        
-        # Datenbankstatistiken
+        # Nur Datenbankstatistiken für Info
         db_stats = backup_system.get_database_stats()
         
         return render_template('backup_manager.html', 
-                             backups=available_backups,
                              db_stats=db_stats)
         
     except Exception as e:
-        flash(f'Fehler beim Laden der Backups: {str(e)}', 'error')
+        flash(f'Fehler beim Laden des Backup-Managers: {str(e)}', 'error')
         return redirect(url_for('index'))
 
 @app.route('/upload_backup', methods=['POST'])
