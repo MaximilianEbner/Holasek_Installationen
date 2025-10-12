@@ -170,6 +170,70 @@
                     </a>
                 </div>
                 {% endif %}
+
+                <!-- Paginierung -->
+                {% if pagination and pagination.pages > 1 %}
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <nav aria-label="Aufträge Paginierung">
+                            <ul class="pagination justify-content-center">
+                                <!-- Vorherige Seite -->
+                                {% if pagination.has_prev %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="{{ url_for('orders', page=pagination.prev_num, search=search_query, sort=sort_by, dir=sort_dir) }}">
+                                            <i class="fas fa-chevron-left"></i> Vorherige
+                                        </a>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item disabled">
+                                        <span class="page-link"><i class="fas fa-chevron-left"></i> Vorherige</span>
+                                    </li>
+                                {% endif %}
+
+                                <!-- Seitenzahlen -->
+                                {% for page_num in pagination.iter_pages(left_edge=2, right_edge=2, left_current=2, right_current=2) %}
+                                    {% if page_num %}
+                                        {% if page_num != pagination.page %}
+                                            <li class="page-item">
+                                                <a class="page-link" href="{{ url_for('orders', page=page_num, search=search_query, sort=sort_by, dir=sort_dir) }}">{{ page_num }}</a>
+                                            </li>
+                                        {% else %}
+                                            <li class="page-item active">
+                                                <span class="page-link">{{ page_num }}</span>
+                                            </li>
+                                        {% endif %}
+                                    {% else %}
+                                        <li class="page-item disabled">
+                                            <span class="page-link">…</span>
+                                        </li>
+                                    {% endif %}
+                                {% endfor %}
+
+                                <!-- Nächste Seite -->
+                                {% if pagination.has_next %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="{{ url_for('orders', page=pagination.next_num, search=search_query, sort=sort_by, dir=sort_dir) }}">
+                                            Nächste <i class="fas fa-chevron-right"></i>
+                                        </a>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item disabled">
+                                        <span class="page-link">Nächste <i class="fas fa-chevron-right"></i></span>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+
+                        <!-- Paginierungsinfo -->
+                        <div class="text-center">
+                            <small class="text-muted">
+                                Seite {{ pagination.page }} von {{ pagination.pages }} 
+                                ({{ pagination.total }} Aufträge{{ ' insgesamt' if pagination.total != orders|length else '' }})
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>

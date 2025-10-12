@@ -74,6 +74,7 @@
                 <option value="1. Termin vereinbart" {{ 'selected' if status_filter == '1. Termin vereinbart' else '' }}>1. Termin vereinbart</option>
                 <option value="Angebot erstellen" {{ 'selected' if status_filter == 'Angebot erstellen' else '' }}>Angebot erstellen</option>
                 <option value="2. Termin vereinbaren" {{ 'selected' if status_filter == '2. Termin vereinbaren' else '' }}>2. Termin vereinbaren</option>
+                <option value="2. Termin vereinbart" {{ 'selected' if status_filter == '2. Termin vereinbart' else '' }}>2. Termin vereinbart</option>
                 <option value="Warten auf Rückmeldung" {{ 'selected' if status_filter == 'Warten auf Rückmeldung' else '' }}>Warten auf Rückmeldung</option>
                 <option value="Kein Interesse" {{ 'selected' if status_filter == 'Kein Interesse' else '' }}>Kein Interesse</option>
             </select>
@@ -235,6 +236,70 @@
                     <a href="{{ url_for('new_customer') }}" class="btn btn-primary">
                         <i class="fas fa-plus"></i> Ersten Kunden erstellen
                     </a>
+                </div>
+                {% endif %}
+
+                <!-- Paginierung -->
+                {% if pagination and pagination.pages > 1 %}
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <nav aria-label="Kunden Paginierung">
+                            <ul class="pagination justify-content-center">
+                                <!-- Vorherige Seite -->
+                                {% if pagination.has_prev %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="{{ url_for('customers', page=pagination.prev_num, search=search_query, customer_manager=customer_manager_filter, status=status_filter, sort=request.args.get('sort'), dir=request.args.get('dir')) }}">
+                                            <i class="fas fa-chevron-left"></i> Vorherige
+                                        </a>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item disabled">
+                                        <span class="page-link"><i class="fas fa-chevron-left"></i> Vorherige</span>
+                                    </li>
+                                {% endif %}
+
+                                <!-- Seitenzahlen -->
+                                {% for page_num in pagination.iter_pages(left_edge=2, right_edge=2, left_current=2, right_current=2) %}
+                                    {% if page_num %}
+                                        {% if page_num != pagination.page %}
+                                            <li class="page-item">
+                                                <a class="page-link" href="{{ url_for('customers', page=page_num, search=search_query, customer_manager=customer_manager_filter, status=status_filter, sort=request.args.get('sort'), dir=request.args.get('dir')) }}">{{ page_num }}</a>
+                                            </li>
+                                        {% else %}
+                                            <li class="page-item active">
+                                                <span class="page-link">{{ page_num }}</span>
+                                            </li>
+                                        {% endif %}
+                                    {% else %}
+                                        <li class="page-item disabled">
+                                            <span class="page-link">…</span>
+                                        </li>
+                                    {% endif %}
+                                {% endfor %}
+
+                                <!-- Nächste Seite -->
+                                {% if pagination.has_next %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="{{ url_for('customers', page=pagination.next_num, search=search_query, customer_manager=customer_manager_filter, status=status_filter, sort=request.args.get('sort'), dir=request.args.get('dir')) }}">
+                                            Nächste <i class="fas fa-chevron-right"></i>
+                                        </a>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item disabled">
+                                        <span class="page-link">Nächste <i class="fas fa-chevron-right"></i></span>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+
+                        <!-- Paginierungsinfo -->
+                        <div class="text-center">
+                            <small class="text-muted">
+                                Seite {{ pagination.page }} von {{ pagination.pages }} 
+                                ({{ pagination.total }} Kunden{{ ' insgesamt' if pagination.total != customers|length else '' }})
+                            </small>
+                        </div>
+                    </div>
                 </div>
                 {% endif %}
             </div>

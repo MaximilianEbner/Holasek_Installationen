@@ -1,38 +1,74 @@
-{% extends "base.html" %}
+"{% extends "base.html" %}
 
-{% block title %}GitHub Backup-Manager{% endblock %}
+{% block title %}Backup & Restore Manager{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="row">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h1><i class="bi bi-cloud-download"></i> GitHub Backup-Manager</h1>
-                <div>
-                    <span class="badge bg-info">Repository: {{ github_repo }}</span>
+                <h1><i class="bi bi-download"></i> Backup & Restore Manager</h1>
+                <div class="btn-group">
+                    <a href="{{ url_for('download_backup', format='csv') }}" class="btn btn-success">
+                        <i class="bi bi-file-zip"></i> CSV Backup erstellen
+                    </a>
+                    <a href="{{ url_for('download_backup', format='excel') }}" class="btn btn-primary">
+                        <i class="bi bi-file-earmark-excel"></i> Excel Backup erstellen
+                    </a>
                 </div>
             </div>
+
+            <!-- Datenbankstatistiken -->
+            {% if db_stats %}
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h5 class="card-title text-success">{{ db_stats.total_records }}</h5>
+                            <p class="card-text">Gesamt Datensätze</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h5 class="card-title text-info">{{ db_stats.tables|length }}</h5>
+                            <p class="card-text">Tabellen</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h5 class="card-title text-warning">{{ backups|length }}</h5>
+                            <p class="card-text">Verfügbare Backups</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
 
             <!-- Info-Panel -->
             <div class="alert alert-info" role="alert">
                 <i class="bi bi-info-circle"></i>
-                <strong>GitHub Backup-System:</strong> Hier können Sie Datenbank-Backups von GitHub laden und wiederherstellen.
-                <br><strong>Railway PostgreSQL:</strong> SQLite-Backups werden automatisch zu PostgreSQL konvertiert.
-                <br><strong>Lokale Entwicklung:</strong> Direkter SQLite-Restore.
-                <br>Laden Sie Backup-Dateien (.db) manuell in den <code>/backups</code> Ordner Ihres GitHub-Repositories hoch.
+                <strong>Backup-System:</strong> Erstellen Sie vollständige Backups aller Datentabellen in CSV oder Excel Format.
+                <br><strong>CSV-Format:</strong> ZIP-Archiv mit allen Tabellen als separate CSV-Dateien + Metadata
+                <br><strong>Excel-Format:</strong> Eine Datei mit allen Tabellen als separate Sheets
+                <br><strong>Wiederherstellung:</strong> Wählen Sie ein Backup aus der Liste unten für die Wiederherstellung
             </div>
 
             {% if backups %}
             <div class="card">
                 <div class="card-header">
-                    <h5><i class="bi bi-list"></i> Verfügbare Backups ({{ backups|length }})</h5>
+                    <h5><i class="bi bi-archive"></i> Verfügbare Backups ({{ backups|length }})</h5>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-hover">
                             <thead>
                                 <tr>
-                                    <th>Backup-Name</th>
+                                    <th>Backup-Datei</th>
+                                    <th>Typ</th>
                                     <th>Größe</th>
                                     <th>Erstellt</th>
                                     <th>Aktionen</th>
@@ -42,35 +78,30 @@
                                 {% for backup in backups %}
                                 <tr>
                                     <td>
-                                        <strong>{{ backup.name }}</strong>
+                                        <strong>{{ backup.filename }}</strong>
                                     </td>
                                     <td>
-                                        <span class="badge bg-secondary">{{ '%.2f'|format(backup.size / 1024 / 1024) }} MB</span>
+                                        {% if backup.type == 'ZIP' %}
+                                            <span class="badge bg-success">CSV (ZIP)</span>
+                                        {% else %}
+                                            <span class="badge bg-primary">Excel</span>
+                                        {% endif %}
                                     </td>
                                     <td>
-                                        <small class="text-muted">
-                                            {% if 'InnSAN_Database_Backup_' in backup.name %}
-                                                {% set timestamp = backup.name.replace('InnSAN_Database_Backup_', '').replace('.db', '') %}
-                                                {% if timestamp|length == 15 %}
-                                                    {{ timestamp[:8] }} {{ timestamp[9:11] }}:{{ timestamp[11:13] }}:{{ timestamp[13:15] }}
-                                                {% else %}
-                                                    {{ backup.last_modified }}
-                                                {% endif %}
-                                            {% else %}
-                                                {{ backup.last_modified }}
-                                            {% endif %}
-                                        </small>
+                                        <span class="badge bg-secondary">{{ backup.size_mb }} MB</span>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">{{ backup.created.strftime('%d.%m.%Y %H:%M') }}</small>
                                     </td>
                                     <td>
                                         <div class="btn-group" role="group">
-                                            <a href="{{ url_for('backup_info', backup_name=backup.name) }}" 
-                                               class="btn btn-outline-info btn-sm">
-                                                <i class="bi bi-info-circle"></i> Details
-                                            </a>
-                                            <button type="button" 
-                                                    class="btn btn-warning btn-sm" 
-                                                    onclick="confirmRestore('{{ backup.name }}')">
+                                            <button type="button" class="btn btn-warning btn-sm" 
+                                                    onclick="confirmRestore('{{ backup.filename }}', '{{ backup.type }}')">
                                                 <i class="bi bi-arrow-clockwise"></i> Wiederherstellen
+                                            </button>
+                                            <button type="button" class="btn btn-danger btn-sm" 
+                                                    onclick="confirmDelete('{{ backup.filename }}')">
+                                                <i class="bi bi-trash"></i> Löschen
                                             </button>
                                         </div>
                                     </td>
@@ -84,90 +115,77 @@
             {% else %}
             <div class="alert alert-warning" role="alert">
                 <i class="bi bi-exclamation-triangle"></i>
-                <strong>Keine Backups gefunden!</strong>
-                <br>Es wurden keine .db Backup-Dateien im <code>/backups</code> Ordner des GitHub-Repositories gefunden.
-                <br><br>
-                <strong>So fügen Sie Backups hinzu:</strong>
-                <ol>
-                    <li>Erstellen Sie einen lokalen Backup mit dem <a href="{{ url_for('download_backup', format='sqlite') }}" class="alert-link">Datenbank Download</a></li>
-                    <li>Laden Sie die .db-Datei in den <code>/backups</code> Ordner Ihres GitHub-Repositories hoch</li>
-                    <li>Aktualisieren Sie diese Seite</li>
-                </ol>
+                <strong>Keine Backups vorhanden!</strong>
+                <br>Erstellen Sie Ihr erstes Backup mit den Buttons oben.
             </div>
             {% endif %}
 
-            <!-- Aktionen -->
+            <!-- Upload Bereich für Restore -->
             <div class="card mt-4">
                 <div class="card-header">
-                    <h5><i class="bi bi-tools"></i> Backup-Aktionen</h5>
+                    <h5><i class="bi bi-upload"></i> Backup hochladen & wiederherstellen</h5>
                 </div>
                 <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="d-grid">
-                                <a href="{{ url_for('download_backup', format='sqlite') }}" class="btn btn-primary">
-                                    <i class="bi bi-download"></i> Neues Backup erstellen
-                                </a>
+                    <form id="uploadForm" enctype="multipart/form-data">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="mb-3">
+                                    <label for="backupFile" class="form-label">Backup-Datei auswählen (.zip oder .xlsx)</label>
+                                    <input type="file" class="form-control" id="backupFile" name="backupFile" 
+                                           accept=".zip,.xlsx" required>
+                                </div>
                             </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="d-grid">
-                                <button class="btn btn-outline-secondary" onclick="location.reload()">
-                                    <i class="bi bi-arrow-clockwise"></i> Liste aktualisieren
+                            <div class="col-md-4 d-flex align-items-end">
+                                <button type="submit" class="btn btn-success w-100">
+                                    <i class="bi bi-upload"></i> Hochladen & Wiederherstellen
                                 </button>
                             </div>
                         </div>
-                        <div class="col-md-4">
-                            <div class="d-grid">
-                                <a href="{{ url_for('index') }}" class="btn btn-outline-primary">
-                                    <i class="bi bi-house"></i> Zum Dashboard
-                                </a>
-                            </div>
-                        </div>
-                    </div>
+                    </form>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Bestätigungs-Modal -->
-<div class="modal fade" id="confirmRestoreModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Backup wiederherstellen?</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-warning">
-                    <i class="bi bi-exclamation-triangle"></i>
-                    <strong>ACHTUNG:</strong> Diese Aktion überschreibt die aktuelle Datenbank!
-                </div>
-                <p>Möchten Sie das Backup <strong id="backupNameConfirm"></strong> wirklich wiederherstellen?</p>
-                <p class="text-muted">
-                    <small>Eine Sicherung der aktuellen Datenbank wird automatisch erstellt.</small>
-                </p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
-                <a href="#" id="confirmRestoreBtn" class="btn btn-warning">
-                    <i class="bi bi-arrow-clockwise"></i> Wiederherstellen
-                </a>
-            </div>
-        </div>
-    </div>
-</div>
-{% endblock %}
-
-{% block scripts %}
+<!-- JavaScript für Interaktionen -->
 <script>
-function confirmRestore(backupName) {
-    document.getElementById('backupNameConfirm').textContent = backupName;
-    document.getElementById('confirmRestoreBtn').href = "{{ url_for('restore_backup', backup_name='BACKUP_NAME') }}".replace('BACKUP_NAME', backupName);
-    
-    var modal = new bootstrap.Modal(document.getElementById('confirmRestoreModal'));
-    modal.show();
+function confirmRestore(filename, type) {
+    if (confirm(`Möchten Sie das ${type}-Backup '${filename}' wirklich wiederherstellen?\n\nWARNUNG: Alle aktuellen Daten werden überschrieben!`)) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/restore_backup/${filename}`;
+        document.body.appendChild(form);
+        form.submit();
+    }
 }
+
+function confirmDelete(filename) {
+    if (confirm(`Möchten Sie das Backup '${filename}' wirklich löschen?`)) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/delete_backup/${filename}`;
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+document.getElementById('uploadForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const fileInput = document.getElementById('backupFile');
+    if (!fileInput.files[0]) {
+        alert('Bitte wählen Sie eine Backup-Datei aus.');
+        return;
+    }
+    
+    if (confirm(`Möchten Sie die Datei '${fileInput.files[0].name}' wirklich hochladen und wiederherstellen?\n\nWARNUNG: Alle aktuellen Daten werden überschrieben!`)) {
+        // Form richtig für Upload konfigurieren
+        const form = document.getElementById('uploadForm');
+        form.action = '/upload_backup';
+        form.method = 'POST';
+        form.submit();
+    }
+});
 </script>
-{% endblock %}
+{% endblock %}"

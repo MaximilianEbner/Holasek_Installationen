@@ -150,25 +150,9 @@
             </a>
             
             <!-- Backup-Bereich -->
-            <div class="list-group-item">
-                <div class="dropdown">
-                    <button class="btn btn-outline-light btn-sm dropdown-toggle w-100 text-start" type="button" data-bs-toggle="dropdown">
-                        <i class="bi bi-download"></i> Backup
-                    </button>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="{{ url_for('backup_manager') }}">
-                            <i class="bi bi-cloud-download"></i> GitHub Backup-Manager
-                        </a></li>
-                        <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item" href="{{ url_for('download_backup', format='excel') }}">
-                            <i class="bi bi-file-earmark-excel"></i> Excel Download
-                        </a></li>
-                        <li><a class="dropdown-item" href="{{ url_for('download_backup', format='sqlite') }}">
-                            <i class="bi bi-database"></i> Datenbank Download
-                        </a></li>
-                    </ul>
-                </div>
-            </div>
+            <a href="{{ url_for('backup_manager') }}" class="list-group-item list-group-item-action">
+                <i class="bi bi-download"></i> Backup & Restore
+            </a>
         </div>
     </div>
 
