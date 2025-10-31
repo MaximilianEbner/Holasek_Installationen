@@ -33,12 +33,94 @@
 
 .form-section {
     background: #f8f9fb;
-    border: 1px solid #e1e5e9;
-    border-radius: 12px;
-    padding: 2.5rem;
-    margin-bottom: 2.5rem;
+    border: 2px solid #e1e5e9;
+    border-radius: 16px;
+    padding: 3rem;
+    margin-bottom: 4rem;
     transition: all 0.3s ease;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+    position: relative;
+}
+
+/* Spezielle Hintergrundfarben für verschiedene Sektionen */
+.form-section.customer-section {
+    background: linear-gradient(135deg, #f0f8ff 0%, #e6f3ff 100%);
+    border-color: #3498db;
+    border-left: 6px solid #3498db;
+}
+
+.form-section.document-section {
+    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+    border-color: #0ea5e9;
+    border-left: 6px solid #0ea5e9;
+}
+
+.form-section.positions-section {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    border-color: #22c55e;
+    border-left: 6px solid #22c55e;
+}
+
+.form-section.totals-section {
+    background: linear-gradient(135deg, #fefce8 0%, #fef3c7 100%);
+    border-color: #eab308;
+    border-left: 6px solid #eab308;
+}
+
+.form-section.payment-section {
+    background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%);
+    border-color: #ec4899;
+    border-left: 6px solid #ec4899;
+}
+
+/* Gruppentrennungen */
+.section-divider {
+    height: 4px;
+    background: linear-gradient(90deg, #e2e8f0 0%, #cbd5e0 50%, #e2e8f0 100%);
+    margin: 5rem 0 4rem 0;
+    border-radius: 2px;
+    border: none;
+}
+
+.section-group-title {
+    text-align: center;
+    color: white;
+    font-size: 1.6rem;
+    font-weight: 900;
+    letter-spacing: 3px;
+    margin: 4rem 0 2rem 0;
+    padding: 2.5rem 3rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 15px;
+    border: none;
+    box-shadow: 0 10px 30px rgba(102, 126, 234, 0.5);
+    text-transform: uppercase;
+    position: relative;
+    overflow: hidden;
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.section-group-title strong {
+    font-weight: 950;
+    text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.4);
+}
+
+.section-group-title::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    animation: shimmer 3s infinite;
+}
+
+@keyframes shimmer {
+    0% { left: -100%; }
+    50% { left: 100%; }
+    100% { left: 100%; }
 }
 
 .form-section.highlight {
@@ -159,12 +241,12 @@
 
 /* Rechnungssumme */
 .invoice-totals {
-    background: linear-gradient(135deg, #f8f9fb 0%, #e8f4fd 100%);
-    border: 2px solid #667eea;
-    border-radius: 12px;
-    padding: 2rem;
+    background: linear-gradient(135deg, #fefce8 0%, #fef3c7 100%);
+    border: 3px solid #eab308;
+    border-radius: 16px;
+    padding: 2.5rem;
     margin-top: 2rem;
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+    box-shadow: 0 6px 16px rgba(234, 179, 8, 0.2);
 }
 
 .total-row {
@@ -204,19 +286,22 @@
 }
 
 .btn-primary-custom {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
     border: none;
-    border-radius: 6px;
-    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    padding: 0.85rem 2rem;
     color: white;
-    font-weight: 500;
+    font-weight: 600;
+    font-size: 1.05rem;
     transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
 }
 
 .btn-primary-custom:hover {
-    background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    background: linear-gradient(135deg, #218838 0%, #1da88a 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(40, 167, 69, 0.4);
+    color: white;
 }
 
 /* Verbesserte Abstände für Formularfelder */
@@ -278,12 +363,12 @@
         <div class="form-container">
             <form id="generalInvoiceForm" action="{% if edit_mode %}{{ url_for('update_general_invoice', id=invoice.id) }}{% else %}{{ url_for('create_general_invoice') }}{% endif %}" method="POST">
                 
+                <div class="section-group-title">
+                    <i class="bi bi-people"></i> <strong></strong>KUNDEN- & AUFTRAGSDATEN</strong>
+                </div>
+                
                 <!-- Kundenauswahl -->
-                <div class="form-section">
-                    <div class="section-title">
-                        <i class="bi bi-person-circle"></i>
-                        Kunde und Auftrag auswählen
-                    </div>
+                <div class="form-section customer-section">
                     
                     <div class="row">
                         <div class="col-md-6">
@@ -351,11 +436,7 @@
                 </div>
 
                 <!-- Kundendetails (editierbar) -->
-                <div class="form-section" id="customer-details" style="display: none;">
-                    <div class="section-title">
-                        <i class="bi bi-card-text"></i>
-                        Rechnungsadresse (bearbeitbar)
-                    </div>
+                <div class="form-section customer-section" id="customer-details" style="display: none;">
                     
                     <div class="customer-info" id="existing-invoices-info" style="display: none;">
                         <!-- Wird per JavaScript gefüllt -->
@@ -423,11 +504,7 @@
                 </div>
 
                 <!-- Auftragsübersicht (wird nach Auftragsauswahl angezeigt) -->
-                <div class="form-section" id="order-summary" style="display: none;">
-                    <div class="section-title">
-                        <i class="bi bi-clipboard-data"></i>
-                        Auftragsübersicht und bereits verechnete Beträge
-                    </div>
+                <div class="form-section customer-section" id="order-summary" style="display: none;">
                     
                     <div class="row">
                         <div class="col-md-6">
@@ -483,12 +560,14 @@
                     </div>
                 </div>
 
+                <hr class="section-divider">
+                
+                <div class="section-group-title">
+                    <i class="bi bi-file-text"></i> <strong>DOKUMENTDETAILS & RECHNUNGSART</strong>
+                </div>
+
                 <!-- Rechnungsart-Auswahl (wird nach Auftragsauswahl angezeigt) -->
-                <div class="form-section" id="invoice-type-selection" style="display: none;">
-                    <div class="section-title">
-                        <i class="bi bi-file-earmark-text"></i>
-                        Rechnungsart auswählen
-                    </div>
+                <div class="form-section document-section" id="invoice-type-selection" style="display: none;">
                     
                     <div class="row">
                         <div class="col-md-12">
@@ -502,11 +581,7 @@
                 </div>
 
                 <!-- Dokumentdetails -->
-                <div class="form-section">
-                    <div class="section-title">
-                        <i class="bi bi-file-text"></i>
-                        Dokumentdetails
-                    </div>
+                <div class="form-section document-section">
                     
                     <div class="row">
                         <div class="col-md-6">
@@ -533,12 +608,14 @@
                     </div>
                 </div>
 
+                <hr class="section-divider">
+                
+                <div class="section-group-title">
+                    <i class="bi bi-list-ol"></i> <strong>RECHNUNGSPOSITIONEN & BETRÄGE</strong>
+                </div>
+
                 <!-- Positionsverwaltung -->
-                <div class="form-section">
-                    <div class="section-title">
-                        <i class="bi bi-list-ol"></i>
-                        Rechnungspositionen
-                    </div>
+                <div class="form-section positions-section">
                     
                     <div class="positions-table">
                         <table id="positions-table">
@@ -570,11 +647,7 @@
                 </div>
 
                 <!-- Rechnungssumme -->
-                <div class="invoice-totals">
-                    <div class="section-title">
-                        <i class="bi bi-calculator"></i>
-                        Rechnungssumme
-                    </div>
+                <div class="invoice-totals totals-section">
                     
                     <div class="row">
                         <div class="col-md-6">
@@ -603,12 +676,14 @@
                     </div>
                 </div>
 
+                <hr class="section-divider">
+                
+                <div class="section-group-title">
+                    <i class="bi bi-credit-card"></i> <strong>ZAHLUNGSKONDITIONEN & ABSCHLUSS</strong>
+                </div>
+
                 <!-- Zahlungskonditionen -->
-                <div class="form-section">
-                    <div class="section-title">
-                        <i class="bi bi-calendar-check"></i>
-                        Zahlungskonditionen
-                    </div>
+                <div class="form-section payment-section">
                     
                     <div class="row">
                         <div class="col-md-4">
@@ -619,11 +694,7 @@
                 </div>
 
                 <!-- Schlusstext -->
-                <div class="form-section">
-                    <div class="section-title">
-                        <i class="bi bi-chat-text"></i>
-                        Schlusstext
-                    </div>
+                <div class="form-section document-section">
                     
                     <textarea name="closing_text" id="closing_text" class="form-control" rows="3"
                               placeholder="Zusätzliche Hinweise oder Zahlungsinformationen..."></textarea>
@@ -635,8 +706,8 @@
                         <a href="{{ url_for('invoices') }}" class="btn btn-secondary">
                             <i class="bi bi-arrow-left"></i> Abbrechen
                         </a>
-                        <button type="submit" class="btn btn-primary-custom">
-                            <i class="bi bi-check-circle"></i> Rechnung erstellen
+                        <button type="submit" class="btn btn-success btn-lg btn-primary-custom">
+                            <i class="bi bi-check-circle-fill me-2"></i> Rechnung erstellen
                         </button>
                     </div>
                 </div>
