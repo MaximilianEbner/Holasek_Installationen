@@ -88,7 +88,7 @@ class InvoicePDFGenerator:
             "IBAN: AT21 3287 8000 0109 2301",
             "BIC: RLNWATWWBAD",
             "Bank: Raiffeisenbank",
-            "UID: ATU61661106"
+            "UID: ATU82513629"
         ]
         
         for line in payment_info:
@@ -156,7 +156,7 @@ class InvoicePDFGenerator:
         
         # Firmenzeile oberhalb der Kundendaten in Schriftgröße 8
         c.setFont("Helvetica", 8)
-        company_line = "InnSAN Fachbetrieb Ing. Michael Holasek | Hetzendorferstrasse 138/2/1B | 1120 Wien"
+        company_line = "InnSAN | Holasek GmbH | Hetzendorferstrasse 138/2/1B | 1120 Wien"
         c.drawString(self.margin, y_start + 2*cm, company_line)
         
         # Überschrift Rechnungsadresse
@@ -616,7 +616,7 @@ class InvoicePDFGenerator:
         c.setFont("Helvetica", 10)
         closing_text = [
             "Wir hoffen, den Auftrag zu Ihrer Zufriedenheit ausgeführt zu haben und verbleiben",
-            "mit freundlichen Grüßen,",
+            "mit freundlichen Grüßen",
             "Ihr InnSAN Team"
         ]
         
@@ -645,7 +645,7 @@ class InvoicePDFGenerator:
         c.drawString(self.margin, y_pos, "Zahlungskondition:")
         y_pos -= 0.4*cm
         c.setFont("Helvetica", 10)
-        c.drawString(self.margin, y_pos, "Fällig bei Erhalt der Rechnung. Netto ohne Abzüge.")
+        c.drawString(self.margin, y_pos, "Fällig bei erhalt der Rechnung. Netto ohne Abzüge.")
         
         y_pos -= 1*cm
         c.setFont("Helvetica-Bold", 10)
@@ -656,23 +656,16 @@ class InvoicePDFGenerator:
         datenschutz_text = [
             "Wir weisen darauf hin, dass zum Zweck der Vertragsabwicklung folgende Daten bei uns gespeichert werden:",
             "Name, Vorname, Anschrift, Telefonnummer und ggf. Email-Adresse.",
+            "Die von Ihnen bereit gestellten Daten sind zur Vertragserfüllung bzw. zur Durchführung vorvertraglicher Maßnahmen erforderlich.",
+            "Ohne diese Daten können wir den Vertrag mit Ihnen nicht abschließen. Eine Datenübermittlung an Dritte erfolgt nicht,",
+            "mit Ausnahme von den von uns beauftragten Lieferanten zum Zwecke der Bestellabwicklung, an das von uns beauftragte",
+            "Transportunternehmen zur Zustellung der Ware sowie an unseren Steuerberater zur Erfüllung unserer steuerrechtlichen Verpflichtungen.",
             "",
-            "Die von Ihnen bereit gestellten Daten sind zur Vertragserfüllung bzw. zur Durchführung vorvertraglicher",
-            "Maßnahmen erforderlich. Ohne diese Daten können wir den Vertrag mit Ihnen nicht abschließen. Eine",
-            "Datenübermittlung an Dritte erfolgt nicht, mit Ausnahme von den von uns beauftragten Lieferanten zum Zwecke",
-            "der Bestellabwicklung, an das von uns beauftragte Transportunternehmen zur Zustellung der Ware sowie an unseren",
-            "Steuerberater zur Erfüllung unserer steuerrechtlichen Verpflichtungen.",
-            "",
-            "Nach Abbruch des Auftragvorgangs, werden die bei uns gespeicherten Daten gelöscht. Im Falle eines",
-            "Vertragsabschlusses werden sämtliche Daten aus dem Vertragsverhältnis bis zum Ablauf der steuerrechtlichen",
-            "Aufbewahrungsfrist (7 Jahre) gespeichert.",
-            "",
+            "Nach Abbruch des Auftragvorgangs, werden die bei uns gespeicherten Daten gelöscht. Im Falle eines Vertragsabschlusses",
+            "werden sämtliche Daten aus dem Vertragsverhältnis bis zum Ablauf der steuerrechtlichen Aufbewahrungsfrist (7 Jahre) gespeichert.",
             "Die Daten Name, Anschrift, gekaufte Waren und Kaufdatum werden darüber hinaus gehend bis zum Ablauf der",
             "Produkthaftung (10 Jahre) gespeichert.",
-            "",
-            "Im Falle einer Zustimmung zur Verwendung von Fotomaterial, wird dieses bis auf Widerruf bei uns anonym",
-            "abgespeichert.",
-            "",
+            "Im Falle einer Zustimmung zur Verwendung von Fotomaterial, wird dieses bis auf Widerruf bei uns anonym abgespeichert.",
             "Die Datenverarbeitung erfolgt auf Basis der gesetzlichen Bestimmungen der DSGVO."
         ]
         
@@ -696,7 +689,7 @@ class InvoicePDFGenerator:
         
         # Spalte 1: Firmeninformationen (links)
         company_info = [
-            "InnSan Ing. Michael Holasek e.U.",
+            "Holasek GmbH",
             "Hetzendorferstrasse 138/2/1B",
             "1120 Wien",
             "Tel: +43 699 114 88 772",
@@ -722,7 +715,7 @@ class InvoicePDFGenerator:
         col3_x = self.margin + 14*cm
         legal_info = [
             "Rechtsinformationen:",
-            "UID: ATU61661106",
+            "UID: ATU82513629",
             "Handelsgericht Leopoldsdorf",
             "Gewerbeschein: Installateur"
         ]
@@ -1074,7 +1067,7 @@ class InvoicePDFGenerator:
             # Standard-Abschlusstext
             closing_text = [
                 "Wir hoffen, den Auftrag zu Ihrer Zufriedenheit ausgeführt zu haben und verbleiben",
-                "mit freundlichen Grüßen,",
+                "mit freundlichen Grüßen",
                 "Ihr InnSAN Team"
             ]
             
@@ -1099,20 +1092,41 @@ class InvoicePDFGenerator:
         y_pos -= 0.8*cm
         c.setFont("Helvetica-Bold", 10)
         c.drawString(self.margin, y_pos, "Zahlungskondition:")
-        y_pos -= 0.5*cm
-        
+        y_pos -= 0.4*cm
         c.setFont("Helvetica", 10)
-        payment_terms = [
-            f"Die Rechnung ist sofort nach Erhalt ohne Abzug fällig.",
-            f"Fälligkeitsdatum: {invoice.due_date.strftime('%d.%m.%Y') if invoice.due_date else 'nicht angegeben'}",
+        c.drawString(self.margin, y_pos, "Fällig bei erhalt der Rechnung. Netto ohne Abzüge.")
+        
+        y_pos -= 1*cm
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(self.margin, y_pos, "Hinweis Datenschutz und Datenspeicherung:")
+        
+        y_pos -= 0.5*cm
+        c.setFont("Helvetica", 9)
+        datenschutz_text = [
+            "Wir weisen darauf hin, dass zum Zweck der Vertragsabwicklung folgende Daten bei uns gespeichert werden:",
+            "Name, Vorname, Anschrift, Telefonnummer und ggf. Email-Adresse.",
+            "Die von Ihnen bereit gestellten Daten sind zur Vertragserfüllung bzw. zur Durchführung vorvertraglicher Maßnahmen erforderlich.",
+            "Ohne diese Daten können wir den Vertrag mit Ihnen nicht abschließen. Eine Datenübermittlung an Dritte erfolgt nicht,",
+            "mit Ausnahme von den von uns beauftragten Lieferanten zum Zwecke der Bestellabwicklung, an das von uns beauftragte",
+            "Transportunternehmen zur Zustellung der Ware sowie an unseren Steuerberater zur Erfüllung unserer steuerrechtlichen Verpflichtungen.",
             "",
-            "Bei Zahlungsverzug werden Verzugszinsen in der Höhe von 9,2% p.a. verrechnet.",
-            "Gerichtsstand ist Wien."
+            "Nach Abbruch des Auftragvorgangs, werden die bei uns gespeicherten Daten gelöscht. Im Falle eines Vertragsabschlusses",
+            "werden sämtliche Daten aus dem Vertragsverhältnis bis zum Ablauf der steuerrechtlichen Aufbewahrungsfrist (7 Jahre) gespeichert.",
+            "Die Daten Name, Anschrift, gekaufte Waren und Kaufdatum werden darüber hinaus gehend bis zum Ablauf der",
+            "Produkthaftung (10 Jahre) gespeichert.",
+            "Im Falle einer Zustimmung zur Verwendung von Fotomaterial, wird dieses bis auf Widerruf bei uns anonym abgespeichert.",
+            "Die Datenverarbeitung erfolgt auf Basis der gesetzlichen Bestimmungen der DSGVO."
         ]
         
-        for line in payment_terms:
+        for line in datenschutz_text:
             c.drawString(self.margin, y_pos, line)
-            y_pos -= 0.5*cm
+            y_pos -= 0.35*cm
+            # Prüfen ob noch Platz auf der Seite ist
+            if y_pos < 3*cm:
+                self._setup_footer(c)  # Footer vor Seitenumbruch
+                c.showPage()
+                self._setup_header(c)
+                y_pos = self.height - 6*cm
     
     def _get_company_data(self):
         """Lädt Firmendaten aus den Einstellungen"""

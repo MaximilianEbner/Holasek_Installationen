@@ -166,7 +166,7 @@ class PDFExporter:
         # Header-Tabelle mit Logo und Firmendaten
         if logo_element:
             header_data = [
-                [logo_element, 'Ing. Michael Holasek'],
+                [logo_element, 'Holasek GmbH'],
                 ['', 'Hetzendorferstrasse 138/2/1B'],
                 ['', '1120 Wien'],
                 ['', ''],
