@@ -311,10 +311,11 @@ html {
                                     <div class="row align-items-center mb-2">
                                         <div class="col-md-3">
                                             <label class="form-label form-label-sm">Beschreibung</label>
-                                            <input type="text" class="form-control form-control-sm subitem-description" 
-                                                   value="{{ subitem.description }}" 
+                                            <textarea class="form-control form-control-sm subitem-description" 
+                                                   rows="2"
+                                                   style="resize: vertical; min-height: 50px;"
                                                    data-template-id="{{ template.id }}" data-subitem-index="{{ loop.index0 }}"
-                                                   onchange="updateSubItemCalculation(this.dataset.templateId, this.dataset.subitemIndex)">
+                                                   onchange="updateSubItemCalculation(this.dataset.templateId, this.dataset.subitemIndex)">{{ subitem.description }}</textarea>
                                         </div>
                                         <div class="col-md-2">
                                             <label class="form-label form-label-sm">Typ</label>

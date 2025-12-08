@@ -94,7 +94,7 @@
                 <!-- Preisaufschlüsselung -->
                 <div class="border rounded p-3 bg-light">
                     <div class="row">
-                        <div class="col-6"><strong>Nettosumme:</strong></div>
+                        <div class="col-6"><strong>Summe ohne Aufschlag:</strong></div>
                         <div class="col-6 text-end" id="base-total-display">{{ "%.2f"|format(quote.calculate_net_total()) }} €</div>
                     </div>
                     <div class="row">
@@ -201,24 +201,36 @@
                     <div class="row mb-3">
                         <div class="col-md-4">
                             <label class="form-label">Leistungsumfang</label>
-                            <textarea name="leistungsumfang" class="form-control" rows="6" 
-                                      placeholder="• Demontage der bestehenden Produkte inklusive Entsorgung&#10;• Montage der im Angebot angeführten Produkte&#10;• ..."
-                                      {% if quote.status == 'Angenommen' %}readonly{% endif %}>{% if quote.leistungsumfang and quote.leistungsumfang != '<keine>' %}{{ quote.leistungsumfang }}{% elif quote.leistungsumfang == '<keine>' %}{% else %}{{ '• Demontage der bestehenden Produkte inklusive Entsorgung\n• Montage der im Angebot angeführten Produkte\n• Anschluss an bestehendes Gebäudeleitungssystem im unmittelbaren Umbaubereich ab Badezimmer oder in der Dusche\n• Diverse Ausgleichs- und Abdichtungsarbeiten' }}{% endif %}</textarea>
+                            <textarea name="leistungsumfang" class="form-control" rows="12" 
+                                      placeholder="Wir bedanken uns für Ihr Vertrauen und bieten Ihnen folgenden Leistungsumfang:&#10;*  Demontage der bestehenden Produkte inklusive/exklusive Entsorgung&#10;..."
+                                      {% if quote.status == 'Angenommen' %}readonly{% endif %}>{% if quote.leistungsumfang and quote.leistungsumfang != '<keine>' %}{{ quote.leistungsumfang }}{% elif quote.leistungsumfang == '<keine>' %}{% else %}Wir bedanken uns für Ihr Vertrauen und bieten Ihnen folgenden Leistungsumfang:
+*  Demontage der bestehenden Produkte inklusive/exklusive Entsorgung
+*  Montage der im Angebot angeführten Produkte
+*  Anschluss an bestehendes Gebäudeleitungssystem im unmittelbaren Umbaubereich ab Badezimmer oder in der Dusche
+*  Bei Komplettsanierung des Badezimmer werden die Abdichtungsarbeiten gemäß ÖNORM B3407 ausgeführt.
+*  Bei Teilsanierungen gilt eine Sonderkonstruktion bei der Ausführung der Verbundabdichtung als vereinbart. Auf Grund der Teilsanierung kann keine Gewährleistung für Bestandsabdichtungen übernommen werden. Die Anbindung der neu hergestellten Verbundabdichtungsbereiche an Bestandsabdichtungen kann bei der angebotenen Teilsanierung nicht  oder teilweise nicht ausgeführt werden. In kritischen Bereichen werden als technisch bestmögliche Lösung  MS-Polymerdichtstoffe anstelle von herkömmlichen Sanitärsilikonen als Sonderkonstruktion vereinbart und eingesetzt.{% endif %}</textarea>
                             <small class="form-text text-muted">Wird im PDF als Leistungsumfang angezeigt (leer lassen für keine Anzeige)</small>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Informationen zum Objekt</label>
-                            <textarea name="objektinformationen" class="form-control" rows="6" 
-                                      placeholder="• Einfamilienhaus&#10;• Zuschnitt vor dem Gebäude möglich&#10;• ..."
-                                      {% if quote.status == 'Angenommen' %}readonly{% endif %}>{% if quote.objektinformationen and quote.objektinformationen != '<keine>' %}{{ quote.objektinformationen }}{% elif quote.objektinformationen == '<keine>' %}{% else %}{{ '• Einfamilienhaus\n• Zuschnitt vor dem Gebäude möglich\n• Parken vor dem Gebäude möglich' }}{% endif %}</textarea>
+                            <textarea name="objektinformationen" class="form-control" rows="12" 
+                                      placeholder="* Einfamilienhaus / Wohnung im __ Stock&#10;* Zuschnitt vor dem Gebäude möglich: ja / nein&#10;..."
+                                      {% if quote.status == 'Angenommen' %}readonly{% endif %}>{% if quote.objektinformationen and quote.objektinformationen != '<keine>' %}{{ quote.objektinformationen }}{% elif quote.objektinformationen == '<keine>' %}{% else %}* Einfamilienhaus / Wohnung im __ Stock
+* Zuschnitt vor dem Gebäude möglich: ja / nein
+* Parken vor dem Gebäude möglich:  ja /  nein{% endif %}</textarea>
                             <small class="form-text text-muted">Wird im PDF als Objektinformationen angezeigt (leer lassen für keine Anzeige)</small>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Installationsleistungen</label>
-                            <textarea name="installationsleistungen" class="form-control" rows="6" 
-                                      placeholder="• Abfluss Dusche herrichten&#10;• Armatur Dusche versetzen&#10;• ..."
-                                      {% if quote.status == 'Angenommen' %}readonly{% endif %}>{% if quote.installationsleistungen and quote.installationsleistungen != '<keine>' %}{{ quote.installationsleistungen }}{% elif quote.installationsleistungen == '<keine>' %}{% else %}{{ '• Abfluss Dusche herrichten\n• Armatur Dusche versetzen\n\nNebenabsprache mit dem Kunden:\n• Demontage, Vorbereitung und Entsorgung erfolgt durch Innsan' }}{% endif %}</textarea>
-                            <small class="form-text text-muted">Wird im PDF als Installationsleistungen angezeigt (leer lassen für keine Anzeige)</small>
+                            <label class="form-label">Nebenabsprachen mit dem Kunden</label>
+                            <textarea name="nebenabsprachenkunde" class="form-control" rows="12" 
+                                      placeholder="* Demontage , Vorbereitung und Entsorgung erfolgt durch Innsan/Kunde selbst&#10;* Die Duschtasse wird bodengleich ohne Stufe gesetzt.&#10;..."
+                                      {% if quote.status == 'Angenommen' %}readonly{% endif %}>{% if quote.installationsleistungen and quote.installationsleistungen != '<keine>' %}{{ quote.installationsleistungen }}{% elif quote.installationsleistungen == '<keine>' %}{% else %}* Demontage , Vorbereitung und Entsorgung erfolgt durch Innsan/Kunde selbst
+* Die Duschtasse wird bodengleich ohne Stufe gesetzt.
+* Die Duschtasse wird auf die bestehenden Fliesen aufgelegt. Stufe von ca. 3 cm
+* Die Paneele werden im gesamten Duschbereich/Badezimmer über die bestehenden Wandfliesen (raupenförmige Kleberaufbringung) verklebt, Höhe Raum hoch/ca. ____cm . Die Wandpaneele werden im Eck- und Plattenstoßbereich mittels Aluprofilen verbunden; das Standard-Plattenformat beträgt 130 x 280 cm/150 x 255cm.
+* Die verbleibende Wandfläche außerhalb des Paneelbereiches wird gespachtelt und gemalt
+* Der Vinylboden wird über den bestehenden Fliesenboden verklebt verlegt{% endif %}</textarea>
+                            <small class="form-text text-muted">Wird im PDF als Nebenabsprachen mit Kunden angezeigt (leer lassen für keine Anzeige)</small>
                         </div>
                     </div>
                     <div class="row">
@@ -703,7 +715,7 @@
             <div class="card-body">
                 {% if quote.quote_items %}
                 <div class="table-responsive">
-                    <table class="table table-hover">
+                    <table class="table table-hover" id="quote-items-table">
                         <thead>
                             <tr>
                                 <th style="width: 80px;">Position</th>
@@ -717,9 +729,20 @@
                         </thead>
                         <tbody>
                             {% for item in quote.quote_items %}
-                            <tr id="position-{{ item.id }}">
+                            <tr id="position-{{ item.id }}" data-position-id="{{ item.id }}" data-position-number="{{ item.position_number or loop.index }}">
                                 <td>
+                                    {% if quote.status != 'Angenommen' %}
+                                    <input type="number" 
+                                           class="form-control form-control-sm position-number-input" 
+                                           value="{{ item.position_number or loop.index }}" 
+                                           min="1" 
+                                           step="1"
+                                           data-item-id="{{ item.id }}"
+                                           onchange="updatePositionNumber({{ item.id }}, this.value)"
+                                           style="width: 70px; text-align: center;">
+                                    {% else %}
                                     <span class="badge bg-primary">{{ item.position_number or loop.index }}</span>
+                                    {% endif %}
                                 </td>
                                 <td>
                                     <strong>{{ item.description }}</strong>
@@ -853,9 +876,21 @@
                                 <th></th>
                             </tr>
                             {% endif %}
-                            <tr class="table-success">
-                                <th colspan="4" class="text-end">Gesamtsumme:</th>
+                            <tr class="table-light">
+                                <th colspan="4" class="text-end">Gesamtsumme (netto):</th>
                                 <th id="footer-total-amount">{{ "%.2f"|format(quote.calculate_total()) }} €</th>
+                                <th></th>
+                                <th></th>
+                            </tr>
+                            <tr class="table-light">
+                                <th colspan="4" class="text-end">Mehrwertsteuer (20%):</th>
+                                <th id="footer-vat-amount">{{ "%.2f"|format(quote.calculate_total() * 0.2) }} €</th>
+                                <th></th>
+                                <th></th>
+                            </tr>
+                            <tr class="table-success">
+                                <th colspan="4" class="text-end">Gesamtsumme inkl. MwSt:</th>
+                                <th id="footer-gross-total"><span class="h5">{{ "%.2f"|format(quote.calculate_total() * 1.2) }} €</span></th>
                                 <th></th>
                                 <th></th>
                             </tr>
@@ -1564,6 +1599,62 @@ function validateDetailedForm(event) {
     }
     
     return true;
+}
+
+// Positionsnummer aktualisieren
+function updatePositionNumber(itemId, newPositionNumber) {
+    const quoteId = {{ quote.id }};
+    
+    fetch(`/update_position_number/${quoteId}/${itemId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            position_number: parseInt(newPositionNumber)
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Tabelle neu sortieren
+            sortTableByPositionNumber();
+        } else {
+            alert('Fehler beim Aktualisieren der Positionsnummer: ' + (data.error || 'Unbekannter Fehler'));
+            location.reload(); // Im Fehlerfall neu laden
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Fehler beim Aktualisieren der Positionsnummer');
+        location.reload();
+    });
+}
+
+// Tabelle nach Positionsnummer sortieren
+function sortTableByPositionNumber() {
+    const tbody = document.querySelector('#quote-items-table tbody');
+    if (!tbody) return;
+    
+    const rows = Array.from(tbody.querySelectorAll('tr[data-position-id]'));
+    
+    // Sortiere Zeilen nach Positionsnummer
+    rows.sort((a, b) => {
+        const posA = parseInt(a.querySelector('.position-number-input').value) || 999;
+        const posB = parseInt(b.querySelector('.position-number-input').value) || 999;
+        
+        // Bei gleicher Positionsnummer nach ID sortieren (ursprüngliche Reihenfolge beibehalten)
+        if (posA === posB) {
+            const idA = parseInt(a.getAttribute('data-position-id'));
+            const idB = parseInt(b.getAttribute('data-position-id'));
+            return idA - idB;
+        }
+        
+        return posA - posB;
+    });
+    
+    // Zeilen neu einfügen
+    rows.forEach(row => tbody.appendChild(row));
 }
 </script>
 

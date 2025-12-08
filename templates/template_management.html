@@ -127,12 +127,6 @@
                                                 <button class="btn btn-outline-primary" data-id="{{ template.id }}" onclick="editTemplate(this.dataset.id)" type="button">
                                                     <i class="fas fa-edit"></i>
                                                 </button>
-                                                <button class="btn btn-outline-success" data-id="{{ template.id }}" onclick="duplicateTemplate(this.dataset.id)">
-                                                    <i class="fas fa-copy"></i>
-                                                </button>
-                                                <button class="btn btn-outline-warning" data-id="{{ template.id }}" onclick="useTemplate(this.dataset.id)">
-                                                    <i class="fas fa-plus-circle"></i>
-                                                </button>
                                                 <button class="btn btn-outline-danger" data-id="{{ template.id }}" data-name="{{ template.name }}" onclick="deleteTemplate(this.dataset.id, this.dataset.name)">
                                                     <i class="fas fa-trash"></i>
                                                 </button>
@@ -226,12 +220,6 @@
                                         <div class="btn-group w-100">
                                             <button class="btn btn-outline-primary btn-sm" data-id="{{ template.id }}" onclick="editTemplate(this.dataset.id)">
                                                 <i class="fas fa-edit"></i>
-                                            </button>
-                                            <button class="btn btn-outline-success btn-sm" data-id="{{ template.id }}" onclick="duplicateTemplate(this.dataset.id)">
-                                                <i class="fas fa-copy"></i>
-                                            </button>
-                                            <button class="btn btn-outline-warning btn-sm" data-id="{{ template.id }}" onclick="useTemplate(this.dataset.id)">
-                                                <i class="fas fa-plus-circle"></i>
                                             </button>
                                             <button class="btn btn-outline-danger btn-sm" data-id="{{ template.id }}" data-name="{{ template.name }}" onclick="deleteTemplate(this.dataset.id, this.dataset.name)">
                                                 <i class="fas fa-trash"></i>
@@ -619,23 +607,6 @@ function importCSVData() {
 function editTemplate(id) {
     // Template bearbeiten
     window.location.href = `/stammdaten/templates/${id}/edit`;
-}
-
-function duplicateTemplate(id) {
-    if (confirm('Vorlage duplizieren?')) {
-        fetch(`/stammdaten/templates/${id}/duplicate`, {method: 'POST'})
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                alert('Fehler beim Duplizieren der Vorlage: ' + data.message);
-            }
-        })
-        .catch(error => {
-            alert('Fehler beim Duplizieren der Vorlage: ' + error);
-        });
-    }
 }
 
 function useTemplate(id) {
