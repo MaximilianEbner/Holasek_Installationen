@@ -1054,6 +1054,7 @@ def register_routes(app):
                 description = subitem_data.get('description', '')
                 item_type = subitem_data.get('item_type', 'sonstiges')  # quote_edit verwendet kleinschreibung
                 calculated_subitem_price = float(subitem_data.get('calculated_price', 0))
+                base_price = float(subitem_data.get('base_price', 0))  # Grundpreis = Preis pro Stück
                 
                 # Erstelle QuoteSubItem mit berechneten Werten
                 quote_subitem = QuoteSubItem(
@@ -1070,7 +1071,8 @@ def register_routes(app):
                     quote_subitem.part_number = subitem_data.get('supplier_part_number', '')
                     quote_subitem.part_quantity = subitem_data.get('part_quantity', '1')
                     quote_subitem.requires_order = subitem_data.get('requires_order', False)
-                    quote_subitem.part_price = calculated_subitem_price
+                    # part_price = Stückpreis (nicht der berechnete Gesamtpreis!)
+                    quote_subitem.part_price = base_price
                     
                 elif item_type == 'arbeitsvorgang':
                     quote_subitem.hours = float(subitem_data.get('hours', 0))
@@ -1078,10 +1080,10 @@ def register_routes(app):
                     
                 else:  # sonstiges
                     quote_subitem.quantity = subitem_data.get('quantity', '1')
-                    quote_subitem.unit_price = float(subitem_data.get('base_price', 0))
+                    quote_subitem.unit_price = base_price  # Stückpreis, nicht berechneter Gesamtpreis
                 
-                # Aktualisiere den berechneten Preis für alle Typen
-                quote_subitem.update_price()
+                # Setze den berechneten Gesamtpreis
+                quote_subitem.price = calculated_subitem_price
                 
                 db.session.add(quote_subitem)
                 sub_position += 1
@@ -1839,6 +1841,43 @@ def get_work_step_by_category_and_name(category, name):
             flash(f'Fehler beim Speichern: {str(e)}', 'error')
         
         return redirect(url_for('edit_quote', id=id))
+
+    # Positionsnummer aktualisieren (AJAX)
+    @app.route('/update_position_number/<int:quote_id>/<int:item_id>', methods=['POST'])
+    @login_required
+    def update_position_number(quote_id, item_id):
+        try:
+            quote = Quote.query.get_or_404(quote_id)
+            item = QuoteItem.query.get_or_404(item_id)
+            
+            # Sicherheitscheck: Item gehört zum Quote
+            if item.quote_id != quote.id:
+                return jsonify({'success': False, 'error': 'Ungültige Position'}), 400
+            
+            # Prüfe ob Angebot angenommen wurde
+            if quote.status == 'Angenommen':
+                return jsonify({'success': False, 'error': 'Angenommene Angebote können nicht mehr bearbeitet werden'}), 403
+            
+            data = request.get_json()
+            new_position_number = data.get('position_number')
+            
+            if new_position_number is None or new_position_number < 1:
+                return jsonify({'success': False, 'error': 'Ungültige Positionsnummer'}), 400
+            
+            # Update position number
+            item.position_number = new_position_number
+            
+            # Update sub_numbers für alle Unterpositionen
+            for index, sub_item in enumerate(item.sub_items, start=1):
+                sub_item.sub_number = f"{new_position_number}.{index}"
+            
+            db.session.commit()
+            
+            return jsonify({'success': True, 'message': 'Positionsnummer aktualisiert'})
+            
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'error': str(e)}), 500
 
     # Position bearbeiten
     @app.route('/quote/<int:id>/edit_item/<int:item_id>', methods=['GET', 'POST'])

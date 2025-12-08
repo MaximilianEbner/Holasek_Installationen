@@ -474,9 +474,9 @@ class PDFExporter:
                 Spacer(1, 0.3*cm)
             ])
         
-        # Installationsleistungen
+        # Nebenabsprachen mit Kunden
         if quote.installationsleistungen and quote.installationsleistungen != '<keine>':
-            elements.append(Paragraph("<b>Installationsleistungen:</b><br/>", self.small_style))
+            elements.append(Paragraph("<b>Nebenabsprachen mit Kunden:</b><br/>", self.small_style))
             installations_html = quote.installationsleistungen.replace('\n', '<br/>')
             elements.extend([
                 Paragraph(installations_html, self.small_style),
@@ -486,10 +486,6 @@ class PDFExporter:
             # Nur Default-Text anzeigen wenn nicht explizit als "<keine>" markiert
             default_installation = """
 <b>Installationsleistungen:</b><br/>
-• Abfluss Dusche herrichten<br/>
-• Armatur Dusche versetzen<br/><br/>
-
-<b>Nebenabsprache mit dem Kunden:</b><br/>
 • Demontage, Vorbereitung und Entsorgung erfolgt durch Innsan<br/>
             """
             elements.extend([

@@ -116,12 +116,12 @@ class Quote(db.Model):
     discount_percentage = db.Column(db.Float, default=0.0)  # Rabatt in Prozent (Standard: 0%)
     
     # Editierbare Zusatzinformationen für PDF
-    leistungsumfang = db.Column(db.Text, default='• Demontage der bestehenden Produkte inklusive Entsorgung\n• Montage der im Angebot angeführten Produkte\n• Anschluss an bestehendes Gebäudeleitungssystem im unmittelbaren Umbaubereich ab Badezimmer oder in der Dusche\n• Diverse Ausgleichs- und Abdichtungsarbeiten')
-    objektinformationen = db.Column(db.Text, default='• Einfamilienhaus\n• Zuschnitt vor dem Gebäude möglich\n• Parken vor dem Gebäude möglich')
-    installationsleistungen = db.Column(db.Text, default='• Abfluss Dusche herrichten\n• Armatur Dusche versetzen\n\nNebenabsprache mit dem Kunden:\n• Demontage, Vorbereitung und Entsorgung erfolgt durch Innsan')
+    leistungsumfang = db.Column(db.Text, default='Wir bedanken uns für Ihr Vertrauen und bieten Ihnen folgenden Leistungsumfang:\n*  Demontage der bestehenden Produkte inklusive/exklusive Entsorgung\n*  Montage der im Angebot angeführten Produkte\n*  Anschluss an bestehendes Gebäudeleitungssystem im unmittelbaren Umbaubereich ab Badezimmer oder in der Dusche\n*  Bei Komplettsanierung des Badezimmer werden die Abdichtungsarbeiten gemäß ÖNORM B3407 ausgeführt.\n*  Bei Teilsanierungen gilt eine Sonderkonstruktion bei der Ausführung der Verbundabdichtung als vereinbart. Auf Grund der Teilsanierung kann keine Gewährleistung für Bestandsabdichtungen übernommen werden. Die Anbindung der neu hergestellten Verbundabdichtungsbereiche an Bestandsabdichtungen kann bei der angebotenen Teilsanierung nicht  oder teilweise nicht ausgeführt werden. In kritischen Bereichen werden als technisch bestmögliche Lösung  MS-Polymerdichtstoffe anstelle von herkömmlichen Sanitärsilikonen als Sonderkonstruktion vereinbart und eingesetzt.')
+    objektinformationen = db.Column(db.Text, default='* Einfamilienhaus / Wohnung im __ Stock\n* Zuschnitt vor dem Gebäude möglich: ja / nein\n* Parken vor dem Gebäude möglich:  ja /  nein')
+    installationsleistungen = db.Column(db.Text, default='* Demontage , Vorbereitung und Entsorgung erfolgt durch Innsan/Kunde selbst\n* Die Duschtasse wird bodengleich ohne Stufe gesetzt.\n* Die Duschtasse wird auf die bestehenden Fliesen aufgelegt. Stufe von ca. 3 cm\n* Die Paneele werden im gesamten Duschbereich/Badezimmer über die bestehenden Wandfliesen (raupenförmige Kleberaufbringung) verklebt, Höhe Raum hoch/ca. ____cm . Die Wandpaneele werden im Eck- und Plattenstoßbereich mittels Aluprofilen verbunden; das Standard-Plattenformat beträgt 130 x 280 cm/150 x 255cm.\n* Die verbleibende Wandfläche außerhalb des Paneelbereiches wird gespachtelt und gemalt\n* Der Vinylboden wird über den bestehenden Fliesenboden verklebt verlegt')
     
     # Beziehungen
-    quote_items = db.relationship('QuoteItem', backref='quote', lazy=True, cascade='all, delete-orphan')
+    quote_items = db.relationship('QuoteItem', backref='quote', lazy=True, cascade='all, delete-orphan', order_by='QuoteItem.position_number')
     
     def calculate_base_total(self):
         """Berechnet die Gesamtsumme ohne Aufschlag - einfach die Summe aller Gesamtpreise der Hauptpositionen"""
@@ -241,7 +241,12 @@ class QuoteSubItem(db.Model):
             except (ValueError, AttributeError):
                 return self.unit_price
         else:  # bestellteil
-            return self.part_price
+            # Berechne: Menge × Stückpreis
+            try:
+                quantity_num = float(self.part_quantity.replace(',', '.')) if self.part_quantity else 1.0
+                return quantity_num * self.part_price
+            except (ValueError, AttributeError):
+                return self.part_price
     
     def update_price(self):
         """Aktualisiert den berechneten Preis"""
