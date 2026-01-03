@@ -75,6 +75,14 @@
                 </div>
                 {% endif %}
                 
+                {% if customer.rejection_reason %}
+                <div class="mt-3">
+                    <p><strong>Begründung (Kein Interesse):</strong><br>
+                    <span class="text-muted">{{ customer.rejection_reason }}</span>
+                    </p>
+                </div>
+                {% endif %}
+                
                 {% if customer.comments %}
                 <div class="mt-3">
                     <p><strong>Kommentare:</strong><br>

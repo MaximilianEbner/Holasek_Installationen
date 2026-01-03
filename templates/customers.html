@@ -76,6 +76,8 @@
                 <option value="2. Termin vereinbaren" {{ 'selected' if status_filter == '2. Termin vereinbaren' else '' }}>2. Termin vereinbaren</option>
                 <option value="2. Termin vereinbart" {{ 'selected' if status_filter == '2. Termin vereinbart' else '' }}>2. Termin vereinbart</option>
                 <option value="Warten auf Rückmeldung" {{ 'selected' if status_filter == 'Warten auf Rückmeldung' else '' }}>Warten auf Rückmeldung</option>
+                <option value="Urgenz" {{ 'selected' if status_filter == 'Urgenz' else '' }}>Urgenz</option>
+                <option value="Auftrag erteilt" {{ 'selected' if status_filter == 'Auftrag erteilt' else '' }}>Auftrag erteilt</option>
                 <option value="Kein Interesse" {{ 'selected' if status_filter == 'Kein Interesse' else '' }}>Kein Interesse</option>
             </select>
         </form>
@@ -118,9 +120,9 @@
                         <thead>
                             <tr>
                                 <th>
-                                    <a href="{{ url_for('customers', search=search_query, customer_manager=customer_manager_filter, status=status_filter, sort='id', dir='asc' if sort_by != 'id' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                    <a href="{{ url_for('customers', search=search_query, customer_manager=customer_manager_filter, status=status_filter, sort='customer_number', dir='asc' if sort_by != 'customer_number' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
                                         Kundennummer
-                                        {% if sort_by == 'id' %}
+                                        {% if sort_by == 'customer_number' %}
                                             <i class="fas fa-sort-{{ 'up' if sort_dir == 'asc' else 'down' }}"></i>
                                         {% else %}
                                             <i class="fas fa-sort text-muted"></i>
@@ -171,6 +173,7 @@
                                 <th>Akquisekanal</th>
                                 <th>Detaillierter Akquisekanal</th>
                                 <th>Status</th>
+                                <th>Urgenz-Datum</th>
                                 <th>Aktionen</th>
                             </tr>
                         </thead>
@@ -208,6 +211,20 @@
                                 </td>
                                 <td>
                                     <span class="badge {{ customer.get_status_badge_class() }}">{{ customer.status }}</span>
+                                </td>
+                                <td>
+                                    {% if customer.urgency_date %}
+                                        {% set today = now().date() %}
+                                        {% if customer.urgency_date < today %}
+                                            <span class="badge bg-danger" title="Überfällig!">
+                                                <i class="fas fa-exclamation-triangle"></i> {{ customer.urgency_date.strftime('%d.%m.%Y') }}
+                                            </span>
+                                        {% else %}
+                                            <span class="text-muted">{{ customer.urgency_date.strftime('%d.%m.%Y') }}</span>
+                                        {% endif %}
+                                    {% else %}
+                                        -
+                                    {% endif %}
                                 </td>
                                 <td>
                                     <div class="btn-group" role="group">

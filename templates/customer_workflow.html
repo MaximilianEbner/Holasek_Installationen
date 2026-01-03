@@ -92,6 +92,39 @@
                         {% endif %}
                     </div>
                     
+                    <!-- Urgenz-Datum Feld - nur sichtbar wenn Status "Urgenz" -->
+                    <div class="mb-3" id="urgency-date-field" style="display: none;">
+                        {{ form.urgency_date.label(class="form-label") }}
+                        <span class="text-danger">*</span>
+                        {{ form.urgency_date(class="form-control") }}
+                        {% if form.urgency_date.errors %}
+                            <div class="text-danger">
+                                {% for error in form.urgency_date.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <small class="form-text text-muted">
+                            Pflichtfeld bei Status "Urgenz": Bis wann muss der Kunde kontaktiert werden?
+                        </small>
+                    </div>
+                    
+                    <!-- Begründung Feld - nur sichtbar wenn Status "Kein Interesse" -->
+                    <div class="mb-3" id="rejection-reason-field" style="display: none;">
+                        {{ form.rejection_reason.label(class="form-label") }}
+                        {{ form.rejection_reason(class="form-select") }}
+                        {% if form.rejection_reason.errors %}
+                            <div class="text-danger">
+                                {% for error in form.rejection_reason.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <small class="form-text text-muted">
+                            Optional: Warum hat der Kunde kein Interesse?
+                        </small>
+                    </div>
+                    
                     <div class="mb-3">
                         {{ form.comments.label(class="form-label") }}
                         {{ form.comments(class="form-control", rows="4") }}
@@ -151,9 +184,35 @@
                             <small class="text-muted">Zweiten Termin für Angebotsvorstellung vereinbaren</small>
                         </li>
                         <li class="mb-2">
-                            <span class="badge bg-success me-2">5</span>
+                            <span class="badge bg-dark me-2">5</span>
+                            <strong>2. Termin vereinbart</strong><br>
+                            <small class="text-muted">Zweiter Termin steht fest - Angebot vorstellen</small>
+                        </li>
+                        <li class="mb-2">
+                            <span class="badge bg-success me-2">6</span>
                             <strong>Warten auf Rückmeldung</strong><br>
                             <small class="text-muted">Auf Kundenentscheidung warten</small>
+                        </li>
+                        <li class="mb-2">
+                            <span class="badge bg-success me-2">7</span>
+                            <strong>Auftrag erteilt</strong><br>
+                            <small class="text-muted">Kunde hat Angebot angenommen - Auftrag erstellt</small>
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="mb-3">
+                    <h6>Alternative Status:</h6>
+                    <ul class="list-unstyled">
+                        <li class="mb-2">
+                            <span class="badge bg-danger me-2">!</span>
+                            <strong>Urgenz</strong><br>
+                            <small class="text-muted">Dringender Kunde - sofort kontaktieren</small>
+                        </li>
+                        <li class="mb-2">
+                            <span class="badge bg-secondary me-2">-</span>
+                            <strong>Kein Interesse</strong><br>
+                            <small class="text-muted">Kunde hat abgesagt oder kein Interesse</small>
                         </li>
                     </ul>
                 </div>
@@ -189,6 +248,10 @@
             </div>
             <div class="card-body">
                 <p class="card-text">
+                    <i class="fas fa-exclamation-triangle text-danger"></i> 
+                    Bei Status "Urgenz" muss ein Datum angegeben werden!
+                </p>
+                <p class="card-text">
                     <i class="fas fa-info-circle text-info"></i> 
                     Verwenden Sie "Kein Interesse" wenn der Kunde aktuell nicht interessiert ist.
                 </p>
@@ -212,4 +275,39 @@
         </div>
     </div>
 </div>
+
+<script>
+// Urgenz-Datums-Feld und Begründungs-Feld dynamisch anzeigen/verstecken
+document.addEventListener('DOMContentLoaded', function() {
+    const statusSelect = document.querySelector('#status');
+    const urgencyDateField = document.querySelector('#urgency-date-field');
+    const urgencyDateInput = document.querySelector('#urgency_date');
+    const rejectionReasonField = document.querySelector('#rejection-reason-field');
+    
+    function toggleConditionalFields() {
+        // Urgenz-Datum
+        if (statusSelect.value === 'Urgenz') {
+            urgencyDateField.style.display = 'block';
+            urgencyDateInput.required = true;
+        } else {
+            urgencyDateField.style.display = 'none';
+            urgencyDateInput.required = false;
+        }
+        
+        // Begründung bei "Kein Interesse"
+        if (statusSelect.value === 'Kein Interesse') {
+            rejectionReasonField.style.display = 'block';
+        } else {
+            rejectionReasonField.style.display = 'none';
+        }
+    }
+    
+    // Initial check
+    toggleConditionalFields();
+    
+    // On change
+    statusSelect.addEventListener('change', toggleConditionalFields);
+});
+</script>
+
 {% endblock %}

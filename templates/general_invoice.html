@@ -601,10 +601,10 @@
                     </div>
                     
                     <div class="mb-3">
-                        <label for="service_description" class="form-label">Leistungsbeschreibung</label>
+                        <label for="service_description" class="form-label">Einleitung</label>
                         <textarea name="service_description" id="service_description" 
                                   class="form-control" rows="3" 
-                                  placeholder="Allgemeine Beschreibung der erbrachten Leistungen..."></textarea>
+                                  placeholder="Herzlichen Dank für Ihr Vertrauen in unsere Dienstleistungen. Wir erlauben uns folgende Beträge in Rechnung zu stellen.">{% if edit_mode and invoice.service_description %}{{ invoice.service_description }}{% else %}Herzlichen Dank für Ihr Vertrauen in unsere Dienstleistungen. Wir erlauben uns folgende Beträge in Rechnung zu stellen.{% endif %}</textarea>
                     </div>
                 </div>
 
@@ -653,8 +653,8 @@
                         <div class="col-md-6">
                             <label for="calculate_vat" class="form-label">Umsatzsteuer</label>
                             <select name="calculate_vat" id="calculate_vat" class="form-select" onchange="calculateTotals()">
-                                <option value="true">USt verrechnen</option>
-                                <option value="false">USt nicht verrechnen</option>
+                                <option value="true" {% if edit_mode and invoice.calculate_vat %}selected{% endif %}>USt verrechnen</option>
+                                <option value="false" {% if edit_mode and not invoice.calculate_vat %}selected{% endif %}>USt nicht verrechnen</option>
                             </select>
                         </div>
                         <div class="col-md-6">
@@ -695,9 +695,11 @@
 
                 <!-- Schlusstext -->
                 <div class="form-section document-section">
-                    
+                    <label for="closing_text" class="form-label">Schlusstext</label>
                     <textarea name="closing_text" id="closing_text" class="form-control" rows="3"
-                              placeholder="Zusätzliche Hinweise oder Zahlungsinformationen..."></textarea>
+                              placeholder="Wir hoffen, den Auftrag zu Ihrer Zufriedenheit ausgeführt zu haben und verbleiben mit freundlichen Grüßen Ihr InnSAN Team">{% if edit_mode and invoice.closing_text %}{{ invoice.closing_text }}{% else %}Wir hoffen, den Auftrag zu Ihrer Zufriedenheit ausgeführt zu haben und verbleiben
+mit freundlichen Grüßen
+Ihr InnSAN Team{% endif %}</textarea>
                 </div>
 
                 <!-- Aktionen -->
