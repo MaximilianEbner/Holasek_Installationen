@@ -301,7 +301,9 @@ def register_routes(app):
                 'quote_sub_item_id': item.quote_sub_item_id
             })
         supplier_email = get_supplier_email(order.supplier_name)
-        subject, html_body, plain_body = generate_supplier_order_email(quote, order.supplier_name, order_items, order.order_id)
+        # Verwende order_number statt order_id für die E-Mail
+        order_number = order.quote.order.order_number if order.quote and order.quote.order else None
+        subject, html_body, plain_body = generate_supplier_order_email(quote, order.supplier_name, order_items, order_number)
         # Status wird NICHT geändert - nur Vorschau
         return render_template('quote_order_emails.html', quote=quote, order=order, email_info=[{
             'supplier': order.supplier_name,
