@@ -692,7 +692,7 @@ class Invoice(db.Model):
     
     @staticmethod
     def generate_invoice_number():
-        """Generiert eine neue, fortlaufende Rechnungsnummer"""
+        """Generiert eine neue, fortlaufende Rechnungsnummer (startet bei 201)"""
         from datetime import datetime
         year = datetime.now().year
         
@@ -707,9 +707,9 @@ class Invoice(db.Model):
                 last_number = int(latest_invoice.invoice_number.split('-')[-1])
                 new_number = last_number + 1
             except (ValueError, IndexError):
-                new_number = 1
+                new_number = 201
         else:
-            new_number = 1
+            new_number = 201  # Startet bei 201 statt 1
         
         return f'R-{year}-{new_number:03d}'
     

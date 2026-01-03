@@ -72,10 +72,18 @@ def get_customer_manager_contact(customer_manager_name):
     """
     # Standardwerte (Michael Holasek)
     default_contact = {
-        'name': 'Michael Holasek',
-        'tel1': '+43 (0)664 - 4793530',
-        'tel2': '(+43) 03134 35900 - Zentrale',
-        'email': 'michael.holasek@innsan.at'
+        'name': 'Ing. Michael Holasek',
+        'tel1': '+43 664 4793530',
+        'tel2': '',
+        'email': 'michael.holasek@innsan.at',
+        'signature': '''Holasek GmbH
+InnSan Badezimmer
+Ing. Michael Holasek
+UID: ATU82513629
+Büro und Rechnungsanschrift: A-1120 Wien, Hetzendorferstrasse 138/2/1B
+Lieferadresse: A-2340 Mödling, Mannagettagasse 36 (Code bitte anfordern. Ist nicht besetzt!)
+M: +43 664 4793530
+E: michael.holasek@innsan.at'''
     }
     
     # Wenn kein Manager angegeben, verwende Standard
@@ -89,9 +97,17 @@ def get_customer_manager_contact(customer_manager_name):
     if 'fabian' in manager_name_lower:
         return {
             'name': 'Fabian Holasek',
-            'tel1': '+43 (0)660 - 7302720',
-            'tel2': '(+43) 03134 35900 - Zentrale',
-            'email': 'fabian.holasek@innsan.at'
+            'tel1': '+43 660 7302720',
+            'tel2': '',
+            'email': 'fabian.holasek@innsan.at',
+            'signature': '''Fabian Holasek
+Holasek GmbH
+InnSan Badsanierung
+UID: ATU82513629
+Büro und Rechnungsanschrift: A-1120 Wien, Hetzendorferstrasse 138/2/1B
+Lieferadresse: A-2340 Mödling, Mannagettagasse 36 (Code bitte anfordern. Ist nicht besetzt!)
+M: +43 660 7302720
+E: fabian.holasek@innsan.at'''
         }
     
     # Michael Holasek (Standard)
@@ -258,10 +274,7 @@ Bestellpositionen:
 Bitte bestätigen Sie den Erhalt dieser Bestellung und teilen Sie uns die Lieferzeit mit.
 
 Mit freundlichen Grüßen
-{manager_contact['name']}
-{manager_contact['email']}
-{manager_contact['tel1']}
-{manager_contact['tel2']}
+{manager_contact.get('signature', manager_contact['name'])}
 """
 
     # HTML E-Mail Body für Anzeige
@@ -293,15 +306,15 @@ hiermit bestellen wir folgende Positionen für das Projekt:
     for item in order_items:
         html_body += f"        <tr>\n            <td style=\"padding: 8px; border: 1px solid #ddd;\">{item['sub_number']}</td>\n            <td style=\"padding: 8px; border: 1px solid #ddd;\">{item['description']}</td>\n            <td style=\"padding: 8px; border: 1px solid #ddd;\">{item['part_number']}</td>\n            <td style=\"padding: 8px; border: 1px solid #ddd; text-align: center;\">{item['quantity']}</td>\n        </tr>\n"
     html_body += "    </tbody>\n</table>\n\n"
+    # Signatur mit HTML-Zeilenumbrüchen
+    signature_html = manager_contact.get('signature', manager_contact['name']).replace('\n', '<br>\n')
+    
     html_body += f"""
 Bitte bestätigen Sie den Erhalt dieser Bestellung und teilen Sie uns die Lieferzeit mit.
 
 <br><br>
 Mit freundlichen Grüßen<br>
-{manager_contact['name']}<br>
-{manager_contact['email']}<br>
-{manager_contact['tel1']}<br>
-{manager_contact['tel2']}
+{signature_html}
 """
     return subject, html_body, plain_body
 
