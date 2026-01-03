@@ -119,12 +119,46 @@ class CustomerWorkflowForm(FlaskForm):
         ('2. Termin vereinbaren', '2. Termin vereinbaren'),
         ('2. Termin vereinbart', '2. Termin vereinbart'),
         ('Warten auf Rückmeldung', 'Warten auf Rückmeldung'),
+        ('Urgenz', 'Urgenz'),
+        ('Auftrag erteilt', 'Auftrag erteilt'),
         ('Kein Interesse', 'Kein Interesse')
     ], validators=[DataRequired()])
     appointment_date = DateField('1. Termindatum', validators=[Optional()])
     appointment_notes = TextAreaField('Notizen zum 1. Termin', validators=[Optional()])
     second_appointment_date = DateField('2. Termindatum', validators=[Optional()])
     second_appointment_notes = TextAreaField('Notizen zum 2. Termin', validators=[Optional()])
+    urgency_date = DateField('Urgenz-Datum', validators=[Optional()])
+    rejection_reason = SelectField('Begründung (Kein Interesse)', choices=[
+        ('', '-- Bitte wählen --'),
+        ('0. offen', '0. offen'),
+        ('1. zu teuer', '1. zu teuer'),
+        ('2. nicht ausgeführt', '2. nicht ausgeführt'),
+        ('3. verschoben', '3. verschoben'),
+        ('4. Sympathie', '4. Sympathie'),
+        ('5. Installateur', '5. Installateur'),
+        ('6. meldet sich nicht', '6. meldet sich nicht'),
+        ('7. ??', '7. ??'),
+        ('8. Auftrag', '8. Auftrag'),
+        ('9. GU', '9. GU'),
+        ('A. Absage Holm', 'A. Absage Holm'),
+        ('B. Bgld HWKBonus', 'B. Bgld HWKBonus'),
+        ('B. Bazuba', 'B. Bazuba'),
+        ('D. Doppelter Lead', 'D. Doppelter Lead'),
+        ('E. Eigenregie', 'E. Eigenregie'),
+        ('F. Fake', 'F. Fake'),
+        ('F. Fliesen', 'F. Fliesen'),
+        ('G. Spachtelei', 'G. Spachtelei'),
+        ('K. kein Geld', 'K. kein Geld'),
+        ('M. meldet sich', 'M. meldet sich'),
+        ('N. nur informiert', 'N. nur informiert'),
+        ('O. OBI', 'O. OBI'),
+        ('R. Region', 'R. Region'),
+        ('T.enne', 'T.enne'),
+        ('T. technisch', 'T. technisch'),
+        ('V. Vitherma', 'V. Vitherma'),
+        ('W.Weg', 'W.Weg'),
+        ('Z. Zeit', 'Z. Zeit')
+    ], validators=[Optional()])
     comments = TextAreaField('Kommentare zum Kunden', validators=[Optional()])
     submit = SubmitField('Status aktualisieren')
 

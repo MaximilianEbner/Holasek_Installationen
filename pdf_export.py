@@ -13,7 +13,7 @@ from models import Quote
 import os
 import json
 from pypdf import PdfWriter, PdfReader
-from utils import format_currency_de
+from utils import format_currency_de, get_customer_manager_contact
 
 class PDFExporter:
     """Klasse für PDF-Export von Angeboten"""
@@ -101,7 +101,7 @@ class PDFExporter:
         story = []
         
         # Header
-        story.extend(self._build_header())
+        story.extend(self._build_header(quote))
         
         # Angebot Title
         story.append(Paragraph("ANGEBOT", self.title_style))
@@ -145,7 +145,7 @@ class PDFExporter:
             download_name=filename
         )
     
-    def _build_header(self):
+    def _build_header(self, quote):
         """Erstellt den Header mit Logo und Firmeninformationen"""
         header_elements = []
         
@@ -164,6 +164,9 @@ class PDFExporter:
                 logo_element = None
         
         # Header-Tabelle mit Logo und Firmendaten
+        # Hole Kundenbetreuer-Kontaktdaten
+        manager_contact = get_customer_manager_contact(quote.customer.customer_manager if quote.customer else None)
+        
         if logo_element:
             header_data = [
                 [logo_element, 'Holasek GmbH'],
@@ -171,10 +174,10 @@ class PDFExporter:
                 ['', '1120 Wien'],
                 ['', ''],
                 ['', 'Ihr Ansprechpartner:'],
-                ['', 'Michael Holasek'],
-                ['', 'Tel1: +43 (0)664 - 4793530'],
-                ['', 'Tel2: (+43) 03134 35900 - Zentrale'],
-                ['', 'Mail: michael.holasek@innsan.at']
+                ['', manager_contact['name']],
+                ['', f"Tel1: {manager_contact['tel1']}"],
+                ['', f"Tel2: {manager_contact['tel2']}"],
+                ['', f"Mail: {manager_contact['email']}"]
             ]
             
             header_table = Table(header_data, colWidths=[6*cm, 11*cm])
@@ -197,10 +200,10 @@ class PDFExporter:
                 ['', '1120 Wien'],
                 ['', ''],
                 ['', 'Ihr Ansprechpartner:'],
-                ['', 'Michael Holasek'],
-                ['', 'Tel1: +43 (0)664 - 4793530'],
-                ['', 'Tel2: (+43) 03134 35900 - Zentrale'],
-                ['', 'Mail: michael.holasek@innsan.at']
+                ['', manager_contact['name']],
+                ['', f"Tel1: {manager_contact['tel1']}"],
+                ['', f"Tel2: {manager_contact['tel2']}"],
+                ['', f"Mail: {manager_contact['email']}"]
             ]
             
             header_table = Table(header_data, colWidths=[6*cm, 11*cm])

@@ -13,7 +13,7 @@ from io import BytesIO
 from datetime import datetime
 import os
 from models import CompanySettings
-from utils import format_currency_de, format_number_de
+from utils import format_currency_de, format_number_de, get_customer_manager_contact
 
 class InvoicePDFGenerator:
     def __init__(self):
@@ -85,9 +85,9 @@ class InvoicePDFGenerator:
         y_start = self.height - 1.5*cm
         
         payment_info = [
-            "IBAN: AT21 3287 8000 0109 2301",
-            "BIC: RLNWATWWBAD",
-            "Bank: Raiffeisenbank",
+            "Raiffeisenbank Region Mödling",
+            "IBAN: AT80 3225 0000 0036 3762",
+            "BIC: RLNWATWWGTD",
             "UID: ATU82513629"
         ]
         
@@ -154,8 +154,8 @@ class InvoicePDFGenerator:
         else:
             customer = invoice.customer
         
-        # Firmenzeile oberhalb der Kundendaten in Schriftgröße 8
-        c.setFont("Helvetica", 8)
+        # Firmenzeile oberhalb der Kundendaten - Schriftgröße 10 (vorher 8)
+        c.setFont("Helvetica", 10)
         company_line = "InnSAN | Holasek GmbH | Hetzendorferstrasse 138/2/1B | 1120 Wien"
         c.drawString(self.margin, y_start + 2*cm, company_line)
         
@@ -625,7 +625,10 @@ class InvoicePDFGenerator:
             y_pos -= 0.5*cm
         
         # Footer auf der ersten Seite anzeigen BEVOR neue Seite erstellt wird
-        self._setup_footer(c)
+        # Hole customer_manager vom Invoice
+        customer = invoice.customer if invoice.customer else (invoice.order.quote.customer if invoice.order else None)
+        customer_manager = customer.customer_manager if customer else None
+        self._setup_footer(c, customer_manager)
         
         # Neue Seite für Zahlungsbedingungen und Datenschutz
         c.showPage()
@@ -674,50 +677,51 @@ class InvoicePDFGenerator:
             y_pos -= 0.35*cm
             # Prüfen ob noch Platz auf der Seite ist
             if y_pos < 3*cm:
-                self._setup_footer(c)  # Footer vor Seitenumbruch
+                self._setup_footer(c, customer_manager)  # Footer vor Seitenumbruch
                 c.showPage()
                 self._setup_header(c)
                 y_pos = self.height - 6*cm
         
         # Footer auch auf der zweiten Seite
-        self._setup_footer(c)
+        self._setup_footer(c, customer_manager)
     
-    def _setup_footer(self, c):
+    def _setup_footer(self, c, customer_manager=None):
         """Dreispaltiger Footer mit Firmeninfos, Bankdaten und Rechtsinformationen"""
         footer_y = 2.5*cm
         c.setFont("Helvetica", 8)
+        
+        # Hole Kundenbetreuer-Kontaktdaten
+        manager_contact = get_customer_manager_contact(customer_manager)
         
         # Spalte 1: Firmeninformationen (links)
         company_info = [
             "Holasek GmbH",
             "Hetzendorferstrasse 138/2/1B",
             "1120 Wien",
-            "Tel: +43 699 114 88 772",
-            "E-Mail: michael.holasek@innsan.at"
+            f"Tel: {manager_contact['tel1']}",
+            f"E-Mail: {manager_contact['email']}"
         ]
         
         for i, line in enumerate(company_info):
             c.drawString(self.margin, footer_y - i * 0.3*cm, line)
         
-        # Spalte 2: Bankdaten (mitte)
-        col2_x = self.margin + 7*cm
+        # Spalte 2: Bankdaten (mitte) - Abstand reduziert von 7cm auf 6cm
+        col2_x = self.margin + 6*cm
         bank_info = [
             "Bankverbindung:",
-            "IBAN: AT21 3287 8000 0109 2301",
-            "BIC: RLNWATWWBAD",
-            "Raiffeisenbank Leopoldsdorf"
+            "Raiffeisenbank Region Mödling",
+            "IBAN: AT80 3225 0000 0036 3762",
+            "BIC: RLNWATWWGTD"
         ]
         
         for i, line in enumerate(bank_info):
             c.drawString(col2_x, footer_y - i * 0.3*cm, line)
         
-        # Spalte 3: Rechtsinformationen (rechts)
-        col3_x = self.margin + 14*cm
+        # Spalte 3: Rechtsinformationen (rechts) - Abstand reduziert von 14cm auf 12cm
+        col3_x = self.margin + 12*cm
         legal_info = [
-            "Rechtsinformationen:",
-            "UID: ATU82513629",
-            "Handelsgericht Leopoldsdorf",
-            "Gewerbeschein: Installateur"
+            "Handelsgericht Wien",
+            "Geschäftsführer: Ing. Michael Holasek"
         ]
         
         for i, line in enumerate(legal_info):
@@ -727,61 +731,45 @@ class InvoicePDFGenerator:
         """Zeichnet eine detaillierte Position-Tabelle für allgemeine Rechnungen"""
         y_start = self.height - 12*cm
         
-        # Dankestext für allgemeine Rechnungen
+        # Beschreibungstext (service_description oder Standard-Text)
         c.setFont("Helvetica", 10)
-        thanks_text = [
-            "Herzlichen Dank für Ihr Vertrauen in unsere Dienstleistungen. Wir erlauben uns folgende Beträge in",
-            "Rechnung zu stellen und freuen uns, wenn wir auch in Zukunft für Sie tätig werden dürfen.",
-        ]
         
-        y_pos = y_start
-        for line in thanks_text:
-            c.drawString(self.margin, y_pos, line)
-            y_pos -= 0.4*cm
-        
-        y_pos -= 0.5*cm
-        
-        # Leistungsbeschreibung Überschrift
-        c.setFont("Helvetica-Bold", 12)
-        c.setFillColor(colors.HexColor('#CC5500'))  # Corporate Orange
-        c.drawString(self.margin, y_pos, "Leistungsbeschreibung:")
-        c.setFillColor(colors.black)  # Zurück zu schwarz
-        
-        y_pos -= 0.5*cm
-        
-        # Leistungsbeschreibung Text hinzufügen (wenn vorhanden) - UNTER der Überschrift
+        # Wenn service_description vorhanden, diese verwenden, sonst Standard-Text
         if hasattr(invoice, 'service_description') and invoice.service_description:
-            c.setFont("Helvetica", 10)
+            description_text = invoice.service_description
+        else:
+            description_text = "Herzlichen Dank für Ihr Vertrauen in unsere Dienstleistungen. Wir erlauben uns folgende Beträge in Rechnung zu stellen."
+        
+        # Text mit automatischem Zeilenumbruch basierend auf verfügbarer Breite
+        y_pos = y_start
+        max_width = self.width - 2 * self.margin  # Verfügbare Breite zwischen Rändern
+        
+        for paragraph in description_text.split('\n'):
+            paragraph = paragraph.strip()
+            if not paragraph:
+                y_pos -= 0.4*cm  # Leere Zeile für Absätze
+                continue
             
-            # Erst explizite Zeilenumbrüche respektieren, dann lange Zeilen umbrechen
-            lines = []
-            for paragraph in invoice.service_description.split('\n'):
-                paragraph = paragraph.strip()
-                if not paragraph:
-                    lines.append("")  # Leere Zeile für Absätze
-                    continue
-                    
-                # Text umbrechen falls zu lang
-                if len(paragraph) > 70:
-                    words = paragraph.split()
-                    current_line = ""
-                    for word in words:
-                        if len(current_line + " " + word) <= 70:
-                            current_line += " " + word if current_line else word
-                        else:
-                            lines.append(current_line)
-                            current_line = word
-                    if current_line:
-                        lines.append(current_line)
+            # Umbrechen basierend auf tatsächlicher Textbreite
+            words = paragraph.split()
+            current_line = ""
+            
+            for word in words:
+                test_line = current_line + " " + word if current_line else word
+                # Prüfe ob die Zeile zu lang wird
+                if c.stringWidth(test_line, "Helvetica", 10) <= max_width:
+                    current_line = test_line
                 else:
-                    lines.append(paragraph)
+                    # Aktuelle Zeile zeichnen
+                    if current_line:
+                        c.drawString(self.margin, y_pos, current_line)
+                        y_pos -= 0.4*cm
+                    current_line = word
             
-            # Zeilen zeichnen
-            for line in lines:
-                if line.strip():  # Nur nicht-leere Zeilen zeichnen
-                    c.drawString(self.margin, y_pos, line.strip())
+            # Letzte Zeile des Absatzes zeichnen
+            if current_line:
+                c.drawString(self.margin, y_pos, current_line)
                 y_pos -= 0.4*cm
-            y_pos -= 0.3*cm  # Extra Abstand nach Leistungsbeschreibung
         
         y_pos -= 0.5*cm
         
@@ -1025,16 +1013,7 @@ class InvoicePDFGenerator:
         c.setFont("Helvetica", 10)
         
         if hasattr(invoice, 'closing_text') and invoice.closing_text:
-            # Überschrift für benutzerdefinierten Schlusstext
-            c.setFont("Helvetica-Bold", 11)
-            c.setFillColor(colors.HexColor('#CC5500'))  # Corporate Orange
-            c.drawString(self.margin, y_pos, "Sonstiges:")
-            c.setFillColor(colors.black)  # Zurück zu schwarz
-            y_pos -= 0.7*cm
-            
-            # Benutzerdefinierter Schlusstext
-            c.setFont("Helvetica", 10)
-            
+            # Benutzerdefinierter Schlusstext - OHNE "Sonstiges:" Überschrift
             # Erst explizite Zeilenumbrüche respektieren, dann lange Zeilen umbrechen
             lines = []
             for paragraph in invoice.closing_text.split('\n'):
@@ -1043,12 +1022,12 @@ class InvoicePDFGenerator:
                     lines.append("")  # Leere Zeile für Absätze
                     continue
                     
-                # Text umbrechen falls zu lang
-                if len(paragraph) > 70:
+                # Text umbrechen falls zu lang (110 Zeichen für volle Seitenbreite)
+                if len(paragraph) > 110:
                     words = paragraph.split()
                     current_line = ""
                     for word in words:
-                        if len(current_line + " " + word) <= 70:
+                        if len(current_line + " " + word) <= 110:
                             current_line += " " + word if current_line else word
                         else:
                             lines.append(current_line)
@@ -1076,7 +1055,10 @@ class InvoicePDFGenerator:
                 y_pos -= 0.5*cm
         
         # Footer auf der ersten Seite anzeigen
-        self._setup_footer(c)
+        # Hole customer_manager vom Invoice
+        customer = invoice.customer if invoice.customer else (invoice.order.quote.customer if invoice.order else None)
+        customer_manager = customer.customer_manager if customer else None
+        self._setup_footer(c, customer_manager)
         
         # Neue Seite für Zahlungsbedingungen
         c.showPage()
@@ -1102,31 +1084,55 @@ class InvoicePDFGenerator:
         
         y_pos -= 0.5*cm
         c.setFont("Helvetica", 9)
-        datenschutz_text = [
-            "Wir weisen darauf hin, dass zum Zweck der Vertragsabwicklung folgende Daten bei uns gespeichert werden:",
-            "Name, Vorname, Anschrift, Telefonnummer und ggf. Email-Adresse.",
-            "Die von Ihnen bereit gestellten Daten sind zur Vertragserfüllung bzw. zur Durchführung vorvertraglicher Maßnahmen erforderlich.",
-            "Ohne diese Daten können wir den Vertrag mit Ihnen nicht abschließen. Eine Datenübermittlung an Dritte erfolgt nicht,",
-            "mit Ausnahme von den von uns beauftragten Lieferanten zum Zwecke der Bestellabwicklung, an das von uns beauftragte",
-            "Transportunternehmen zur Zustellung der Ware sowie an unseren Steuerberater zur Erfüllung unserer steuerrechtlichen Verpflichtungen.",
-            "",
-            "Nach Abbruch des Auftragvorgangs, werden die bei uns gespeicherten Daten gelöscht. Im Falle eines Vertragsabschlusses",
-            "werden sämtliche Daten aus dem Vertragsverhältnis bis zum Ablauf der steuerrechtlichen Aufbewahrungsfrist (7 Jahre) gespeichert.",
-            "Die Daten Name, Anschrift, gekaufte Waren und Kaufdatum werden darüber hinaus gehend bis zum Ablauf der",
-            "Produkthaftung (10 Jahre) gespeichert.",
-            "Im Falle einer Zustimmung zur Verwendung von Fotomaterial, wird dieses bis auf Widerruf bei uns anonym abgespeichert.",
-            "Die Datenverarbeitung erfolgt auf Basis der gesetzlichen Bestimmungen der DSGVO."
+        
+        # Datenschutztext mit automatischem Zeilenumbruch
+        datenschutz_paragraphs = [
+            "Wir weisen darauf hin, dass zum Zweck der Vertragsabwicklung folgende Daten bei uns gespeichert werden: Name, Vorname, Anschrift, Telefonnummer und ggf. Email-Adresse.",
+            "Die von Ihnen bereit gestellten Daten sind zur Vertragserfüllung bzw. zur Durchführung vorvertraglicher Maßnahmen erforderlich. Ohne diese Daten können wir den Vertrag mit Ihnen nicht abschließen. Eine Datenübermittlung an Dritte erfolgt nicht, mit Ausnahme von den von uns beauftragten Lieferanten zum Zwecke der Bestellabwicklung, an das von uns beauftragte Transportunternehmen zur Zustellung der Ware sowie an unseren Steuerberater zur Erfüllung unserer steuerrechtlichen Verpflichtungen.",
+            "Nach Abbruch des Auftragvorgangs, werden die bei uns gespeicherten Daten gelöscht. Im Falle eines Vertragsabschlusses werden sämtliche Daten aus dem Vertragsverhältnis bis zum Ablauf der steuerrechtlichen Aufbewahrungsfrist (7 Jahre) gespeichert. Die Daten Name, Anschrift, gekaufte Waren und Kaufdatum werden darüber hinaus gehend bis zum Ablauf der Produkthaftung (10 Jahre) gespeichert.",
+            "Im Falle einer Zustimmung zur Verwendung von Fotomaterial, wird dieses bis auf Widerruf bei uns anonym abgespeichert. Die Datenverarbeitung erfolgt auf Basis der gesetzlichen Bestimmungen der DSGVO."
         ]
         
-        for line in datenschutz_text:
-            c.drawString(self.margin, y_pos, line)
-            y_pos -= 0.35*cm
-            # Prüfen ob noch Platz auf der Seite ist
-            if y_pos < 3*cm:
-                self._setup_footer(c)  # Footer vor Seitenumbruch
-                c.showPage()
-                self._setup_header(c)
-                y_pos = self.height - 6*cm
+        # Maximale Zeichenanzahl pro Zeile (angepasst an Seitenbreite)
+        max_chars_per_line = 110
+        
+        for paragraph in datenschutz_paragraphs:
+            # Automatischer Zeilenumbruch
+            words = paragraph.split()
+            current_line = ""
+            
+            for word in words:
+                test_line = current_line + " " + word if current_line else word
+                if len(test_line) <= max_chars_per_line:
+                    current_line = test_line
+                else:
+                    # Aktuelle Zeile zeichnen
+                    c.drawString(self.margin, y_pos, current_line)
+                    y_pos -= 0.35*cm
+                    # Prüfen ob noch Platz auf der Seite ist
+                    if y_pos < 3*cm:
+                        self._setup_footer(c, customer_manager)
+                        c.showPage()
+                        self._setup_header(c)
+                        y_pos = self.height - 6*cm
+                    current_line = word
+            
+            # Letzte Zeile des Absatzes zeichnen
+            if current_line:
+                c.drawString(self.margin, y_pos, current_line)
+                y_pos -= 0.35*cm
+                # Prüfen ob noch Platz auf der Seite ist
+                if y_pos < 3*cm:
+                    self._setup_footer(c, customer_manager)
+                    c.showPage()
+                    self._setup_header(c)
+                    y_pos = self.height - 6*cm
+            
+            # Zusätzlicher Abstand zwischen Absätzen
+            y_pos -= 0.2*cm
+        
+        # Footer auf der letzten Seite hinzufügen
+        self._setup_footer(c, customer_manager)
     
     def _get_company_data(self):
         """Lädt Firmendaten aus den Einstellungen"""

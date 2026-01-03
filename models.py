@@ -30,6 +30,8 @@ class Customer(db.Model):
     appointment_notes = db.Column(db.Text)  # Notizen zum 1. Termin
     second_appointment_date = db.Column(db.Date)  # Datum des 2. Termins
     second_appointment_notes = db.Column(db.Text)  # Notizen zum 2. Termin
+    urgency_date = db.Column(db.Date)  # Datum für Urgenz-Status
+    rejection_reason = db.Column(db.Text)  # Begründung bei "Kein Interesse"
     comments = db.Column(db.Text)  # Allgemeine Kommentare zum Kunden
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -51,6 +53,8 @@ class Customer(db.Model):
             '2. Termin vereinbaren': 'bg-warning',
             '2. Termin vereinbart': 'bg-dark',
             'Warten auf Rückmeldung': 'bg-success',
+            'Urgenz': 'bg-danger',
+            'Auftrag erteilt': 'bg-success',
             'Kein Interesse': 'bg-secondary'
         }
         return status_classes.get(self.status, 'bg-light')
@@ -69,6 +73,10 @@ class Customer(db.Model):
             return 'Zweiten Termin wahrnehmen - Angebot vorstellen'
         elif self.status == 'Warten auf Rückmeldung':
             return 'Auf Kundenentscheidung warten'
+        elif self.status == 'Urgenz':
+            return 'Dringender Kunde - baldmöglichst kontaktieren'
+        elif self.status == 'Auftrag erteilt':
+            return 'Auftrag wurde erteilt - Montage planen'
         elif self.status == 'Kein Interesse':
             return 'Kunde hat aktuell kein Interesse'
         return 'Unbekannter Status'

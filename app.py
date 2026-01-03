@@ -177,7 +177,9 @@ def create_app():
         if value is None:
             return "0,00 €"
         try:
-            return f"{float(value):,.2f} €".replace(",", " ").replace(".", ",").replace(" ", ".")
+            # Format: 1.234,56 € (deutsches Format mit Leerzeichen vor €)
+            formatted = f"{float(value):,.2f}".replace(",", " ").replace(".", ",").replace(" ", ".")
+            return f"{formatted} €"
         except (ValueError, TypeError):
             return "0,00 €"
     
@@ -191,10 +193,11 @@ def create_app():
     # Template-Funktionen registrieren
     @app.context_processor
     def inject_global_vars():
-        from datetime import date
+        from datetime import date, datetime
         return {
             'get_default_hourly_rate': get_default_hourly_rate,
-            'today': date.today
+            'today': date.today,
+            'now': datetime.now
         }
     
     # Blueprints registrieren (hier vereinfacht als Routen)
@@ -549,6 +552,8 @@ def register_routes(app):
             sort_column = Customer.city
         elif sort_by == 'customer_manager':
             sort_column = Customer.customer_manager
+        elif sort_by == 'customer_number':
+            sort_column = Customer.id  # Kundennummer basiert auf ID, numerische Sortierung
         elif sort_by == 'created_at':
             sort_column = Customer.id  # Als Ersatz für created_at
         else:
@@ -1242,10 +1247,15 @@ def register_routes(app):
                 for reminder in reminders:
                     db.session.add(reminder)
 
+                # Aktualisiere Kundenstatus auf "Auftrag erteilt"
+                old_status = quote.customer.status
+                quote.customer.status = 'Auftrag erteilt'
+                print(f"DEBUG: Kundenstatus geändert von '{old_status}' zu '{quote.customer.status}'")
+
                 db.session.commit()
 
 
-                flash(f'Angebot {quote.quote_number} wurde angenommen und Auftrag {order_number} erstellt!', 'success')
+                flash(f'Angebot {quote.quote_number} wurde angenommen und Auftrag {order_number} erstellt! Kundenstatus: {old_status} → Auftrag erteilt', 'success')
                 return redirect(url_for('supplier_orders'))
                     
             except Exception as e:
@@ -2315,9 +2325,14 @@ def get_work_step_by_category_and_name(category, name):
                 for supplier_order in quote.supplier_orders:
                     supplier_order.order_id = order.id
                 
+                # Aktualisiere Kundenstatus auf "Auftrag erteilt"
+                old_status = quote.customer.status
+                quote.customer.status = 'Auftrag erteilt'
+                print(f"Kundenstatus geändert von '{old_status}' zu '{quote.customer.status}'")
+                
                 db.session.commit()
                 
-                flash(f'Auftrag {order_number} wurde erfolgreich erstellt!', 'success')
+                flash(f'Auftrag {order_number} wurde erfolgreich erstellt! Kundenstatus: {old_status} → Auftrag erteilt', 'success')
                 return redirect(url_for('edit_order', order_id=order.id))
                 
             except Exception as e:
@@ -3223,12 +3238,19 @@ def get_work_step_by_category_and_name(category, name):
         
         if form.validate_on_submit():
             try:
+                # Validierung: Bei Status "Urgenz" muss ein Datum angegeben werden
+                if form.status.data == 'Urgenz' and not form.urgency_date.data:
+                    flash('Bei Status "Urgenz" muss ein Urgenz-Datum angegeben werden!', 'error')
+                    return render_template('customer_workflow.html', form=form, customer=customer, title='Workflow verwalten')
+                
                 old_status = customer.status
                 customer.status = form.status.data
                 customer.appointment_date = form.appointment_date.data
                 customer.appointment_notes = form.appointment_notes.data
                 customer.second_appointment_date = form.second_appointment_date.data
                 customer.second_appointment_notes = form.second_appointment_notes.data
+                customer.urgency_date = form.urgency_date.data
+                customer.rejection_reason = form.rejection_reason.data
                 customer.comments = form.comments.data
                 
                 # Automatische Status-Updates basierend auf Aktionen
@@ -5327,6 +5349,7 @@ def update_general_invoice(id):
         # Zahlungskonditionen
         invoice.due_date = datetime.strptime(request.form.get('due_date'), '%Y-%m-%d').date()
         calculate_vat = request.form.get('calculate_vat') == 'true'
+        invoice.calculate_vat = calculate_vat  # Wichtig: calculate_vat im Invoice speichern
         
         # Positionen verarbeiten (gleiche Logik wie bei create_general_invoice)
         position_numbers = set()

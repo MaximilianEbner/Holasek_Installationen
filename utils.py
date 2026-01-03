@@ -60,6 +60,43 @@ def get_default_hourly_rate():
     """Lädt den aktuellen Standard-Stundensatz"""
     return CompanySettings.get_setting('default_hourly_rate', 95.0)
 
+def get_customer_manager_contact(customer_manager_name):
+    """
+    Gibt die Kontaktdaten des Kundenbetreuers zurück
+    
+    Args:
+        customer_manager_name: Name des Kundenbetreuers (z.B. "Michael Holasek" oder "Fabian Holasek")
+    
+    Returns:
+        Dictionary mit Kontaktdaten: name, tel1, tel2, email
+    """
+    # Standardwerte (Michael Holasek)
+    default_contact = {
+        'name': 'Michael Holasek',
+        'tel1': '+43 (0)664 - 4793530',
+        'tel2': '(+43) 03134 35900 - Zentrale',
+        'email': 'michael.holasek@innsan.at'
+    }
+    
+    # Wenn kein Manager angegeben, verwende Standard
+    if not customer_manager_name:
+        return default_contact
+    
+    # Normalisiere den Namen (lowercase, trimmed)
+    manager_name_lower = customer_manager_name.lower().strip()
+    
+    # Fabian Holasek
+    if 'fabian' in manager_name_lower:
+        return {
+            'name': 'Fabian Holasek',
+            'tel1': '+43 (0)660 - 7302720',
+            'tel2': '(+43) 03134 35900 - Zentrale',
+            'email': 'fabian.holasek@innsan.at'
+        }
+    
+    # Michael Holasek (Standard)
+    return default_contact
+
 def generate_quote_number():
     """Generiert eine neue, eindeutige Angebotsnummer"""
     from datetime import date
@@ -207,9 +244,24 @@ Bestellpositionen:
         part_number = item['part_number'] if item['part_number'] else ''
         description = item['description']
         plain_body += f"{quantity}x {part_number}: {description}\n"
+    
+    # Signatur des Kundenbeteuers/Projektleiters hinzufügen
+    from utils import get_customer_manager_contact
+    project_manager = getattr(order_obj, 'project_manager', None) if order_obj else None
+    if not project_manager:
+        project_manager = quote.customer.customer_manager
+    
+    manager_contact = get_customer_manager_contact(project_manager)
+    
     plain_body += f"""
 
 Bitte bestätigen Sie den Erhalt dieser Bestellung und teilen Sie uns die Lieferzeit mit.
+
+Mit freundlichen Grüßen
+{manager_contact['name']}
+{manager_contact['email']}
+{manager_contact['tel1']}
+{manager_contact['tel2']}
 """
 
     # HTML E-Mail Body für Anzeige
@@ -244,6 +296,12 @@ hiermit bestellen wir folgende Positionen für das Projekt:
     html_body += f"""
 Bitte bestätigen Sie den Erhalt dieser Bestellung und teilen Sie uns die Lieferzeit mit.
 
+<br><br>
+Mit freundlichen Grüßen<br>
+{manager_contact['name']}<br>
+{manager_contact['email']}<br>
+{manager_contact['tel1']}<br>
+{manager_contact['tel2']}
 """
     return subject, html_body, plain_body
 
