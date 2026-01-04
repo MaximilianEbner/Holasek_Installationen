@@ -1636,6 +1636,14 @@ def get_work_step_by_category_and_name(category, name):
         if request.method == 'GET':
             # Beim GET Request: Aktuellen Wert aus DB laden
             form.default_hourly_rate.data = get_default_hourly_rate()
+            form.default_service_description.data = CompanySettings.get_setting(
+                'default_service_description', 
+                'Herzlichen Dank für Ihr Vertrauen in unsere Dienstleistungen. Wir erlauben uns folgende Beträge in Rechnung zu stellen.'
+            )
+            form.default_closing_text.data = CompanySettings.get_setting(
+                'default_closing_text',
+                'Wir hoffen, den Auftrag zu Ihrer Zufriedenheit ausgeführt zu haben und verbleiben\nmit freundlichen Grüßen\nIhr InnSAN Team'
+            )
         
         if form.validate_on_submit():
             try:
@@ -1645,11 +1653,25 @@ def get_work_step_by_category_and_name(category, name):
                     flash('Stundensatz muss größer als 0 sein!', 'error')
                     return render_template('settings.html', form=form)
                 
-                # Speichere die Einstellung
+                # Speichere die Einstellung für Stundensatz
                 CompanySettings.set_setting(
                     'default_hourly_rate', 
                     hourly_rate,
                     'Standard-Stundensatz für Arbeitsvorgänge'
+                )
+                
+                # Speichere Einleitungstext
+                CompanySettings.set_setting(
+                    'default_service_description',
+                    form.default_service_description.data or '',
+                    'Standard Einleitungstext für Rechnungen'
+                )
+                
+                # Speichere Schlusstext
+                CompanySettings.set_setting(
+                    'default_closing_text',
+                    form.default_closing_text.data or '',
+                    'Standard Schlusstext für Rechnungen'
                 )
                 
                 # Debug: Prüfe ob der Wert wirklich gespeichert wurde
@@ -5044,11 +5066,23 @@ def new_general_invoice():
             for customer in customers
         ])
         
+        # Default-Texte aus Settings laden
+        default_service_description = CompanySettings.get_setting(
+            'default_service_description',
+            'Herzlichen Dank für Ihr Vertrauen in unsere Dienstleistungen. Wir erlauben uns folgende Beträge in Rechnung zu stellen.'
+        )
+        default_closing_text = CompanySettings.get_setting(
+            'default_closing_text',
+            'Wir hoffen, den Auftrag zu Ihrer Zufriedenheit ausgeführt zu haben und verbleiben\nmit freundlichen Grüßen\nIhr InnSAN Team'
+        )
+        
         return render_template('general_invoice.html',
                              available_orders=available_orders,
                              customers=customers,
                              available_orders_json=available_orders_json,
-                             customers_json=customers_json)
+                             customers_json=customers_json,
+                             default_service_description=default_service_description,
+                             default_closing_text=default_closing_text)
                              
     except Exception as e:
         print(f"Error in new_general_invoice: {str(e)}")

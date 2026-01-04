@@ -59,6 +59,10 @@ class SettingsForm(FlaskForm):
     default_hourly_rate = FloatField('Standard-Stundensatz (€)', 
                                    validators=[DataRequired(), NumberRange(min=0.1)], 
                                    default=95.0)
+    default_service_description = TextAreaField('Standard Einleitungstext (Rechnungen)', 
+                                              render_kw={"rows": 4, "placeholder": "Einleitungstext für Rechnungen..."})
+    default_closing_text = TextAreaField('Standard Schlusstext (Rechnungen)', 
+                                       render_kw={"rows": 4, "placeholder": "Schlusstext für Rechnungen..."})
     submit = SubmitField('Speichern')
 
 class QuoteRejectionForm(FlaskForm):
