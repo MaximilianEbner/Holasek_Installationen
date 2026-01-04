@@ -74,7 +74,7 @@ def get_customer_manager_contact(customer_manager_name):
     default_contact = {
         'name': 'Ing. Michael Holasek',
         'tel1': '+43 664 4793530',
-        'tel2': '',
+        'tel2': '(+43) 03134 35900 - Zentrale',
         'email': 'michael.holasek@innsan.at',
         'signature': '''Holasek GmbH
 InnSan Badezimmer
@@ -98,7 +98,7 @@ E: michael.holasek@innsan.at'''
         return {
             'name': 'Fabian Holasek',
             'tel1': '+43 660 7302720',
-            'tel2': '',
+            'tel2': '(+43) 03134 35900 - Zentrale',
             'email': 'fabian.holasek@innsan.at',
             'signature': '''Fabian Holasek
 Holasek GmbH

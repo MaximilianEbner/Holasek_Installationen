@@ -428,9 +428,7 @@ class PDFExporter:
     
     def _build_additional_info(self, quote):
         """Erstellt zusätzliche Informationen basierend auf Quote-Daten"""
-        elements = [
-            Paragraph("Wir bedanken uns für Ihr Vertrauen und bieten Ihnen folgenden Leistungsumfang:", self.small_style)
-        ]
+        elements = []
         
         # Leistungsumfang
         if quote.leistungsumfang and quote.leistungsumfang != '<keine>':
