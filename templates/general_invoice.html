@@ -604,7 +604,7 @@
                         <label for="service_description" class="form-label">Einleitung</label>
                         <textarea name="service_description" id="service_description" 
                                   class="form-control" rows="3" 
-                                  placeholder="Herzlichen Dank für Ihr Vertrauen in unsere Dienstleistungen. Wir erlauben uns folgende Beträge in Rechnung zu stellen.">{% if edit_mode and invoice.service_description %}{{ invoice.service_description }}{% else %}Herzlichen Dank für Ihr Vertrauen in unsere Dienstleistungen. Wir erlauben uns folgende Beträge in Rechnung zu stellen.{% endif %}</textarea>
+                                  placeholder="{{ default_service_description }}">{% if edit_mode and invoice.service_description %}{{ invoice.service_description }}{% else %}{{ default_service_description }}{% endif %}</textarea>
                     </div>
                 </div>
 
@@ -697,9 +697,7 @@
                 <div class="form-section document-section">
                     <label for="closing_text" class="form-label">Schlusstext</label>
                     <textarea name="closing_text" id="closing_text" class="form-control" rows="3"
-                              placeholder="Wir hoffen, den Auftrag zu Ihrer Zufriedenheit ausgeführt zu haben und verbleiben mit freundlichen Grüßen Ihr InnSAN Team">{% if edit_mode and invoice.closing_text %}{{ invoice.closing_text }}{% else %}Wir hoffen, den Auftrag zu Ihrer Zufriedenheit ausgeführt zu haben und verbleiben
-mit freundlichen Grüßen
-Ihr InnSAN Team{% endif %}</textarea>
+                              placeholder="{{ default_closing_text }}">{% if edit_mode and invoice.closing_text %}{{ invoice.closing_text }}{% else %}{{ default_closing_text }}{% endif %}</textarea>
                 </div>
 
                 <!-- Aktionen -->
