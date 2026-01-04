@@ -539,8 +539,8 @@ Im Falle eines berechtigten Rücktritts vom Vertrag, dürfen wir einen pauschali
 
 <b>11.) Hinweis Datenschutz und Datenspeicherung:</b><br/>
 Wir weisen darauf hin, dass zum Zweck der Vertragsabwicklung folgende Daten bei uns gespeichert werden: Name, Vorname, Anschrift, Telefonnummer und ggf. Email-Adresse. Die von Ihnen bereit gestellten Daten sind zur Vertragserfüllung bzw. zur Durchführung vorvertraglicher Maßnahmen erforderlich. Ohne diese Daten können wir den Vertrag mit Ihnen nicht abschließen. Eine Datenübermittlung an Dritte erfolgt nicht, mit Ausnahme von den von uns beauftragten Lieferanten zum Zwecke der Bestellabwicklung, an das von uns beauftragte Transportunternehmen zur Zustellung der Ware sowie an unseren Steuerberater zur Erfüllung unserer steuerrechtlichen Verpflichtungen. Im Falle eines Vertragsabschlusses werden sämtliche Daten aus dem Vertragsverhältnis bis zum Ablauf der steuerrechtlichen Aufbewahrungsfrist (7 Jahre) gespeichert. Die Daten Name, Anschrift, gekaufte Waren und Kaufdatum werden darüber hinaus gehend bis zum Ablauf der Produkthaftung (10 Jahre) gespeichert. Im Falle einer Zustimmung zur Verwendung von Fotomaterial, wird dieses bis auf Widerruf bei uns anonym abgespeichert. Die Datenverarbeitung erfolgt auf Basis der gesetzlichen Bestimmungen der DSGVO.<br/>
-☐ Ich habe die Datenschutzhinweise gelesen und bin ausdrücklich damit einverstanden.<br/>
-☐ Ich stimme zu, Fotomaterial vom Umbauobjekt zur Verfügung zu stellen und bin mit einer Veröffentlichung der Vorher-Nachher Bilder im Rahmen der InnSAN Werbelinie ohne Namensnennung einverstanden.<br/><br/>
+[ ] Ich habe die Datenschutzhinweise gelesen und bin ausdrücklich damit einverstanden.<br/>
+[ ] Ich stimme zu, Fotomaterial vom Umbauobjekt zur Verfügung zu stellen und bin mit einer Veröffentlichung der Vorher-Nachher Bilder im Rahmen der InnSAN Werbelinie ohne Namensnennung einverstanden.<br/><br/>
 
 <b>12.) Eigentumsvorbehalt</b><br/>
 Die von uns gelieferte, montierte oder sonst übergebene Ware bleibt bis zur vollständigen Bezahlung unser Eigentum.
