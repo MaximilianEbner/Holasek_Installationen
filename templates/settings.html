@@ -68,6 +68,49 @@
                         </div>
                     </div>
 
+                    <hr class="my-4">
+                    
+                    <h5 class="mb-3"><i class="fas fa-file-invoice"></i> Standard-Texte für Angebote</h5>
+                    
+                    <div class="mb-4">
+                        {{ form.default_leistungsumfang.label(class="form-label") }}
+                        {{ form.default_leistungsumfang(class="form-control" + (" is-invalid" if form.default_leistungsumfang.errors else "")) }}
+                        {% if form.default_leistungsumfang.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.default_leistungsumfang.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="form-text">
+                            Dieser Text wird als "Leistungsumfang" beim Erstellen neuer Angebote vorausgefüllt.
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        {{ form.default_objektinformationen.label(class="form-label") }}
+                        {{ form.default_objektinformationen(class="form-control" + (" is-invalid" if form.default_objektinformationen.errors else "")) }}
+                        {% if form.default_objektinformationen.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.default_objektinformationen.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="form-text">
+                            Dieser Text wird als "Informationen zum Objekt" beim Erstellen neuer Angebote vorausgefüllt.
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        {{ form.default_nebenabsprachen.label(class="form-label") }}
+                        {{ form.default_nebenabsprachen(class="form-control" + (" is-invalid" if form.default_nebenabsprachen.errors else "")) }}
+                        {% if form.default_nebenabsprachen.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.default_nebenabsprachen.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="form-text">
+                            Dieser Text wird als "Nebenabsprachen mit dem Kunden" beim Erstellen neuer Angebote vorausgefüllt.
+                        </div>
+                    </div>
+
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                         <a href="{{ url_for('stammdaten') }}" class="btn btn-secondary me-md-2">
                             <i class="fas fa-times"></i> Abbrechen
