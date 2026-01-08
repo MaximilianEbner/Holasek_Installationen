@@ -792,7 +792,20 @@ def register_routes(app):
                     markup_percentage=form.markup_percentage.data,
                     discount_percentage=form.discount_percentage.data,
                     status='Entwurf',
-                    total_amount=0.0
+                    total_amount=0.0,
+                    # Lade Defaults aus Settings
+                    leistungsumfang=CompanySettings.get_setting(
+                        'default_leistungsumfang',
+                        'Wir bedanken uns für Ihr Vertrauen und bieten Ihnen folgenden Leistungsumfang:\n*  Demontage der bestehenden Produkte inklusive/exklusive Entsorgung\n*  Montage der im Angebot angeführten Produkte\n*  Anschluss an bestehendes Gebäudeleitungssystem im unmittelbaren Umbaubereich ab Badezimmer oder in der Dusche\n*  Bei Komplettsanierung des Badezimmer werden die Abdichtungsarbeiten gemäß ÖNORM B3407 ausgeführt.\n*  Bei Teilsanierungen gilt eine Sonderkonstruktion bei der Ausführung der Verbundabdichtung als vereinbart. Auf Grund der Teilsanierung kann keine Gewährleistung für Bestandsabdichtungen übernommen werden. Die Anbindung der neu hergestellten Verbundabdichtungsbereiche an Bestandsabdichtungen kann bei der angebotenen Teilsanierung nicht  oder teilweise nicht ausgeführt werden. In kritischen Bereichen werden als technisch bestmögliche Lösung  MS-Polymerdichtstoffe anstelle von herkömmlichen Sanitärsilikonen als Sonderkonstruktion vereinbart und eingesetzt.'
+                    ),
+                    objektinformationen=CompanySettings.get_setting(
+                        'default_objektinformationen',
+                        '* Einfamilienhaus / Wohnung im __ Stock\n* Zuschnitt vor dem Gebäude möglich: ja / nein\n* Parken vor dem Gebäude möglich:  ja /  nein'
+                    ),
+                    installationsleistungen=CompanySettings.get_setting(
+                        'default_nebenabsprachen',
+                        '* Demontage , Vorbereitung und Entsorgung erfolgt durch Innsan/Kunde selbst\n* Die Duschtasse wird bodengleich ohne Stufe gesetzt.\n* Die Duschtasse wird auf die bestehenden Fliesen aufgelegt. Stufe von ca. 3 cm\n* Die Paneele werden im gesamten Duschbereich/Badezimmer über die bestehenden Wandfliesen (raupenförmige Kleberaufbringung) verklebt, Höhe Raum hoch/ca. ____cm . Die Wandpaneele werden im Eck- und Plattenstoßbereich mittels Aluprofilen verbunden; das Standard-Plattenformat beträgt 130 x 280 cm/150 x 255cm.\n* Die verbleibende Wandfläche außerhalb des Paneelbereiches wird gespachtelt und gemalt\n* Der Vinylboden wird über den bestehenden Fliesenboden verklebt verlegt'
+                    )
                 )
                 db.session.add(quote)
                 db.session.commit()
@@ -1644,6 +1657,20 @@ def get_work_step_by_category_and_name(category, name):
                 'default_closing_text',
                 'Wir hoffen, den Auftrag zu Ihrer Zufriedenheit ausgeführt zu haben und verbleiben\nmit freundlichen Grüßen\nIhr InnSAN Team'
             )
+            
+            # Quote-Defaults laden
+            form.default_leistungsumfang.data = CompanySettings.get_setting(
+                'default_leistungsumfang',
+                'Wir bedanken uns für Ihr Vertrauen und bieten Ihnen folgenden Leistungsumfang:\n*  Demontage der bestehenden Produkte inklusive/exklusive Entsorgung\n*  Montage der im Angebot angeführten Produkte\n*  Anschluss an bestehendes Gebäudeleitungssystem im unmittelbaren Umbaubereich ab Badezimmer oder in der Dusche\n*  Bei Komplettsanierung des Badezimmer werden die Abdichtungsarbeiten gemäß ÖNORM B3407 ausgeführt.\n*  Bei Teilsanierungen gilt eine Sonderkonstruktion bei der Ausführung der Verbundabdichtung als vereinbart. Auf Grund der Teilsanierung kann keine Gewährleistung für Bestandsabdichtungen übernommen werden. Die Anbindung der neu hergestellten Verbundabdichtungsbereiche an Bestandsabdichtungen kann bei der angebotenen Teilsanierung nicht  oder teilweise nicht ausgeführt werden. In kritischen Bereichen werden als technisch bestmögliche Lösung  MS-Polymerdichtstoffe anstelle von herkömmlichen Sanitärsilikonen als Sonderkonstruktion vereinbart und eingesetzt.'
+            )
+            form.default_objektinformationen.data = CompanySettings.get_setting(
+                'default_objektinformationen',
+                '* Einfamilienhaus / Wohnung im __ Stock\n* Zuschnitt vor dem Gebäude möglich: ja / nein\n* Parken vor dem Gebäude möglich:  ja /  nein'
+            )
+            form.default_nebenabsprachen.data = CompanySettings.get_setting(
+                'default_nebenabsprachen',
+                '* Demontage , Vorbereitung und Entsorgung erfolgt durch Innsan/Kunde selbst\n* Die Duschtasse wird bodengleich ohne Stufe gesetzt.\n* Die Duschtasse wird auf die bestehenden Fliesen aufgelegt. Stufe von ca. 3 cm\n* Die Paneele werden im gesamten Duschbereich/Badezimmer über die bestehenden Wandfliesen (raupenförmige Kleberaufbringung) verklebt, Höhe Raum hoch/ca. ____cm . Die Wandpaneele werden im Eck- und Plattenstoßbereich mittels Aluprofilen verbunden; das Standard-Plattenformat beträgt 130 x 280 cm/150 x 255cm.\n* Die verbleibende Wandfläche außerhalb des Paneelbereiches wird gespachtelt und gemalt\n* Der Vinylboden wird über den bestehenden Fliesenboden verklebt verlegt'
+            )
         
         if form.validate_on_submit():
             try:
@@ -1672,6 +1699,23 @@ def get_work_step_by_category_and_name(category, name):
                     'default_closing_text',
                     form.default_closing_text.data or '',
                     'Standard Schlusstext für Rechnungen'
+                )
+                
+                # Speichere Quote-Defaults
+                CompanySettings.set_setting(
+                    'default_leistungsumfang',
+                    form.default_leistungsumfang.data or '',
+                    'Standard Leistungsumfang für neue Angebote'
+                )
+                CompanySettings.set_setting(
+                    'default_objektinformationen',
+                    form.default_objektinformationen.data or '',
+                    'Standard Objektinformationen für neue Angebote'
+                )
+                CompanySettings.set_setting(
+                    'default_nebenabsprachen',
+                    form.default_nebenabsprachen.data or '',
+                    'Standard Nebenabsprachen für neue Angebote'
                 )
                 
                 # Debug: Prüfe ob der Wert wirklich gespeichert wurde
@@ -1847,7 +1891,7 @@ def get_work_step_by_category_and_name(category, name):
             # Neue PDF-Zusatzinformationen
             leistungsumfang = request.form.get('leistungsumfang', '')
             objektinformationen = request.form.get('objektinformationen', '')
-            installationsleistungen = request.form.get('installationsleistungen', '')
+            installationsleistungen = request.form.get('nebenabsprachenkunde', '')
             
             if project_description:
                 quote.project_description = project_description

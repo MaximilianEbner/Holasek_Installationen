@@ -63,6 +63,15 @@ class SettingsForm(FlaskForm):
                                               render_kw={"rows": 4, "placeholder": "Einleitungstext für Rechnungen..."})
     default_closing_text = TextAreaField('Standard Schlusstext (Rechnungen)', 
                                        render_kw={"rows": 4, "placeholder": "Schlusstext für Rechnungen..."})
+    
+    # Quote-Defaults
+    default_leistungsumfang = TextAreaField('Standard Leistungsumfang (Angebote)', 
+                                           render_kw={"rows": 6, "placeholder": "Standard Leistungsumfang für neue Angebote..."})
+    default_objektinformationen = TextAreaField('Standard Objektinformationen (Angebote)', 
+                                               render_kw={"rows": 6, "placeholder": "Standard Objektinformationen für neue Angebote..."})
+    default_nebenabsprachen = TextAreaField('Standard Nebenabsprachen (Angebote)', 
+                                           render_kw={"rows": 6, "placeholder": "Standard Nebenabsprachen für neue Angebote..."})
+    
     submit = SubmitField('Speichern')
 
 class QuoteRejectionForm(FlaskForm):
