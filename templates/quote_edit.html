@@ -1229,12 +1229,17 @@ function addSubItem() {
     newSubItem.style.backgroundColor = '#f8f9fa';
     newSubItem.innerHTML = `
         <div class="row">
-            <div class="col-md-6">
+            <div class="col-md-2">
+                <label class="form-label">Sub-Nr.</label>
+                <input type="text" name="sub_number[]" class="form-control" 
+                       placeholder="z.B. 1.1">
+            </div>
+            <div class="col-md-5">
                 <label class="form-label">Unterposition Beschreibung</label>
                 <input type="text" name="sub_description[]" class="form-control" 
                        placeholder="z.B. Mineralguß Duschtasse 170x80cm">
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label class="form-label">Typ</label>
                 <select name="sub_item_type[]" class="form-control" onchange="toggleSubItemFields(this, ${index})">
                     <option value="bestellteil">Bestellteil</option>

@@ -83,12 +83,17 @@
                                 {% for sub_item in item.sub_items %}
                                 <div class="sub-item-row border rounded p-3 mb-3" style="background-color: #f8f9fa;" data-index="{{ loop.index }}">
                                     <div class="row">
-                                        <div class="col-md-6">
+                                        <div class="col-md-2">
+                                            <label class="form-label">Sub-Nr.</label>
+                                            <input type="text" name="sub_number[]" class="form-control" 
+                                                   value="{{ sub_item.sub_number }}" placeholder="1.1">
+                                        </div>
+                                        <div class="col-md-5">
                                             <label class="form-label">Unterposition Beschreibung</label>
                                             <input type="text" name="sub_description[]" class="form-control" 
                                                    value="{{ sub_item.description }}">
                                         </div>
-                                        <div class="col-md-3">
+                                        <div class="col-md-2">
                                             <label class="form-label">Typ</label>
                                             <select name="sub_item_type[]" class="form-control" data-index="{{ loop.index }}" onchange="toggleEditSubItemFields(this)">
                                                 <option value="bestellteil" {% if sub_item.item_type == 'bestellteil' %}selected{% endif %}>Bestellteil</option>
