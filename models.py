@@ -190,7 +190,7 @@ class QuoteItem(db.Model):
     item_type = db.Column(db.String(20), default='standard')  # standard, arbeitsposition, etc.
     
     # Beziehung
-    sub_items = db.relationship('QuoteSubItem', backref='quote_item', lazy=True, cascade='all, delete-orphan')
+    sub_items = db.relationship('QuoteSubItem', backref='quote_item', lazy=True, cascade='all, delete-orphan', order_by='QuoteSubItem.sub_number')
     
     def calculate_price(self):
         """Berechnet den Preis basierend auf Menge und Einzelpreis"""

@@ -3606,6 +3606,7 @@ def get_work_step_by_category_and_name(category, name):
 def process_sub_items(form_data):
     """Verarbeitet Unterpositionen aus Formulardaten"""
     sub_descriptions = form_data.getlist('sub_description[]')
+    sub_numbers = form_data.getlist('sub_number[]')
     sub_item_types = form_data.getlist('sub_item_type[]')
     sub_requires_orders = form_data.getlist('sub_requires_order[]')
     sub_suppliers = form_data.getlist('sub_supplier[]')
@@ -3624,6 +3625,7 @@ def process_sub_items(form_data):
             continue
             
         item_type = sub_item_types[i] if i < len(sub_item_types) else 'bestellteil'
+        sub_number = sub_numbers[i] if i < len(sub_numbers) else ''
         
         if item_type == 'arbeitsvorgang':
             hours = safe_float_conversion_strict(sub_hours[i] if i < len(sub_hours) else 0)
@@ -3634,6 +3636,7 @@ def process_sub_items(form_data):
             
             sub_items_data.append({
                 'description': sub_desc,
+                'sub_number': sub_number,
                 'item_type': 'arbeitsvorgang',
                 'hours': hours,
                 'hourly_rate': hourly_rate,
@@ -3655,6 +3658,7 @@ def process_sub_items(form_data):
             
             sub_items_data.append({
                 'description': sub_desc,
+                'sub_number': sub_number,
                 'item_type': 'sonstiges',
                 'quantity': quantity_text,
                 'unit_price': unit_price,
@@ -3685,6 +3689,7 @@ def process_sub_items(form_data):
             
             sub_items_data.append({
                 'description': sub_desc,
+                'sub_number': sub_number,
                 'item_type': 'bestellteil',
                 'requires_order': requires_order,
                 'supplier': supplier,
@@ -3703,9 +3708,14 @@ def process_sub_items(form_data):
 def create_sub_items(quote_item_id, position_number, sub_items_data):
     """Erstellt Unterpositionen in der Datenbank"""
     for i, sub_data in enumerate(sub_items_data, 1):
+        # Verwende benutzerdefinierte sub_number oder generiere automatisch
+        sub_number = sub_data.get('sub_number', '').strip()
+        if not sub_number:
+            sub_number = f"{position_number}.{i}"
+        
         sub_item = QuoteSubItem(
             quote_item_id=quote_item_id,
-            sub_number=f"{position_number}.{i}",
+            sub_number=sub_number,
             description=sub_data['description'],
             item_type=sub_data['item_type'],
             requires_order=sub_data['requires_order'],
